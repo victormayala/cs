@@ -44,6 +44,9 @@ export default function SignInPage() {
           case 'auth/network-request-failed':
             friendlyMessage = "Could not connect to the authentication service. Please check your internet connection and try again.";
             break;
+          case 'auth/invalid-api-key':
+            friendlyMessage = "Configuration Error: The Firebase API key is invalid. Please check your .env.local file and restart the server.";
+            break;
           default:
             // Use the error message from Firebase if it's somewhat specific, otherwise our generic one.
             friendlyMessage = error.message?.includes('Firebase') ? "An authentication error occurred. Please try again." : (error.message || friendlyMessage);
