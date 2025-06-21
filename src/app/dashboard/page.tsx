@@ -9,16 +9,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
+
 import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/actions/woocommerceActions";
 import { deleteWooCommerceCredentials, type UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
+import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
+import { loadShopifyCredentials, deleteShopifyCredentials, type UserShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
 import { db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
+import type { ShopifyProduct } from '@/types/shopify';
 import {format} from 'date-fns';
+
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AppHeader from "@/components/layout/AppHeader";
@@ -36,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
+import { FaShopify } from "react-icons/fa";
 
 
 interface DisplayProduct {
@@ -45,6 +52,7 @@ interface DisplayProduct {
   lastEdited: string;
   imageUrl?: string;
   aiHint?: string;
+  source: 'woocommerce' | 'shopify';
 }
 
 type ActiveDashboardTab = 'products' | 'storeIntegration' | 'settings' | 'profile';
@@ -58,25 +66,44 @@ const LOCALLY_HIDDEN_PRODUCTS_KEY_PREFIX = 'customizer_studio_locally_hidden_pro
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading: authIsLoading, signOut: authSignOut } = useAuth();
   const { toast } = useToast(); 
 
   const [activeTab, setActiveTab] = useState<ActiveDashboardTab>('products');
-
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [storeUrl, setStoreUrl] = useState('');
-  const [consumerKey, setConsumerKey] = useState('');
-  const [consumerSecret, setConsumerSecret] = useState('');
-  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
-  const [isLoadingCredentials, setIsLoadingCredentials] = useState(true);
-  const [credentialsExist, setCredentialsExist] = useState(false);
+  // WooCommerce State
+  const [wcStoreUrl, setWcStoreUrl] = useState('');
+  const [wcConsumerKey, setWcConsumerKey] = useState('');
+  const [wcConsumerSecret, setWcConsumerSecret] = useState('');
+  const [isSavingWcCredentials, setIsSavingWcCredentials] = useState(false);
+  const [isLoadingWcCredentials, setIsLoadingWcCredentials] = useState(true);
+  const [wcCredentialsExist, setWcCredentialsExist] = useState(false);
+
+  // Shopify State
+  const [shopifyStoreName, setShopifyStoreName] = useState('');
+  const [isSavingShopifyCredentials, setIsSavingShopifyCredentials] = useState(false);
+  const [isLoadingShopifyCredentials, setIsLoadingShopifyCredentials] = useState(true);
+  const [shopifyCredentialsExist, setShopifyCredentialsExist] = useState(false);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
+
+  // Check for Shopify connection status on mount
+  useEffect(() => {
+    if (searchParams.get('shopify_connected') === 'true') {
+      toast({
+        title: "Shopify Store Connected!",
+        description: "Your products should now be visible on the dashboard.",
+      });
+      // Clean up URL
+      router.replace('/dashboard', {scroll: false});
+    }
+  }, [searchParams, router, toast]);
 
   const getLocallyHiddenProductIds = useCallback((): string[] => {
     if (typeof window === 'undefined' || !user || !user.uid) { 
@@ -114,10 +141,7 @@ export default function DashboardPage() {
     }
   }, [user, toast]);
 
-  const loadProductsWithUserCredentials = useCallback(async (
-    isManualRefresh?: boolean,
-    ignoreHiddenList: boolean = false
-  ) => {
+  const loadAllProducts = useCallback(async (isManualRefresh?: boolean, ignoreHiddenList: boolean = false) => {
     if (!user) {
       setError("Please sign in to view products.");
       setIsLoadingProducts(false);
@@ -128,199 +152,207 @@ export default function DashboardPage() {
     setError(null);
     const startTime = Date.now();
 
-    if (!credentialsExist || !storeUrl || !consumerKey || !consumerSecret) {
-      setError("To list products on the dashboard, connect your WooCommerce store via the 'Store Integration' tab using your API credentials. This is separate from any WordPress plugin integration used for the customizer on your site.");
+    const hasAnyCredentials = wcCredentialsExist || shopifyCredentialsExist;
+    if (!hasAnyCredentials) {
+      setError("Connect your WooCommerce or Shopify store via the 'Store Integration' tab to see your products.");
       setProducts([]);
       setIsLoadingProducts(false);
       if (isManualRefresh) {
         toast({
-          title: "Store Not Connected to Dashboard",
-          description: "Please connect your WooCommerce store in 'Store Integration' to see products here.",
+          title: "No Store Connected",
+          description: "Please connect a store in 'Store Integration' to see products here.",
           variant: "default",
         });
       }
       return;
     }
-    
-    const userCredentialsToUse: WooCommerceCredentials = { 
-      storeUrl, 
-      consumerKey, 
-      consumerSecret 
-    };
-    
-    try {
-      const { products: fetchedProducts, error: fetchError } = await fetchWooCommerceProducts(userCredentialsToUse);
-      const duration = Date.now() - startTime;
 
-      if (fetchError) {
-        setError(fetchError);
-        setProducts([]);
-      } else if (fetchedProducts) {
-        const hiddenProductIds = ignoreHiddenList ? [] : getLocallyHiddenProductIds();
-        const filteredFetchedProducts = fetchedProducts.filter(p => !hiddenProductIds.includes(p.id.toString()));
-        
-        const displayProducts = filteredFetchedProducts.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          status: p.status,
-          lastEdited: format(new Date(p.date_modified_gmt || p.date_modified || p.date_created_gmt || p.date_created), "PPP"),
-          imageUrl: p.images && p.images.length > 0 ? p.images[0].src : `https://placehold.co/150x150.png`,
-          aiHint: p.images && p.images.length > 0 && p.images[0].alt ? p.images[0].alt.split(" ").slice(0,2).join(" ") : "product image"
-        }));
-        setProducts(displayProducts);
-        if (isManualRefresh) {
-            toast({
-            title: "Products Refreshed",
-            description: `Fetched ${displayProducts.length} products using your saved credentials in ${duration}ms. ${ignoreHiddenList ? 'Hidden items temporarily shown.' : ''}`,
-            });
-        }
-      } else {
-        setProducts([]);
-         if (isManualRefresh) {
-            toast({
-            title: "No Products Returned",
-            description: "No products were returned from your store.",
-            });
-         }
+    let allDisplayProducts: DisplayProduct[] = [];
+    const hiddenProductIds = ignoreHiddenList ? [] : getLocallyHiddenProductIds();
+    let wcError, shopifyError;
+
+    // Fetch WooCommerce Products
+    if (wcCredentialsExist) {
+      const userCredentialsToUse: WooCommerceCredentials = { storeUrl: wcStoreUrl, consumerKey: wcConsumerKey, consumerSecret: wcConsumerSecret };
+      const { products: fetchedWcProducts, error: fetchWcError } = await fetchWooCommerceProducts(userCredentialsToUse);
+      if (fetchedWcProducts) {
+        const wcDisplayProducts = fetchedWcProducts
+          .filter(p => !hiddenProductIds.includes(p.id.toString()))
+          .map(p => ({
+            id: p.id.toString(), name: p.name, status: p.status,
+            lastEdited: format(new Date(p.date_modified_gmt || p.date_modified || p.date_created_gmt || p.date_created), "PPP"),
+            imageUrl: p.images?.[0]?.src || `https://placehold.co/150x150.png`,
+            aiHint: p.images?.[0]?.alt?.split(" ").slice(0,2).join(" ") || "product image",
+            source: 'woocommerce' as const,
+          }));
+        allDisplayProducts.push(...wcDisplayProducts);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred during product fetch.";
-      setError(message);
-      setProducts([]);
-    } finally {
-      setIsLoadingProducts(false);
+      if (fetchWcError) wcError = `WooCommerce: ${fetchWcError}`;
     }
-  }, [user, toast, getLocallyHiddenProductIds, credentialsExist, storeUrl, consumerKey, consumerSecret]);
 
+    // Fetch Shopify Products
+    if (shopifyCredentialsExist) {
+      const { credentials } = await loadShopifyCredentials(user.uid);
+      if (credentials?.shop && credentials.accessToken) {
+        const { products: fetchedShopifyProducts, error: fetchShopifyError } = await fetchShopifyProducts(credentials.shop, credentials.accessToken);
+        if (fetchedShopifyProducts) {
+          const shopifyDisplayProducts = fetchedShopifyProducts
+            .filter(p => !hiddenProductIds.includes(p.id))
+            .map(p => ({
+              id: p.id, name: p.title, status: p.status.toLowerCase(),
+              lastEdited: format(new Date(p.updatedAt), "PPP"),
+              imageUrl: p.featuredImage?.url || `https://placehold.co/150x150.png`,
+              aiHint: p.featuredImage?.altText?.split(" ").slice(0,2).join(" ") || "product image",
+              source: 'shopify' as const,
+            }));
+          allDisplayProducts.push(...shopifyDisplayProducts);
+        }
+        if (fetchShopifyError) shopifyError = `Shopify: ${fetchShopifyError}`;
+      } else {
+        shopifyError = "Shopify credentials could not be loaded.";
+      }
+    }
+    
+    setProducts(allDisplayProducts);
+    const combinedError = [wcError, shopifyError].filter(Boolean).join(' | ');
+    setError(combinedError || null);
+
+    const duration = Date.now() - startTime;
+    if (isManualRefresh) {
+      toast({
+        title: "Products Refreshed",
+        description: `Fetched ${allDisplayProducts.length} products in ${duration}ms. ${ignoreHiddenList ? 'Hidden items temporarily shown.' : ''}`,
+      });
+      if (combinedError) {
+         toast({ title: "Fetch Errors", description: combinedError, variant: "destructive"});
+      }
+    }
+
+    setIsLoadingProducts(false);
+  }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast]);
+  
+  // Load WC Credentials
   useEffect(() => {
-    if (user && user.uid && db) {
-      setIsLoadingCredentials(true);
+    if (user?.uid && db) {
+      setIsLoadingWcCredentials(true);
       const docRef = doc(db, 'userWooCommerceCredentials', user.uid);
       getDoc(docRef)
         .then((docSnap) => {
           if (docSnap.exists()) {
             const credentials = docSnap.data() as UserWooCommerceCredentials;
-            setStoreUrl(credentials.storeUrl || '');
-            setConsumerKey(credentials.consumerKey || '');
-            setConsumerSecret(credentials.consumerSecret || '');
-            setCredentialsExist(true);
+            setWcStoreUrl(credentials.storeUrl || '');
+            setWcConsumerKey(credentials.consumerKey || '');
+            setWcConsumerSecret(credentials.consumerSecret || '');
+            setWcCredentialsExist(true);
           } else {
-            setStoreUrl('');
-            setConsumerKey('');
-            setConsumerSecret('');
-            setCredentialsExist(false);
+            setWcCredentialsExist(false);
           }
         })
         .catch(e => {
-          console.error("Error loading credentials from Firestore (client-side):", e);
-          toast({ title: "Credential Load Error", description: "Could not read saved credentials from the cloud.", variant: "destructive"});
-          setCredentialsExist(false);
+          console.error("Error loading WC credentials:", e);
+          toast({ title: "WC Credential Load Error", description: "Could not read saved WooCommerce credentials.", variant: "destructive"});
         })
-        .finally(() => {
-          setIsLoadingCredentials(false);
-        });
+        .finally(() => setIsLoadingWcCredentials(false));
     } else if (!user) {
-      setStoreUrl('');
-      setConsumerKey('');
-      setConsumerSecret('');
-      setCredentialsExist(false);
-      setIsLoadingCredentials(false); 
+      setIsLoadingWcCredentials(false);
     }
   }, [user, toast, db]);
 
+  // Load Shopify Credentials
+  useEffect(() => {
+    if (user?.uid) {
+      setIsLoadingShopifyCredentials(true);
+      loadShopifyCredentials(user.uid)
+        .then(({ credentials, error }) => {
+          if (error) {
+            toast({ title: "Shopify Credential Load Error", description: error, variant: "destructive" });
+          }
+          setShopifyCredentialsExist(!!credentials);
+        })
+        .finally(() => setIsLoadingShopifyCredentials(false));
+    }
+  }, [user, toast]);
 
-  const handleSaveCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveWcCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !user.uid || isSavingCredentials || !db) {
+    if (!user || !user.uid || isSavingWcCredentials || !db) {
       toast({ title: "Error", description: "User not authenticated or database unavailable.", variant: "destructive" });
       return;
     }
-
-    setIsSavingCredentials(true);
-    const credentialsToSave: WooCommerceCredentials = { storeUrl, consumerKey, consumerSecret };
-    
+    setIsSavingWcCredentials(true);
+    const credentialsToSave: WooCommerceCredentials = { storeUrl: wcStoreUrl, consumerKey: wcConsumerKey, consumerSecret: wcConsumerSecret };
     try {
-      const docRef = doc(db, 'userWooCommerceCredentials', user.uid);
-      const dataToSave: UserWooCommerceCredentials = {
-        ...credentialsToSave,
-        lastSaved: serverTimestamp(),
-      };
-      await setDoc(docRef, dataToSave);
-      
-      setCredentialsExist(true);
-      toast({
-        title: "Credentials Saved",
-        description: "Your WooCommerce credentials have been saved to your account.",
-      });
+      await setDoc(doc(db, 'userWooCommerceCredentials', user.uid), { ...credentialsToSave, lastSaved: serverTimestamp() }, { merge: true });
+      setWcCredentialsExist(true);
+      toast({ title: "WooCommerce Credentials Saved" });
       if (activeTab === 'products') {
-         loadProductsWithUserCredentials(true, false); 
+         loadAllProducts(true, false); 
       }
     } catch (error: any) {
-      console.error('Error saving WooCommerce credentials to Firestore (client-side):', error);
-      toast({
-        title: "Error Saving Credentials",
-        description: `Failed to save credentials: ${error.message || "Unknown Firestore error"}`,
-        variant: "destructive",
-      });
+      console.error('Error saving WC credentials:', error);
+      toast({ title: "Error Saving WC Credentials", description: `Failed to save: ${error.message}`, variant: "destructive" });
     } finally {
-      setIsSavingCredentials(false);
+      setIsSavingWcCredentials(false);
     }
   };
 
-  const handleClearCredentials = async () => {
-    if (!user || !user.uid || isSavingCredentials) return;
-    setIsSavingCredentials(true); 
-    
+  const handleClearWcCredentials = async () => {
+    if (!user || !user.uid || isSavingWcCredentials) return;
+    setIsSavingWcCredentials(true); 
     const result = await deleteWooCommerceCredentials(user.uid); 
-
     if (result.success) {
-      setStoreUrl('');
-      setConsumerKey('');
-      setConsumerSecret('');
-      setCredentialsExist(false);
-      toast({
-        title: "Credentials Cleared",
-        description: "Your WooCommerce credentials have been removed from your account.",
-      });
-       if (activeTab === 'products') {
-        setProducts([]); 
-        setError("To list products on the dashboard, connect your WooCommerce store via the 'Store Integration' tab using your API credentials. This is separate from any WordPress plugin integration used for the customizer on your site.");
+      setWcStoreUrl(''); setWcConsumerKey(''); setWcConsumerSecret('');
+      setWcCredentialsExist(false);
+      toast({ title: "WooCommerce Credentials Cleared" });
+      if (activeTab === 'products') {
+        loadAllProducts();
       }
     } else {
-      toast({
-        title: "Error Clearing Credentials",
-        description: result.error || "Could not clear credentials from your account.",
-        variant: "destructive",
-      });
+      toast({ title: "Error Clearing WC Credentials", description: result.error, variant: "destructive" });
     }
-    setIsSavingCredentials(false);
+    setIsSavingWcCredentials(false);
+  };
+  
+  const handleConnectShopify = () => {
+    if (!user || !user.uid) {
+      toast({ title: "Authentication Error", description: "You must be signed in to connect a store.", variant: "destructive" });
+      return;
+    }
+    if (!shopifyStoreName.trim()) {
+      toast({ title: "Missing Information", description: "Please enter your Shopify store name (e.g., your-store-name).", variant: "destructive" });
+      return;
+    }
+    const shopDomain = `${shopifyStoreName.replace(/.myshopify.com/gi, '').trim()}.myshopify.com`;
+    const authUrl = `/api/shopify/auth?shop=${shopDomain}&userId=${user.uid}`;
+    router.push(authUrl);
   };
 
-  const handleRefreshDashboardData = useCallback(() => {
-    if (user && user.uid && !isLoadingCredentials) {
-      if (credentialsExist) {
-         loadProductsWithUserCredentials(true, true);
-      } else {
-         setError("To list products on the dashboard, connect your WooCommerce store via the 'Store Integration' tab using your API credentials. This is separate from any WordPress plugin integration used for the customizer on your site.");
-         setProducts([]);
-         toast({ 
-            title: "Cannot Refresh",
-            description: "Please connect your WooCommerce store first via 'Store Integration' for dashboard features.",
-            variant: "default",
-          });
+  const handleClearShopifyCredentials = async () => {
+    if (!user || !user.uid || isSavingShopifyCredentials) return;
+    setIsSavingShopifyCredentials(true);
+    const result = await deleteShopifyCredentials(user.uid);
+    if (result.success) {
+      setShopifyStoreName('');
+      setShopifyCredentialsExist(false);
+      toast({ title: "Shopify Connection Removed" });
+      if (activeTab === 'products') {
+        loadAllProducts();
       }
+    } else {
+       toast({ title: "Error Removing Shopify Connection", description: result.error, variant: "destructive" });
     }
-  }, [user, isLoadingCredentials, loadProductsWithUserCredentials, credentialsExist, toast]);
+    setIsSavingShopifyCredentials(false);
+  };
 
   useEffect(() => {
-    if (activeTab === 'products' && user && user.uid && !isLoadingCredentials && products.length === 0 && !isLoadingProducts && !error) {
-       if (credentialsExist) {
-        loadProductsWithUserCredentials(false, false); 
-       } else if (!isLoadingProducts) { 
-         setError("To list products on the dashboard, connect your WooCommerce store via the 'Store Integration' tab using your API credentials. This is separate from any WordPress plugin integration used for the customizer on your site.");
-       }
+    if (activeTab === 'products' && user && !isLoadingWcCredentials && !isLoadingShopifyCredentials && products.length === 0 && !isLoadingProducts && !error) {
+      if (wcCredentialsExist || shopifyCredentialsExist) {
+        loadAllProducts(false, false);
+      } else if (!isLoadingProducts) {
+        setError("Connect your WooCommerce or Shopify store via the 'Store Integration' tab to see your products.");
+      }
     }
-  }, [activeTab, user, isLoadingCredentials, products.length, isLoadingProducts, error, loadProductsWithUserCredentials, credentialsExist]);
+  }, [activeTab, user, isLoadingWcCredentials, isLoadingShopifyCredentials, products.length, isLoadingProducts, error, loadAllProducts, wcCredentialsExist, shopifyCredentialsExist]);
 
   const handleDeleteProduct = (product: DisplayProduct) => {
     setProductToDelete({ id: product.id, name: product.name });
@@ -329,21 +361,19 @@ export default function DashboardPage() {
 
   const handleConfirmDelete = () => {
     if (!productToDelete || !user) return;
-    
     const currentHiddenIds = getLocallyHiddenProductIds();
     if (!currentHiddenIds.includes(productToDelete.id)) {
       setLocallyHiddenProductIds([...currentHiddenIds, productToDelete.id]);
     }
-
     toast({
       title: "Product Hidden",
-      description: `${productToDelete.name} has been hidden from your dashboard. It is not deleted from your store. Click "Refresh Product Data" with "ignore hidden" to see it again (if needed).`,
+      description: `${productToDelete.name} has been hidden from your dashboard view. It is not deleted from your store.`,
     });
     setProducts(prev => prev.filter(p => p.id !== productToDelete.id)); 
     setIsDeleteDialogOpen(false);
     setProductToDelete(null);
   };
-
+  
   const handleCopyUserId = async () => {
     if (!user?.uid) return;
     try {
@@ -357,16 +387,14 @@ export default function DashboardPage() {
     }
   };
 
-
   if (authIsLoading || !user) {
-    return (
-      <div className="flex min-h-svh w-full items-center justify-center bg-background">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex min-h-svh w-full items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
+  
+  const isLoadingAnyCredentials = isLoadingWcCredentials || isLoadingShopifyCredentials;
+  const isAnyStoreConnected = wcCredentialsExist || shopifyCredentialsExist;
+  const isStoreConnectionIssueError = error && (error.includes("Connect your") || error.includes("Store Integration"));
 
-  const isStoreNotConnectedError = error && (error.includes("store not connected") || error.includes("credentials are not configured") || error.includes("User-specific WooCommerce credentials are required") || error.includes("Store Integration"));
 
   return (
     <UploadProvider>
@@ -414,16 +442,12 @@ export default function DashboardPage() {
                 <div className="container mx-auto space-y-8">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                      <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">
-                        Your Dashboard
-                      </h1>
-                      <p className="text-muted-foreground">
-                        Welcome, {user?.displayName || user?.email}!
-                      </p>
+                      <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">Your Dashboard</h1>
+                      <p className="text-muted-foreground">Welcome, {user?.displayName || user?.email}!</p>
                     </div>
                     {activeTab === 'products' && (
                        <div className="flex items-center gap-2">
-                        <Button onClick={handleRefreshDashboardData} className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoadingProducts || isLoadingCredentials || !credentialsExist}>
+                        <Button onClick={() => loadAllProducts(true, true)} className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoadingProducts || isLoadingAnyCredentials || !isAnyStoreConnected}>
                           {isLoadingProducts ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RefreshCcw className="mr-2 h-5 w-5" />}
                           Refresh Product Data
                         </Button>
@@ -436,75 +460,39 @@ export default function DashboardPage() {
                       <CardHeader>
                         <CardTitle className="font-headline text-xl text-card-foreground">Your Products</CardTitle>
                         <CardDescription className="text-muted-foreground">
-                          View, edit, and manage your customizable products. Requires direct WooCommerce API connection in 'Store Integration' for this dashboard view.
+                          View and manage customizable products from your connected stores.
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {isLoadingProducts || (isLoadingCredentials && !credentialsExist && !error) ? ( 
-                          <div className="flex justify-center items-center py-10">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="ml-3 text-muted-foreground">Loading products...</p>
-                          </div>
-                        ) : error ? (
-                          <div className="text-center py-10">
-                            <AlertTriangle className="mx-auto h-12 w-12 text-orange-500" />
-                            <p className="mt-4 text-orange-600 font-semibold">
-                              {isStoreNotConnectedError
-                                ? "Store Not Connected to Dashboard"
-                                : "No Products Found or Error"}
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1 px-4">
-                              {error}
-                            </p>
-                            {isStoreNotConnectedError && (
-                              <Button variant="link" onClick={() => setActiveTab('storeIntegration')} className="mt-3 text-orange-600 hover:text-orange-700">
-                                Go to Store Integration
-                              </Button>
-                            )}
-                          </div>
-                        ) : products.length > 0 && credentialsExist ? (
+                        {isLoadingProducts || isLoadingAnyCredentials ? ( 
+                          <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Loading products...</p></div>
+                        ) : error && !isStoreConnectionIssueError ? (
+                           <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-orange-500" /><p className="mt-4 text-orange-600 font-semibold">Error Fetching Products</p><p className="text-sm text-muted-foreground mt-1 px-4">{error}</p></div>
+                        ) : !isAnyStoreConnected ? (
+                           <div className="text-center py-10"><PlugZap className="mx-auto h-12 w-12 text-orange-500" /><p className="mt-4 text-orange-600 font-semibold">No Store Connected</p><p className="text-sm text-muted-foreground mt-1 px-4">To list products, please connect your WooCommerce or Shopify store via the 'Store Integration' tab.</p><Button variant="link" onClick={() => setActiveTab('storeIntegration')} className="mt-3 text-orange-600 hover:text-orange-700">Connect a Store</Button></div>
+                        ) : products.length > 0 ? (
                           <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[80px]">Image</TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Last Edited</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
+                            <TableHeader><TableRow><TableHead className="w-[80px]">Image</TableHead><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Source</TableHead><TableHead>Last Edited</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                             <TableBody>
                               {products.map((product) => (
-                                <TableRow key={product.id}>
-                                  <TableCell>
-                                    <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted/30">
-                                      <NextImage src={product.imageUrl || `https://placehold.co/150x150.png`} alt={product.name} fill className="object-contain" data-ai-hint={product.aiHint || "product image"}/>
-                                    </div>
-                                  </TableCell>
+                                <TableRow key={`${product.source}-${product.id}`}>
+                                  <TableCell><div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted/30"><NextImage src={product.imageUrl || `https://placehold.co/150x150.png`} alt={product.name} fill className="object-contain" data-ai-hint={product.aiHint || "product image"}/></div></TableCell>
                                   <TableCell className="font-medium">{product.name}</TableCell>
-                                  <TableCell>
-                                    <Badge variant={product.status === 'publish' ? 'default' : 'secondary'} className={product.status === 'publish' ? 'bg-green-500/10 text-green-700 border-green-500/30' : ''}>
-                                      {product.status.charAt(0).toUpperCase() + product.status.slice(1)}
-                                    </Badge>
-                                  </TableCell>
+                                  <TableCell><Badge variant={product.status === 'publish' || product.status === 'active' ? 'default' : 'secondary'} className={product.status === 'publish' || product.status === 'active' ? 'bg-green-500/10 text-green-700 border-green-500/30' : ''}>{product.status.charAt(0).toUpperCase() + product.status.slice(1)}</Badge></TableCell>
+                                  <TableCell><Badge variant="outline">{product.source}</Badge></TableCell>
                                   <TableCell>{product.lastEdited}</TableCell>
                                   <TableCell className="text-right">
                                     <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                          <span className="sr-only">Toggle menu</span>
-                                        </Button>
-                                      </DropdownMenuTrigger>
+                                      <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onSelect={() => router.push(`/dashboard/products/${product.id}/options`)}>
-                                          <Settings className="mr-2 h-4 w-4" /> Configure Options
+                                        <DropdownMenuItem disabled={product.source === 'shopify'} onSelect={() => router.push(`/dashboard/products/${product.id}/options`)}>
+                                          <Settings className="mr-2 h-4 w-4" /> Configure Options {product.source === 'shopify' && "(soon)"}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => router.push(`/customizer?productId=${product.id}`)} >
+                                        <DropdownMenuItem disabled={product.source === 'shopify'} onSelect={() => router.push(`/customizer?productId=${product.id}`)} >
                                           <Code className="mr-2 h-4 w-4" /> Open in Customizer
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => handleDeleteProduct(product)}>
-                                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                          <Trash2 className="mr-2 h-4 w-4" /> Hide From View
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -513,157 +501,87 @@ export default function DashboardPage() {
                               ))}
                             </TableBody>
                           </Table>
-                        ) : credentialsExist ? ( 
-                          <div className="text-center py-10">
-                            <PackageIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                            <p className="mt-4 text-muted-foreground">No products found in your connected store.</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Click "Refresh Product Data" to try fetching again.
-                            </p>
-                          </div>
                         ) : ( 
-                           <div className="text-center py-10">
-                            <PlugZap className="mx-auto h-12 w-12 text-orange-500" />
-                            <p className="mt-4 text-orange-600 font-semibold">Store Not Connected to Dashboard</p>
-                            <p className="text-sm text-muted-foreground mt-1 px-4">
-                               To list products on the dashboard, please connect your WooCommerce store via the 'Store Integration' tab using your API credentials.
-                            </p>
-                             <Button variant="link" onClick={() => setActiveTab('storeIntegration')} className="mt-3 text-orange-600 hover:text-orange-700">
-                                Connect Store
-                              </Button>
-                          </div>
+                          <div className="text-center py-10"><PackageIcon className="mx-auto h-12 w-12 text-muted-foreground" /><p className="mt-4 text-muted-foreground">No products found in your connected stores.</p><p className="text-sm text-muted-foreground mt-1">Click "Refresh Product Data" to try fetching again.</p></div>
                         )}
                       </CardContent>
                     </Card>
                   )}
 
                   {activeTab === 'storeIntegration' && (
-                    <Card className="shadow-lg border-border bg-card">
-                      <CardHeader>
-                        <CardTitle className="font-headline text-xl text-card-foreground">WooCommerce Store Connection</CardTitle>
-                        <CardDescription className="text-muted-foreground">
-                          Connect your WooCommerce store to fetch and manage products directly within this dashboard. Your credentials are saved to your account.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {isLoadingCredentials ? ( 
-                          <div className="flex items-center justify-center py-10">
-                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                            <p className="ml-2 text-muted-foreground">Loading credentials...</p>
-                          </div>
-                        ) : (
-                          <form onSubmit={handleSaveCredentials} className="space-y-6">
-                            <div className="space-y-2">
-                              <Label htmlFor="storeUrl" className="flex items-center">
-                                <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" /> Store URL
-                              </Label>
-                              <Input
-                                id="storeUrl"
-                                type="url"
-                                placeholder="https://yourstore.com"
-                                value={storeUrl}
-                                onChange={(e) => setStoreUrl(e.target.value)}
-                                required
-                                className="bg-input/50"
-                                disabled={isSavingCredentials}
-                              />
+                    <div className="grid md:grid-cols-2 gap-8 items-start">
+                       {/* WooCommerce Card */}
+                       <Card className="shadow-lg border-border bg-card">
+                        <CardHeader>
+                          <CardTitle className="font-headline text-xl text-card-foreground">WooCommerce Store</CardTitle>
+                          <CardDescription className="text-muted-foreground">Connect using API keys from your WooCommerce store for dashboard features.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {isLoadingWcCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+                          ) : (
+                            <form onSubmit={handleSaveWcCredentials} className="space-y-6">
+                              <div className="space-y-2"><Label htmlFor="storeUrl" className="flex items-center"><LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" /> Store URL</Label><Input id="storeUrl" type="url" placeholder="https://yourstore.com" value={wcStoreUrl} onChange={(e) => setWcStoreUrl(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials} /></div>
+                              <div className="space-y-2"><Label htmlFor="consumerKey" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Key</Label><Input id="consumerKey" type="text" placeholder="ck_xxxxxxxxxx" value={wcConsumerKey} onChange={(e) => setWcConsumerKey(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
+                              <div className="space-y-2"><Label htmlFor="consumerSecret" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Secret</Label><Input id="consumerSecret" type="password" placeholder="cs_xxxxxxxxxx" value={wcConsumerSecret} onChange={(e) => setWcConsumerSecret(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <Button type="submit" className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcStoreUrl || !wcConsumerKey || !wcConsumerSecret}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Credentials</Button>
+                                <Button type="button" variant="destructive" onClick={handleClearWcCredentials} className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcCredentialsExist}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Clear Credentials</Button>
+                              </div>
+                            </form>
+                          )}
+                        </CardContent>
+                      </Card>
+                      {/* Shopify Card */}
+                      <Card className="shadow-lg border-border bg-card">
+                        <CardHeader>
+                          <CardTitle className="font-headline text-xl text-card-foreground">Shopify Store</CardTitle>
+                          <CardDescription className="text-muted-foreground">Connect your Shopify store using the secure one-click OAuth flow.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           {isLoadingShopifyCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+                          ) : shopifyCredentialsExist ? (
+                            <div className="space-y-4">
+                                <ShadCnAlert variant="default" className="bg-green-500/10 border-green-500/30">
+                                    <FaShopify className="h-5 w-5 text-green-700" />
+                                    <ShadCnAlertTitle className="text-green-800 font-medium">Shopify Store Connected</ShadCnAlertTitle>
+                                    <ShadCnAlertDescription className="text-green-700">
+                                        Your store is successfully connected. You can now see Shopify products on your dashboard.
+                                    </ShadCnAlertDescription>
+                                </ShadCnAlert>
+                                <Button type="button" variant="destructive" onClick={handleClearShopifyCredentials} className="w-full" disabled={isSavingShopifyCredentials}>
+                                    {isSavingShopifyCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                                    Disconnect Shopify Store
+                                </Button>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="consumerKey" className="flex items-center">
-                                <KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Key
-                              </Label>
-                              <Input
-                                id="consumerKey"
-                                type="text"
-                                placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                value={consumerKey}
-                                onChange={(e) => setConsumerKey(e.target.value)}
-                                required
-                                className="bg-input/50"
-                                disabled={isSavingCredentials}
-                              />
+                          ) : (
+                            <div className="space-y-4">
+                               <div className="space-y-2">
+                                <Label htmlFor="shopifyStoreName" className="flex items-center"><FaShopify className="mr-2 h-4 w-4 text-muted-foreground" /> Your Shopify Store Name</Label>
+                                <Input id="shopifyStoreName" type="text" placeholder="your-store-name" value={shopifyStoreName} onChange={(e) => setShopifyStoreName(e.target.value)} required className="bg-input/50" />
+                                <p className="text-xs text-muted-foreground">Just the name, not the full ".myshopify.com" URL.</p>
+                              </div>
+                                <Button onClick={handleConnectShopify} className="w-full bg-[#588a38] hover:bg-[#4d7830] text-white" disabled={isSavingShopifyCredentials || !shopifyStoreName}>
+                                  <FaShopify className="mr-2 h-5 w-5" /> Connect to Shopify
+                                </Button>
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="consumerSecret" className="flex items-center">
-                                <KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Secret
-                              </Label>
-                              <Input
-                                id="consumerSecret"
-                                type="password"
-                                placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                value={consumerSecret}
-                                onChange={(e) => setConsumerSecret(e.target.value)}
-                                required
-                                className="bg-input/50"
-                                disabled={isSavingCredentials}
-                              />
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <Button type="submit" className="w-full sm:w-auto" disabled={isSavingCredentials || !storeUrl || !consumerKey || !consumerSecret}>
-                                {isSavingCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                Save Credentials
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                onClick={handleClearCredentials}
-                                className="w-full sm:w-auto"
-                                disabled={isSavingCredentials || (!storeUrl && !consumerKey && !consumerSecret && !credentialsExist)}
-                              >
-                                {isSavingCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                Clear Saved Credentials
-                              </Button>
-                            </div>
-                          </form>
-                        )}
-                      </CardContent>
-                    </Card>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
                   )}
 
                   {activeTab === 'settings' && (
-                    <Card className="shadow-lg border-border bg-card">
-                      <CardHeader>
-                        <CardTitle className="font-headline text-xl text-card-foreground">Settings</CardTitle>
-                        <CardDescription className="text-muted-foreground">Application settings and preferences.</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-muted-foreground">Settings content will go here. (Coming Soon)</p>
-                      </CardContent>
-                    </Card>
+                    <Card className="shadow-lg border-border bg-card"><CardHeader><CardTitle className="font-headline text-xl text-card-foreground">Settings</CardTitle><CardDescription className="text-muted-foreground">Application settings and preferences.</CardDescription></CardHeader><CardContent><p className="text-muted-foreground">Settings content will go here. (Coming Soon)</p></CardContent></Card>
                   )}
 
                   {activeTab === 'profile' && (
                      <Card className="shadow-lg border-border bg-card">
-                       <CardHeader>
-                        <CardTitle className="font-headline text-xl text-card-foreground">User Profile</CardTitle>
-                        <CardDescription className="text-muted-foreground">Manage your account details.</CardDescription>
-                      </CardHeader>
+                       <CardHeader><CardTitle className="font-headline text-xl text-card-foreground">User Profile</CardTitle><CardDescription className="text-muted-foreground">Manage your account details.</CardDescription></CardHeader>
                       <CardContent className="space-y-4">
-                        <div>
-                          <Label>Email Address</Label>
-                          <p className="text-sm text-foreground mt-1">{user?.email || "N/A"}</p>
-                        </div>
-                        <div>
-                          <Label>Customizer Studio User ID</Label>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Input 
-                              id="userIdDisplay" 
-                              value={user?.uid || "N/A"} 
-                              readOnly 
-                              className="bg-muted/50 text-sm"
-                            />
-                            <Button onClick={handleCopyUserId} variant="outline" size="sm" disabled={!user?.uid}>
-                              {copiedUserId ? <Check className="h-4 w-4 text-green-500" /> : <Clipboard className="h-4 w-4" />}
-                              <span className="ml-2 hidden sm:inline">{copiedUserId ? "Copied!" : "Copy ID"}</span>
-                            </Button>
-                          </div>
-                           <ShadCnAlert variant="default" className="mt-3 bg-primary/5 border-primary/20">
-                            <Info className="h-4 w-4 text-primary" />
-                            <ShadCnAlertTitle className="text-primary/90 font-medium">User ID for WordPress Plugin</ShadCnAlertTitle>
-                            <ShadCnAlertDescription className="text-primary/80">
-                              Copy this User ID and paste it into the "Customizer Studio User ID" field in your Customizer Studio WordPress plugin settings. This allows the plugin to load your specific product configurations (views, areas, etc.) when embedding the customizer.
-                            </ShadCnAlertDescription>
-                          </ShadCnAlert>
+                        <div><Label>Email Address</Label><p className="text-sm text-foreground mt-1">{user?.email || "N/A"}</p></div>
+                        <div><Label>Customizer Studio User ID</Label>
+                          <div className="flex items-center gap-2 mt-1"><Input id="userIdDisplay" value={user?.uid || "N/A"} readOnly className="bg-muted/50 text-sm"/><Button onClick={handleCopyUserId} variant="outline" size="sm" disabled={!user?.uid}>{copiedUserId ? <Check className="h-4 w-4 text-green-500" /> : <Clipboard className="h-4 w-4" />}<span className="ml-2 hidden sm:inline">{copiedUserId ? "Copied!" : "Copy ID"}</span></Button></div>
+                           <ShadCnAlert variant="default" className="mt-3 bg-primary/5 border-primary/20"><Info className="h-4 w-4 text-primary" /><ShadCnAlertTitle className="text-primary/90 font-medium">User ID for WordPress Plugin</ShadCnAlertTitle><ShadCnAlertDescription className="text-primary/80">Copy this User ID and paste it into the "Customizer Studio User ID" field in your Customizer Studio WordPress plugin settings. This allows the plugin to load your specific product configurations (views, areas, etc.) when embedding the customizer.</ShadCnAlertDescription></ShadCnAlert>
                         </div>
                         <p className="mt-4 text-muted-foreground">More profile options will be available here. (Coming Soon)</p>
                       </CardContent>
@@ -679,31 +597,14 @@ export default function DashboardPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will hide the product "{productToDelete?.name}" from your dashboard in this browser. 
-              It will not be deleted from your WooCommerce store. Clicking "Refresh Product Data" with "ignore hidden" to see it again.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This action will hide the product "{productToDelete?.name}" from your dashboard view. It will not be deleted from your store. You can refresh your product data to see it again.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setProductToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className={cn(buttonVariants({variant: "destructive"}))}
-            >
-              Hide Product
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({variant: "destructive"}))}>Hide Product</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </UploadProvider>
   );
 }
-    
-
-    
-
-    
-
-    
-
-    

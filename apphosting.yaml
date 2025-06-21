@@ -1,3 +1,4 @@
+
 # Settings for Backend (on Cloud Run).
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
@@ -9,26 +10,36 @@ runConfig:
 
 # Environment variables and secrets.
 env:
-  # OPTION 1: Direct Value (For quick testing, NOT RECOMMENDED for production secrets)
-  # If you used this, ensure this file is handled securely.
-  # - variable: GEMINI_API_KEY
-  #   value: "YOUR_ACTUAL_GEMINI_API_KEY_HERE" # Replace with your key if using direct value
+  # --- Required for AI Features ---
+  - variable: GEMINI_API_KEY
+    secret: your-secret-name-for-gemini-api-key # <-- REPLACE THIS
+    availability:
+      - RUNTIME
+
+  # --- Required for Shopify Integration ---
+  - variable: SHOPIFY_API_KEY
+    secret: your-secret-name-for-shopify-key # <-- REPLACE THIS
+    availability:
+      - RUNTIME
+  - variable: SHOPIFY_API_SECRET_KEY
+    secret: your-secret-name-for-shopify-secret # <-- REPLACE THIS
+    availability:
+      - RUNTIME
+  - variable: SHOPIFY_APP_SCOPES
+    value: "read_products" # Or your required scopes
+    availability:
+      - RUNTIME
+  - variable: NEXT_PUBLIC_APP_URL
+    value: "YOUR_DEPLOYED_APP_URL" # <-- REPLACE THIS with your actual app URL (e.g., https://myapp-123.web.app)
+    availability:
+      - RUNTIME
+
+  # --- Optional for Password Protection ---
+  # - variable: APP_ACCESS_PASSWORD
+  #   secret: your-secret-for-access-password # <-- REPLACE THIS
   #   availability:
   #     - RUNTIME
-
-  # OPTION 2: Using Google Cloud Secret Manager (Recommended for Production)
-  # 1. Ensure you have created a secret in Google Cloud Secret Manager.
-  # 2. Grant your App Hosting backend's service account permission to access this secret.
-  #    (Usually 'Secret Manager Secret Accessor' role on the secret).
-  # 3. Replace "your-secret-name-in-secret-manager" below with the actual name of your secret.
-  - variable: GEMINI_API_KEY
-    secret: your-secret-name-in-secret-manager # <-- REPLACE THIS WITH YOUR SECRET NAME
-    availability:
-      - RUNTIME # The API key is needed when the application is running
-
-  # Example of another variable:
-  # - variable: MESSAGE
-  #   value: Hello world!
+  # - variable: APP_ACCESS_COOKIE_VALUE
+  #   secret: your-secret-for-access-cookie # <-- REPLACE THIS
   #   availability:
-  #     - BUILD
   #     - RUNTIME
