@@ -646,5 +646,3 @@ export default function DashboardPage() {
     </UploadProvider>
   );
 }
-
-    
