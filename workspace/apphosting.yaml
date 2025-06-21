@@ -1,0 +1,33 @@
+
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  # maxInstances: 100
+  # concurrency: 80
+  # cpu: 1
+  # memoryMiB: 512
+
+# Environment variables and secrets.
+env:
+  # --- Required for AI Features ---
+  - variable: GEMINI_API_KEY
+    secret: your-secret-name-for-gemini-api-key # <-- REPLACE THIS
+
+  # --- Required for Shopify Integration ---
+  # In the Shopify dashboard, the Client ID is called the "API key".
+  - variable: SHOPIFY_API_KEY
+    secret: your-secret-name-for-shopify-key # <-- REPLACE THIS
+  # In the Shopify dashboard, this is called the "API secret key".
+  - variable: SHOPIFY_API_SECRET_KEY
+    secret: your-secret-name-for-shopify-secret # <-- REPLACE THIS
+  - variable: SHOPIFY_APP_SCOPES
+    value: "read_products" # Or your required scopes
+  - variable: NEXT_PUBLIC_APP_URL
+    value: "YOUR_DEPLOYED_APP_URL" # <-- REPLACE THIS with your actual app URL (e.g., https://myapp-123.web.app)
+
+  # --- Optional for Password Protection ---
+  # - variable: APP_ACCESS_PASSWORD
+  #   secret: your-secret-for-access-password # <-- REPLACE THIS
+  # - variable: APP_ACCESS_COOKIE_VALUE
+  #   secret: your-secret-for-access-cookie # <-- REPLACE THIS
