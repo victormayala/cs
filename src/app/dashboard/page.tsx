@@ -88,6 +88,7 @@ export default function DashboardPage() {
   const [isSavingShopifyCredentials, setIsSavingShopifyCredentials] = useState(false);
   const [isLoadingShopifyCredentials, setIsLoadingShopifyCredentials] = useState(true);
   const [shopifyCredentialsExist, setShopifyCredentialsExist] = useState(false);
+  const [connectedShopifyStore, setConnectedShopifyStore] = useState('');
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
@@ -109,6 +110,7 @@ export default function DashboardPage() {
       }
       await setDoc(docRef, dataToSave, { merge: true });
       setShopifyCredentialsExist(true);
+      setConnectedShopifyStore(credentials.shop);
       toast({ title: "Shopify Store Connected!", description: "Your credentials have been securely saved." });
       if (activeTab === 'products') {
         loadAllProducts(true, false);
@@ -296,7 +298,13 @@ export default function DashboardPage() {
           if (error) {
             toast({ title: "Shopify Credential Load Error", description: error, variant: "destructive" });
           }
-          setShopifyCredentialsExist(!!credentials);
+          if (credentials) {
+            setShopifyCredentialsExist(true);
+            setConnectedShopifyStore(credentials.shop);
+          } else {
+            setShopifyCredentialsExist(false);
+            setConnectedShopifyStore('');
+          }
         })
         .finally(() => setIsLoadingShopifyCredentials(false));
     }
@@ -363,6 +371,7 @@ export default function DashboardPage() {
     if (result.success) {
       setShopifyStoreName('');
       setShopifyCredentialsExist(false);
+      setConnectedShopifyStore('');
       toast({ title: "Shopify Connection Removed" });
       if (activeTab === 'products') {
         loadAllProducts();
@@ -567,31 +576,31 @@ export default function DashboardPage() {
                           <CardDescription className="text-muted-foreground">Connect your Shopify store using the secure one-click OAuth flow.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                           {isLoadingShopifyCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+                          {isLoadingShopifyCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
                           ) : shopifyCredentialsExist ? (
                             <div className="space-y-4">
-                                <ShadCnAlert variant="default" className="bg-green-500/10 border-green-500/30">
-                                    <FaShopify className="h-5 w-5 text-green-700" />
-                                    <ShadCnAlertTitle className="text-green-800 font-medium">Shopify Store Connected</ShadCnAlertTitle>
-                                    <ShadCnAlertDescription className="text-green-700">
-                                        Your store is successfully connected. You can now see Shopify products on your dashboard.
-                                    </ShadCnAlertDescription>
-                                </ShadCnAlert>
-                                <Button type="button" variant="destructive" onClick={handleClearShopifyCredentials} className="w-full" disabled={isSavingShopifyCredentials}>
-                                    {isSavingShopifyCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                    Disconnect Shopify Store
-                                </Button>
+                              <ShadCnAlert variant="default" className="bg-green-500/10 border-green-500/30">
+                                <FaShopify className="h-5 w-5 text-green-700" />
+                                <ShadCnAlertTitle className="text-green-800 font-medium">Shopify Store Connected</ShadCnAlertTitle>
+                                <ShadCnAlertDescription className="text-green-700">
+                                  Your store <strong>{connectedShopifyStore}</strong> is successfully connected.
+                                </ShadCnAlertDescription>
+                              </ShadCnAlert>
+                              <Button type="button" variant="destructive" onClick={handleClearShopifyCredentials} className="w-full" disabled={isSavingShopifyCredentials}>
+                                {isSavingShopifyCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                                Disconnect Shopify Store
+                              </Button>
                             </div>
                           ) : (
                             <div className="space-y-4">
-                               <div className="space-y-2">
+                              <div className="space-y-2">
                                 <Label htmlFor="shopifyStoreName" className="flex items-center"><FaShopify className="mr-2 h-4 w-4 text-muted-foreground" /> Your Shopify Store Name</Label>
                                 <Input id="shopifyStoreName" type="text" placeholder="your-store-name" value={shopifyStoreName} onChange={(e) => setShopifyStoreName(e.target.value)} required className="bg-input/50" />
                                 <p className="text-xs text-muted-foreground">Just the name, not the full ".myshopify.com" URL.</p>
                               </div>
-                                <Button onClick={handleConnectShopify} className="w-full bg-[#588a38] hover:bg-[#4d7830] text-white" disabled={isSavingShopifyCredentials || !shopifyStoreName}>
-                                  <FaShopify className="mr-2 h-5 w-5" /> Connect to Shopify
-                                </Button>
+                              <Button onClick={handleConnectShopify} className="w-full bg-[#588a38] hover:bg-[#4d7830] text-white" disabled={isSavingShopifyCredentials || !shopifyStoreName}>
+                                <FaShopify className="mr-2 h-5 w-5" /> Connect to Shopify
+                              </Button>
                             </div>
                           )}
                         </CardContent>
@@ -637,3 +646,5 @@ export default function DashboardPage() {
     </UploadProvider>
   );
 }
+
+    
