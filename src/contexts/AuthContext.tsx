@@ -169,7 +169,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (error: any) {
-      console.error("Firebase sign in error in AuthContext:", error);
+      // Don't log expected user errors like invalid credentials to the console
+      // to prevent the Next.js error overlay from appearing for normal user actions.
+      if (error.code !== 'auth/invalid-credential') {
+        console.error("Firebase sign in error in AuthContext:", error);
+      }
       throw error; 
     }
   }, [auth]);
@@ -179,7 +183,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await createUserWithEmailAndPassword(auth, email, pass);
       toast({ title: "Sign Up Successful", description: "Welcome! Your account has been created." });
     } catch (error: any) {
-      console.error("Firebase sign up error in AuthContext:", error);
+      const expectedErrorCodes = ['auth/email-already-in-use', 'auth/weak-password', 'auth/invalid-email'];
+      if (!expectedErrorCodes.includes(error.code)) {
+        console.error("Firebase sign up error in AuthContext:", error);
+      }
+
       let friendlyMessage = "Sign up failed. Please try again.";
       if (error.code === 'auth/email-already-in-use') {
         friendlyMessage = "This email is already registered. Please try signing in or use a different email.";
@@ -188,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (error.message) {
         friendlyMessage = error.message;
       }
+      
       toast({
         title: "Sign Up Failed",
         description: friendlyMessage,
@@ -203,7 +212,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await signInWithPopup(auth, provider);
       toast({ title: "Signed In with Google", description: "Welcome!" });
     } catch (error: any) {
-      console.error("Google sign in error in AuthContext:", error);
+      const expectedErrorCodes = ['auth/popup-closed-by-user', 'auth/account-exists-with-different-credential', 'auth/popup-blocked'];
+      if (!expectedErrorCodes.includes(error.code)) {
+        console.error("Google sign in error in AuthContext:", error);
+      }
+
       let description = "Could not sign in with Google. Please try again.";
       if (error.code === 'auth/popup-closed-by-user') {
         description = "Sign-in popup closed. Please try again.";
