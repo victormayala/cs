@@ -2,14 +2,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
-import { saveShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const shop = searchParams.get('shop');
   const hmac = searchParams.get('hmac');
-  const userId = searchParams.get('state'); // We passed userId in the state parameter
+  const userId = searchParams.get('state');
 
   const apiKey = process.env.SHOPIFY_API_KEY;
   const apiSecret = process.env.SHOPIFY_API_SECRET_KEY;
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Application credentials for Shopify are not configured.' }, { status: 500 });
   }
 
-  // 1. HMAC Verification (Security Step)
+  // 1. HMAC Verification
   const map = Object.fromEntries(searchParams.entries());
   delete map.hmac;
   const message = new URLSearchParams(map).toString();
@@ -39,9 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     const tokenResponse = await fetch(accessTokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_id: apiKey,
         client_secret: apiSecret,
@@ -57,16 +54,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain access token from Shopify.' }, { status: 500 });
     }
 
-    // 3. Save the credentials securely
-    const { success, error } = await saveShopifyCredentials(userId, shop, accessToken);
-
-    if (!success) {
-      console.error("Shopify callback error: Failed to save credentials to Firestore.", error);
-      return NextResponse.json({ error: `Failed to save credentials: ${error}` }, { status: 500 });
-    }
+    // 3. Redirect back to the dashboard with the token to be saved on the client-side
+    // This ensures the write to Firestore happens with the user's authenticated context.
+    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
+    redirectDashboardUrl.searchParams.set('shopify_shop', shop);
+    redirectDashboardUrl.searchParams.set('shopify_access_token', accessToken);
     
-    // 4. Redirect user back to the dashboard with a success indicator
-    return NextResponse.redirect(`${appUrl}/dashboard?shopify_connected=true`);
+    return NextResponse.redirect(redirectDashboardUrl);
 
   } catch (error: any) {
     console.error("Error during Shopify token exchange:", error);

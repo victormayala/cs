@@ -14,40 +14,9 @@ export interface UserShopifyCredentials extends ShopifyCredentials {
   createdAt?: any;
 }
 
-export async function saveShopifyCredentials(
-  userId: string,
-  shop: string,
-  accessToken: string
-): Promise<{ success: boolean; error?: string }> {
-  if (!userId || !shop || !accessToken) {
-    return { success: false, error: 'User ID, shop, and access token are required.' };
-  }
-  if (!db) {
-    console.error("Firestore not initialized. Check firebase.ts");
-    return { success: false, error: 'Database service is not available.' };
-  }
-
-  try {
-    const docRef = doc(db, 'userShopifyCredentials', userId);
-    const docSnap = await getDoc(docRef);
-
-    const dataToSave: Partial<UserShopifyCredentials> = {
-      shop,
-      accessToken,
-      lastSaved: serverTimestamp(),
-    };
-
-    if (!docSnap.exists()) {
-      dataToSave.createdAt = serverTimestamp();
-    }
-
-    await setDoc(docRef, dataToSave, { merge: true });
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error saving Shopify credentials to Firestore:', error);
-    return { success: false, error: `Failed to save credentials: ${error.message}` };
-  }
-}
+// The saveShopifyCredentials function is removed as its logic is now handled
+// on the client-side in src/app/dashboard/page.tsx to ensure it runs
+// with the user's authenticated context, resolving permission errors.
 
 export async function loadShopifyCredentials(
   userId: string

@@ -18,7 +18,7 @@ import NextImage from 'next/image';
 import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/actions/woocommerceActions";
 import { deleteWooCommerceCredentials, type UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
-import { loadShopifyCredentials, deleteShopifyCredentials, type UserShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
+import { loadShopifyCredentials, deleteShopifyCredentials, type UserShopifyCredentials, type ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
 import { db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
@@ -93,17 +93,46 @@ export default function DashboardPage() {
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
 
-  // Check for Shopify connection status on mount
-  useEffect(() => {
-    if (searchParams.get('shopify_connected') === 'true') {
-      toast({
-        title: "Shopify Store Connected!",
-        description: "Your products should now be visible on the dashboard.",
-      });
-      // Clean up URL
-      router.replace('/dashboard', {scroll: false});
+  // Client-side function to save Shopify credentials
+  const saveShopifyCredentialsClientSide = useCallback(async (credentials: ShopifyCredentials) => {
+    if (!user || !user.uid || !db) {
+      toast({ title: "Error", description: "User not authenticated or database unavailable.", variant: "destructive" });
+      return;
     }
-  }, [searchParams, router, toast]);
+    setIsSavingShopifyCredentials(true);
+    try {
+      const docRef = doc(db, 'userShopifyCredentials', user.uid);
+      const dataToSave: Partial<UserShopifyCredentials> = { ...credentials, lastSaved: serverTimestamp() };
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        dataToSave.createdAt = serverTimestamp();
+      }
+      await setDoc(docRef, dataToSave, { merge: true });
+      setShopifyCredentialsExist(true);
+      toast({ title: "Shopify Store Connected!", description: "Your credentials have been securely saved." });
+      if (activeTab === 'products') {
+        loadAllProducts(true, false);
+      }
+    } catch (error: any) {
+      console.error('Error saving Shopify credentials:', error);
+      toast({ title: "Error Saving Shopify Credentials", description: `Failed to save: ${error.message}`, variant: "destructive" });
+    } finally {
+      setIsSavingShopifyCredentials(false);
+    }
+  }, [user, db, toast, activeTab]);
+
+  // Effect to handle the callback from Shopify OAuth
+  useEffect(() => {
+    const shop = searchParams.get('shopify_shop');
+    const accessToken = searchParams.get('shopify_access_token');
+    
+    if (shop && accessToken && user) {
+      saveShopifyCredentialsClientSide({ shop, accessToken });
+      // Clean up URL
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, user, saveShopifyCredentialsClientSide, router]);
+
 
   const getLocallyHiddenProductIds = useCallback((): string[] => {
     if (typeof window === 'undefined' || !user || !user.uid) { 
