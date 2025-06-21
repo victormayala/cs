@@ -117,6 +117,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const { toast } = useToast();
 
+  if (!auth) {
+    const errorPageStyles: React.CSSProperties = {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      backgroundColor: '#fff1f2',
+      color: '#881337',
+      fontFamily: 'sans-serif',
+      padding: '2rem',
+      textAlign: 'center',
+    };
+    const codeStyle: React.CSSProperties = {
+      backgroundColor: '#ffe4e6',
+      padding: '0.2rem 0.4rem',
+      borderRadius: '4px',
+      fontFamily: 'monospace',
+      color: '#9f1239',
+    };
+    const iconStyle: React.CSSProperties = {
+        height: '3rem',
+        width: '3rem',
+        color: '#be123c',
+        marginBottom: '1rem',
+    };
+    return (
+      <div style={errorPageStyles}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#9f1239' }}>Firebase Configuration Error</h1>
+        <p style={{ maxWidth: '600px', lineHeight: '1.5' }}>
+            The application cannot connect to Firebase. This usually happens when the
+            Firebase environment variables are missing or invalid.
+        </p>
+        <p style={{ marginTop: '1rem', maxWidth: '600px', lineHeight: '1.5' }}>
+            Please check your <code style={codeStyle}>.env.local</code> file and ensure all <code style={codeStyle}>NEXT_PUBLIC_FIREBASE_...</code> variables are present and correct.
+        </p>
+        <p style={{ marginTop: '1rem', fontWeight: 'bold' }}>
+            After saving changes to <code style={codeStyle}>.env.local</code>, you must restart the development server for them to take effect.
+        </p>
+      </div>
+    );
+  }
+
   const signIn = useCallback(async (email: string, pass: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
