@@ -117,7 +117,11 @@ export default function DashboardPage() {
       }
     } catch (error: any) {
       console.error('Error saving Shopify credentials:', error);
-      toast({ title: "Error Saving Shopify Credentials", description: `Failed to save: ${error.message}`, variant: "destructive" });
+      let description = `Failed to save: ${error.message}`;
+      if (error.code === 'permission-denied') {
+          description = "Save failed due to permissions. Please check your Firestore security rules for 'userShopifyCredentials'.";
+      }
+      toast({ title: "Error Saving Shopify Credentials", description, variant: "destructive" });
     } finally {
       setIsSavingShopifyCredentials(false);
     }
@@ -289,7 +293,11 @@ export default function DashboardPage() {
         })
         .catch(e => {
           console.error("Error loading WC credentials:", e);
-          toast({ title: "WC Credential Load Error", description: "Could not read saved WooCommerce credentials.", variant: "destructive"});
+          let description = "Could not read saved WooCommerce credentials.";
+          if (e.code === 'permission-denied') {
+            description = "Permission denied. Please check your Firestore security rules for 'userWooCommerceCredentials'.";
+          }
+          toast({ title: "WC Credential Load Error", description, variant: "destructive"});
         })
         .finally(() => setIsLoadingWcCredentials(false));
     } else if (!user) {
@@ -313,7 +321,11 @@ export default function DashboardPage() {
         }
       }).catch(e => {
         console.error("Error loading Shopify credentials:", e);
-        toast({ title: "Shopify Credential Load Error", description: "Could not read saved Shopify credentials.", variant: "destructive"});
+        let description = "Could not read saved Shopify credentials.";
+        if (e.code === 'permission-denied') {
+            description = "Permission denied. Please check your Firestore security rules for 'userShopifyCredentials'.";
+        }
+        toast({ title: "Shopify Credential Load Error", description, variant: "destructive"});
       }).finally(() => {
         setIsLoadingShopifyCredentials(false);
       });
@@ -337,7 +349,11 @@ export default function DashboardPage() {
       }
     } catch (error: any) {
       console.error('Error saving WC credentials:', error);
-      toast({ title: "Error Saving WC Credentials", description: `Failed to save: ${error.message}`, variant: "destructive" });
+      let description = `Failed to save: ${error.message}`;
+      if (error.code === 'permission-denied') {
+            description = "Save failed due to permissions. Please check your Firestore security rules for 'userWooCommerceCredentials'.";
+      }
+      toast({ title: "Error Saving WC Credentials", description, variant: "destructive" });
     } finally {
       setIsSavingWcCredentials(false);
     }
@@ -356,7 +372,11 @@ export default function DashboardPage() {
             loadAllProducts();
         }
     } catch (error: any) {
-        toast({ title: "Error Clearing WC Credentials", description: `Failed to delete credentials: ${error.message}`, variant: "destructive" });
+        let description = `Failed to delete credentials: ${error.message}`;
+        if (error.code === 'permission-denied') {
+            description = "Delete failed due to permissions. Please check your Firestore security rules for 'userWooCommerceCredentials'.";
+        }
+        toast({ title: "Error Clearing WC Credentials", description, variant: "destructive" });
     } finally {
         setIsSavingWcCredentials(false);
     }
@@ -373,8 +393,7 @@ export default function DashboardPage() {
     }
     const shopDomain = `${shopifyStoreName.replace(/.myshopify.com/gi, '').trim()}.myshopify.com`;
     const authUrl = `/api/shopify/auth?shop=${shopDomain}&userId=${user.uid}`;
-    // Force a top-level navigation to break out of any iframes (like in Firebase Studio)
-    window.location.href = authUrl;
+    window.top?.location.assign(authUrl);
   };
 
   const handleClearShopifyCredentials = async () => {
@@ -391,7 +410,11 @@ export default function DashboardPage() {
             loadAllProducts();
         }
     } catch(error: any) {
-       toast({ title: "Error Removing Shopify Connection", description: `Failed to delete credentials: ${error.message}`, variant: "destructive" });
+       let description = `Failed to delete credentials: ${error.message}`;
+       if (error.code === 'permission-denied') {
+           description = "Delete failed due to permissions. Please check your Firestore security rules for 'userShopifyCredentials'.";
+       }
+       toast({ title: "Error Removing Shopify Connection", description, variant: "destructive" });
     } finally {
         setIsSavingShopifyCredentials(false);
     }

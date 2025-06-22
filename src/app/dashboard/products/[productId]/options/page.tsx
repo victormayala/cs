@@ -104,8 +104,12 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     }
     return { options: undefined };
   } catch (error: any) {
+    let errorMessage = `Failed to load options: ${error.message}`;
+    if (error.code === 'permission-denied') {
+        errorMessage = "Permission denied. Please check your Firestore security rules to allow reads on 'userProductOptions' for authenticated users.";
+    }
     console.error(`Error loading product options from Firestore for user ${userId}, product ${productId}:`, error);
-    return { error: `Failed to load options: ${error.message}` };
+    return { error: errorMessage };
   }
 }
 
@@ -449,7 +453,11 @@ export default function ProductOptionsPage() {
       setHasUnsavedChanges(false);
     } catch (error: any) {
       console.error('Error saving product options to Firestore (client-side):', error);
-      toast({ title: "Save Error", description: `Failed to save options: ${error.message || "Unknown Firestore error"}`, variant: "destructive" });
+      let description = `Failed to save options: ${error.message || "Unknown Firestore error"}`;
+      if (error.code === 'permission-denied') {
+          description = "Save failed due to permissions. Please check your Firestore security rules to allow writes on 'userProductOptions' for authenticated users.";
+      }
+      toast({ title: "Save Error", description, variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -926,7 +934,7 @@ export default function ProductOptionsPage() {
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectViewForSetup}
+            handleSelectView={handleSelectView}
             handleViewDetailChange={handleDefaultViewDetailChange}
             handleDeleteView={handleDeleteDefaultView}
             handleAddNewView={handleAddNewView}
