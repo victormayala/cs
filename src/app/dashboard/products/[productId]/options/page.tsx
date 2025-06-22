@@ -417,7 +417,7 @@ export default function ProductOptionsPage() {
     router.push(`/customizer?productId=${productOptions.id}`);
   };
 
-  const handleSelectViewForSetup = (viewId: string) => { 
+  const handleSelectView = (viewId: string) => { 
     setActiveViewIdForSetup(viewId); setSelectedBoundaryBoxId(null);
   };
 
@@ -659,7 +659,7 @@ export default function ProductOptionsPage() {
   }
 
 
-  const currentView = productOptions.views.find(v => v.id === activeViewIdForSetup);
+  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   
   const allVariationsSelectedOverall = productOptions.type === 'variable' && variations.length > 0 && 
     Object.keys(groupedVariations || {}).length > 0 && 
@@ -869,7 +869,7 @@ export default function ProductOptionsPage() {
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectViewForSetup}
+            handleSelectView={handleSelectView}
             handleViewDetailChange={handleDefaultViewDetailChange}
             handleDeleteView={handleDeleteDefaultView}
             handleAddNewView={handleAddNewView}
