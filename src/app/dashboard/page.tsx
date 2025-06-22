@@ -361,7 +361,8 @@ export default function DashboardPage() {
     }
     const shopDomain = `${shopifyStoreName.replace(/.myshopify.com/gi, '').trim()}.myshopify.com`;
     const authUrl = `/api/shopify/auth?shop=${shopDomain}&userId=${user.uid}`;
-    router.push(authUrl);
+    // Force a top-level navigation to break out of any iframes (like in Firebase Studio)
+    window.location.href = authUrl;
   };
 
   const handleClearShopifyCredentials = async () => {
