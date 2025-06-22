@@ -186,8 +186,13 @@ export default function ProductOptionsPage() {
           const credDocSnap = await getDoc(credDocRef);
           if (!credDocSnap.exists()) throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
           setCredentialsExist(true);
-          const creds = credDocSnap.data() as UserWooCommerceCredentials;
-          const { product, error } = await fetchWooCommerceProductById(productId, creds);
+          const credsData = credDocSnap.data() as UserWooCommerceCredentials;
+          const userCredentialsToUse: WooCommerceCredentials = {
+            storeUrl: credsData.storeUrl,
+            consumerKey: credsData.consumerKey,
+            consumerSecret: credsData.consumerSecret,
+          };
+          const { product, error } = await fetchWooCommerceProductById(productId, userCredentialsToUse);
           if (error || !product) throw new Error(error || `WooCommerce product ${productId} not found.`);
           baseProduct = {
             id: product.id.toString(), name: product.name,
@@ -202,7 +207,7 @@ export default function ProductOptionsPage() {
           if (product.type === 'variable') {
             setIsLoadingVariations(true);
             try {
-                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(productId, creds);
+                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(productId, userCredentialsToUse);
                 if (varsError) setVariationsError(varsError);
                 else if (fetchedVars?.length) {
                   setVariations(fetchedVars);
@@ -654,7 +659,7 @@ export default function ProductOptionsPage() {
   }
 
 
-  const currentSetupView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   
   const allVariationsSelectedOverall = productOptions.type === 'variable' && variations.length > 0 && 
     Object.keys(groupedVariations || {}).length > 0 && 
@@ -754,7 +759,7 @@ export default function ProductOptionsPage() {
                       const allInGroupSelected = variationsInGroup.every(v => groupOptions.selectedVariationIds.includes(v.id.toString()));
                       const someInGroupSelected = variationsInGroup.some(v => groupOptions.selectedVariationIds.includes(v.id.toString())) && !allInGroupSelected;
                       
-                      const representativeImage = variationsInGroup[0]?.image?.src || currentSetupView?.imageUrl || 'https://placehold.co/100x100.png';
+                      const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
                       const representativeImageAlt = variationsInGroup[0]?.image?.alt || productOptions.name;
                       const representativeImageAiHint = variationsInGroup[0]?.image?.alt ? variationsInGroup[0].image.alt.split(" ").slice(0,2).join(" ") : "variation group";
                       
@@ -898,9 +903,9 @@ export default function ProductOptionsPage() {
                 Total Default Views: <span className="font-semibold text-foreground">{productOptions.defaultViews.length}</span>
               </p>
               <p className="text-sm text-muted-foreground">
-                Active Setup View: <span className="font-semibold text-foreground">{currentSetupView?.name || "N/A"}</span>
+                Active Setup View: <span className="font-semibold text-foreground">{currentView?.name || "N/A"}</span>
               </p>
-              {currentSetupView && (
+              {currentView && (
                 <p className="text-sm text-muted-foreground">
                   Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span>
                 </p>
