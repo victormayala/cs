@@ -119,7 +119,7 @@ export default function ProductOptionsPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const productId = params.productId as string;
+  const productId = decodeURIComponent(params.productId as string);
   const source = searchParams.get('source') as 'woocommerce' | 'shopify' || 'woocommerce'; // Default to WC
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
@@ -417,7 +417,7 @@ export default function ProductOptionsPage() {
     router.push(`/customizer?productId=${productOptions.id}`);
   };
 
-  const handleSelectView = (viewId: string) => { 
+  const handleSelectViewForSetup = (viewId: string) => { 
     setActiveViewIdForSetup(viewId); setSelectedBoundaryBoxId(null);
   };
 
@@ -659,7 +659,7 @@ export default function ProductOptionsPage() {
   }
 
 
-  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+  const currentView = productOptions.views.find(v => v.id === activeViewIdForSetup);
   
   const allVariationsSelectedOverall = productOptions.type === 'variable' && variations.length > 0 && 
     Object.keys(groupedVariations || {}).length > 0 && 
@@ -684,7 +684,7 @@ export default function ProductOptionsPage() {
       </div>
 
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
-      <p className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {productId})</p>
+      <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {productId})</div>
       {!credentialsExist && (
          <ShadCnAlert variant="destructive" className="mb-6">
             <PlugZap className="h-4 w-4" />
@@ -869,7 +869,7 @@ export default function ProductOptionsPage() {
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectView}
+            handleSelectView={handleSelectViewForSetup}
             handleViewDetailChange={handleDefaultViewDetailChange}
             handleDeleteView={handleDeleteDefaultView}
             handleAddNewView={handleAddNewView}
@@ -893,31 +893,31 @@ export default function ProductOptionsPage() {
               <CardDescription>Review your product setup and save changes.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span>
-              </p>
+              </div>
               <div className="text-sm text-muted-foreground">
                 Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Total Default Views: <span className="font-semibold text-foreground">{productOptions.defaultViews.length}</span>
-              </p>
-              <p className="text-sm text-muted-foreground">
+              </div>
+              <div className="text-sm text-muted-foreground">
                 Active Setup View: <span className="font-semibold text-foreground">{currentView?.name || "N/A"}</span>
-              </p>
+              </div>
               {currentView && (
-                <p className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span>
-                </p>
+                </div>
               )}
               {productOptions.type === 'variable' && (
-                <p className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   Total Variation SKUs enabled for customizer: <span className="font-semibold text-foreground">
                     {Object.values(productOptions.optionsByColor).reduce((acc, group) => acc + group.selectedVariationIds.length, 0)}
                     </span> of {variations.length}
-                </p>
+                </div>
               )}
-              {hasUnsavedChanges && (<p className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</p>)}
+              {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
             </CardContent>
             <CardFooter className="flex-col items-stretch gap-3">
               <Button onClick={handleSaveChanges} size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isSaving}>
