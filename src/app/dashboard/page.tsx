@@ -94,52 +94,6 @@ export default function DashboardPage() {
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
 
-  // Client-side function to save Shopify credentials
-  const saveShopifyCredentialsClientSide = useCallback(async (credentials: ShopifyCredentials) => {
-    if (!user || !user.uid || !db) {
-      toast({ title: "Error", description: "User not authenticated or database unavailable.", variant: "destructive" });
-      return;
-    }
-    setIsSavingShopifyCredentials(true);
-    try {
-      const docRef = doc(db, 'userShopifyCredentials', user.uid);
-      const dataToSave: Partial<UserShopifyCredentials> = { ...credentials, lastSaved: serverTimestamp() };
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) {
-        dataToSave.createdAt = serverTimestamp();
-      }
-      await setDoc(docRef, dataToSave, { merge: true });
-      setShopifyCredentialsExist(true);
-      setConnectedShopifyStore(credentials.shop);
-      toast({ title: "Shopify Store Connected!", description: "Your credentials have been securely saved." });
-      if (activeTab === 'products') {
-        loadAllProducts(true, false);
-      }
-    } catch (error: any) {
-      console.error('Error saving Shopify credentials:', error);
-      let description = `Failed to save: ${error.message}`;
-      if (error.code === 'permission-denied') {
-          description = "Save failed due to permissions. Please check your Firestore security rules for 'userShopifyCredentials'.";
-      }
-      toast({ title: "Error Saving Shopify Credentials", description, variant: "destructive" });
-    } finally {
-      setIsSavingShopifyCredentials(false);
-    }
-  }, [user, toast, activeTab, loadAllProducts]);
-
-  // Effect to handle the callback from Shopify OAuth
-  useEffect(() => {
-    const shop = searchParams.get('shopify_shop');
-    const accessToken = searchParams.get('shopify_access_token');
-    
-    if (shop && accessToken && user) {
-      saveShopifyCredentialsClientSide({ shop, accessToken });
-      // Clean up URL
-      router.replace('/dashboard', { scroll: false });
-    }
-  }, [searchParams, user, saveShopifyCredentialsClientSide, router]);
-
-
   const getLocallyHiddenProductIds = useCallback((): string[] => {
     if (typeof window === 'undefined' || !user || !user.uid) { 
         return [];
@@ -273,6 +227,51 @@ export default function DashboardPage() {
 
     setIsLoadingProducts(false);
   }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast, db]);
+
+  // Client-side function to save Shopify credentials
+  const saveShopifyCredentialsClientSide = useCallback(async (credentials: ShopifyCredentials) => {
+    if (!user || !user.uid || !db) {
+      toast({ title: "Error", description: "User not authenticated or database unavailable.", variant: "destructive" });
+      return;
+    }
+    setIsSavingShopifyCredentials(true);
+    try {
+      const docRef = doc(db, 'userShopifyCredentials', user.uid);
+      const dataToSave: Partial<UserShopifyCredentials> = { ...credentials, lastSaved: serverTimestamp() };
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        dataToSave.createdAt = serverTimestamp();
+      }
+      await setDoc(docRef, dataToSave, { merge: true });
+      setShopifyCredentialsExist(true);
+      setConnectedShopifyStore(credentials.shop);
+      toast({ title: "Shopify Store Connected!", description: "Your credentials have been securely saved." });
+      if (activeTab === 'products') {
+        loadAllProducts(true, false);
+      }
+    } catch (error: any) {
+      console.error('Error saving Shopify credentials:', error);
+      let description = `Failed to save: ${error.message}`;
+      if (error.code === 'permission-denied') {
+          description = "Save failed due to permissions. Please check your Firestore security rules for 'userShopifyCredentials'.";
+      }
+      toast({ title: "Error Saving Shopify Credentials", description, variant: "destructive" });
+    } finally {
+      setIsSavingShopifyCredentials(false);
+    }
+  }, [user, toast, activeTab, loadAllProducts]);
+
+  // Effect to handle the callback from Shopify OAuth
+  useEffect(() => {
+    const shop = searchParams.get('shopify_shop');
+    const accessToken = searchParams.get('shopify_access_token');
+    
+    if (shop && accessToken && user) {
+      saveShopifyCredentialsClientSide({ shop, accessToken });
+      // Clean up URL
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, user, saveShopifyCredentialsClientSide, router]);
   
   // Load WC Credentials (Client-side)
   useEffect(() => {
