@@ -119,8 +119,10 @@ export default function ProductOptionsPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const productId = decodeURIComponent(params.productId as string);
-  const source = searchParams.get('source') as 'woocommerce' | 'shopify' || 'woocommerce'; // Default to WC
+  const productIdFromUrl = decodeURIComponent(params.productId as string);
+  const source = searchParams.get('source') as 'woocommerce' | 'shopify' || 'woocommerce';
+  const firestoreDocId = productIdFromUrl.split('/').pop() || productIdFromUrl;
+
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
 
@@ -151,7 +153,7 @@ export default function ProductOptionsPage() {
 
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
-    if (!user?.uid || !productId || !db) { 
+    if (!user?.uid || !productIdFromUrl || !db) { 
         setError("User or Product ID invalid, or DB not ready.");
         if (isRefresh) setIsRefreshing(false); else setIsLoading(false);
         return;
@@ -164,24 +166,23 @@ export default function ProductOptionsPage() {
     try {
       let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; };
       
-      // Fetch base product data from Shopify or WooCommerce
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
           const credDocSnap = await getDoc(credDocRef);
           if (!credDocSnap.exists()) throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
           setCredentialsExist(true);
           const creds = credDocSnap.data() as UserShopifyCredentials;
-          const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productId);
-          if (error || !product) throw new Error(error || `Shopify product ${productId} not found.`);
+          const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productIdFromUrl);
+          if (error || !product) throw new Error(error || `Shopify product ${productIdFromUrl} not found.`);
           baseProduct = {
             id: product.id, name: product.title,
             description: product.description || 'No description available.',
             price: parseFloat(product.priceRangeV2?.minVariantPrice.amount || '0'),
-            type: 'shopify', // Use a distinct type for Shopify
+            type: 'shopify',
             imageUrl: product.featuredImage?.url || 'https://placehold.co/600x600.png',
             imageAlt: product.featuredImage?.altText || product.title,
           };
-      } else { // WooCommerce
+      } else { 
           const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
           const credDocSnap = await getDoc(credDocRef);
           if (!credDocSnap.exists()) throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
@@ -192,8 +193,8 @@ export default function ProductOptionsPage() {
             consumerKey: credsData.consumerKey,
             consumerSecret: credsData.consumerSecret,
           };
-          const { product, error } = await fetchWooCommerceProductById(productId, userCredentialsToUse);
-          if (error || !product) throw new Error(error || `WooCommerce product ${productId} not found.`);
+          const { product, error } = await fetchWooCommerceProductById(firestoreDocId, userCredentialsToUse);
+          if (error || !product) throw new Error(error || `WooCommerce product ${firestoreDocId} not found.`);
           baseProduct = {
             id: product.id.toString(), name: product.name,
             description: product.description?.replace(/<[^>]+>/g, '') || product.short_description?.replace(/<[^>]+>/g, '') || 'No description.',
@@ -203,11 +204,10 @@ export default function ProductOptionsPage() {
             imageAlt: product.images?.[0]?.alt || product.name,
           };
 
-          // Fetch WC Variations if applicable
           if (product.type === 'variable') {
             setIsLoadingVariations(true);
             try {
-                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(productId, userCredentialsToUse);
+                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(firestoreDocId, userCredentialsToUse);
                 if (varsError) setVariationsError(varsError);
                 else if (fetchedVars?.length) {
                   setVariations(fetchedVars);
@@ -228,8 +228,7 @@ export default function ProductOptionsPage() {
           }
       }
 
-      // Load existing options from Firestore, or set defaults
-      const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, productId);
+      const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const initialDefaultViews: ProductView[] = [{ id: crypto.randomUUID(), name: "Front", imageUrl: baseProduct.imageUrl, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" "), boundaryBoxes: [], price: 0 }];
@@ -257,21 +256,21 @@ export default function ProductOptionsPage() {
         if (isRefresh) setIsRefreshing(false);
         else setIsLoading(false); 
     }
-  }, [productId, user?.uid, toast, hasUnsavedChanges, source]); 
+  }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast, hasUnsavedChanges]); 
 
   useEffect(() => {
     let didCancel = false;
     if (authIsLoading) return;
     if (!user?.uid) { if (!didCancel) { setError("User not authenticated."); setIsLoading(false); } return; }
-    if (!productId) { if (!didCancel) { setError("Product ID is missing."); setIsLoading(false); } return; }
+    if (!productIdFromUrl) { if (!didCancel) { setError("Product ID is missing."); setIsLoading(false); } return; }
     if (!productOptions && !error) { fetchAndSetProductData(false); } 
     else { if (!didCancel) setIsLoading(false); }
     return () => { didCancel = true; };
-  }, [authIsLoading, user?.uid, productId, productOptions, error, fetchAndSetProductData]);
+  }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
 
   const handleRefreshData = () => {
-    if (!authIsLoading && user && productId) {
+    if (!authIsLoading && user && productIdFromUrl) {
         fetchAndSetProductData(true);
     } else {
         toast({ title: "Cannot Refresh", description: "User or product ID missing.", variant: "destructive"});
@@ -364,7 +363,7 @@ export default function ProductOptionsPage() {
       toast({ title: "Error", description: "Product data, user session, or DB is missing. Cannot save.", variant: "destructive" });
       return;
     }
-    if (!productOptions.id) {
+    if (!firestoreDocId) {
       toast({ title: "Error", description: "Product ID is missing from options data. Cannot save.", variant: "destructive" });
       return;
     }
@@ -384,7 +383,7 @@ export default function ProductOptionsPage() {
     };
 
     try {
-      const docRef = doc(db, 'userProductOptions', user.uid, 'products', productOptions.id);
+      const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
         dataToSave.createdAt = serverTimestamp();
@@ -684,7 +683,7 @@ export default function ProductOptionsPage() {
       </div>
 
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
-      <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {productId})</div>
+      <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {firestoreDocId})</div>
       {!credentialsExist && (
          <ShadCnAlert variant="destructive" className="mb-6">
             <PlugZap className="h-4 w-4" />
