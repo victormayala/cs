@@ -113,6 +113,15 @@ export async function fetchShopifyProductById(
 ): Promise<FetchShopifyProductByIdResponse> {
   const endpoint = `https://${shop}/admin/api/2024-07/graphql.json`;
 
+  // Defensively format the productId to ensure it's a valid GID
+  let gqlProductId = productId;
+  if (!/gid:\/\/shopify\/Product\/\d+/.test(productId)) {
+    console.warn(`Shopify Product ID "${productId}" was not in GID format. Attempting to format it.`);
+    // Extracts numeric part from a GID-like string or uses the string if it's already numeric.
+    const numericId = productId.split('/').pop();
+    gqlProductId = `gid://shopify/Product/${numericId}`;
+  }
+
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -122,14 +131,14 @@ export async function fetchShopifyProductById(
       },
       body: JSON.stringify({
         query: getProductByIdQuery,
-        variables: { id: productId },
+        variables: { id: gqlProductId },
       }),
       cache: 'no-store',
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
-      const errorLog = `Shopify API error fetching product ${productId}: ${response.status} ${response.statusText}. URL: ${endpoint}. Response: ${errorBody}`;
+      const errorLog = `Shopify API error fetching product ${gqlProductId}: ${response.status} ${response.statusText}. URL: ${endpoint}. Response: ${errorBody}`;
       console.error(errorLog);
       return { error: `Failed to fetch Shopify product. Status: ${response.status}. Please check server logs.` };
     }
@@ -137,20 +146,21 @@ export async function fetchShopifyProductById(
     const jsonResponse = await response.json();
 
     if (jsonResponse.errors) {
-      console.error(`Shopify GraphQL Errors for product ${productId}:`, jsonResponse.errors);
+      console.error(`Shopify GraphQL Errors for product ${gqlProductId}:`, jsonResponse.errors);
       return { error: `GraphQL error fetching product: ${jsonResponse.errors[0].message}` };
     }
 
     const product: ShopifyProduct = jsonResponse.data.node;
 
     if (!product) {
-      return { error: `Product with ID ${productId} not found or is not a Product type.` };
+      return { error: `Product with ID ${gqlProductId} not found or is not a Product type.` };
     }
 
     return { product };
   } catch (error: any) {
-    const errorLog = `Network or fetch error fetching Shopify product ${productId}. URL: ${endpoint}. Error: ${error.message || error}`;
+    const errorLog = `Network or fetch error fetching Shopify product ${gqlProductId}. URL: ${endpoint}. Error: ${error.message || error}`;
     console.error(errorLog, error);
     return { error: `An unexpected network or fetch error occurred with Shopify. Please check server logs.` };
   }
 }
+    
