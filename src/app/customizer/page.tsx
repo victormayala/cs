@@ -8,11 +8,13 @@ import DesignCanvas from '@/components/customizer/DesignCanvas';
 import RightPanel from '@/components/customizer/RightPanel';
 import { UploadProvider, useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
+import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import type { ProductOptionsFirestoreData } from '@/app/dashboard/products/[productId]/options/page';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
+import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
   PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban
@@ -71,7 +73,7 @@ interface LoadedCustomizerOptions {
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptionsForCustomizer>;
   groupingAttributeName: string | null;
-  allowCustomization?: boolean; // Added field
+  allowCustomization?: boolean;
 }
 
 export interface ProductForCustomizer {
@@ -79,11 +81,12 @@ export interface ProductForCustomizer {
   name: string;
   basePrice: number;
   views: ProductView[];
-  type?: 'simple' | 'variable' | 'grouped' | 'external';
-  allowCustomization?: boolean; // Added field
+  type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
+  allowCustomization?: boolean;
   meta?: {
     proxyUsed?: boolean;
     configUserIdUsed?: string | null;
+    source: 'woocommerce' | 'shopify';
   };
 }
 
@@ -110,7 +113,7 @@ const defaultFallbackProduct: ProductForCustomizer = {
   ],
   type: 'simple',
   allowCustomization: true,
-  meta: { proxyUsed: false, configUserIdUsed: null },
+  meta: { proxyUsed: false, configUserIdUsed: null, source: 'woocommerce' },
 };
 
 const toolItems: CustomizerTool[] = [
@@ -133,8 +136,9 @@ async function loadProductOptionsFromFirestore(
     console.warn(`loadProductOptionsFromFirestore: ${message}`);
     return { error: message };
   }
+  const firestoreDocId = productId.split('/').pop() || productId;
   try {
-    const docRef = doc(db, 'userProductOptions', userIdForOptions, 'products', productId);
+    const docRef = doc(db, 'userProductOptions', userIdForOptions, 'products', firestoreDocId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { options: docSnap.data() as ProductOptionsFirestoreData };
@@ -145,7 +149,7 @@ async function loadProductOptionsFromFirestore(
     if (error.code === 'permission-denied' || error.message?.includes('Missing or insufficient permissions')) {
         detailedError += " This is likely a Firestore security rule issue. Ensure public read access is configured for userProductOptions/{configUserId}/products/{productId} if using configUserId, or that the current user has permission.";
     }
-    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${userIdForOptions}, product ${productId}:`, detailedError, error);
+    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${userIdForOptions}, product ${firestoreDocId}:`, detailedError, error);
     return { error: detailedError };
   }
 }
@@ -158,6 +162,7 @@ function CustomizerLayoutAndLogic() {
   const viewMode = useMemo(() => searchParams.get('viewMode'), [searchParams]);
   const isEmbedded = useMemo(() => viewMode === 'embedded', [viewMode]);
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
+  const sourceFromUrl = useMemo(() => (searchParams.get('source') as 'woocommerce' | 'shopify' | null) || 'woocommerce', [searchParams]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
 
@@ -238,28 +243,16 @@ function CustomizerLayoutAndLogic() {
   }, []);
 
 
-  const loadCustomizerData = useCallback(async (productIdToLoad: string | null, wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
-    const currentProductId = productDetails?.id;
-    const currentProxyStatus = productDetails?.meta?.proxyUsed ?? false;
-    const currentConfigUserIdUsed = productDetails?.meta?.configUserIdUsed ?? null;
-
-    if (currentProductId !== productIdToLoad || currentProxyStatus !== !!wpApiBaseUrlToUse || currentConfigUserIdUsed !== configUserIdToUse) {
-        setProductDetails(null);
-        setProductVariations(null);
-        setConfigurableAttributes(null);
-        setSelectedVariationOptions({});
-        setViewBaseImages({});
-        setLoadedOptionsByColor(null);
-        setLoadedGroupingAttributeName(null);
-        setTotalCustomizationPrice(0);
-        setActiveViewId(null);
-    }
+  const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
     setIsLoading(true);
     setError(null);
+    setProductDetails(null); setProductVariations(null); setConfigurableAttributes(null);
+    setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
+    setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0); setActiveViewId(null);
+    
+    const metaForProduct = { proxyUsed: !!wpApiBaseUrlToUse, configUserIdUsed: configUserIdToUse, source };
 
-    const metaForProduct = { proxyUsed: !!wpApiBaseUrlToUse, configUserIdUsed: configUserIdToUse };
-
-    if (!productIdToLoad && !wpApiBaseUrlToUse) {
+    if (!productIdToLoad) {
       setError("No product ID provided. Displaying default customizer.");
       const defaultViews = defaultFallbackProduct.views;
       const baseImagesMap: Record<string, {url: string, aiHint?: string, price?: number}> = {};
@@ -270,241 +263,159 @@ function CustomizerLayoutAndLogic() {
       setIsLoading(false);
       return;
     }
-
-    if (!productIdToLoad && wpApiBaseUrlToUse) {
-      setError("Product ID is missing. Displaying default customizer.");
-      const defaultViewsError = defaultFallbackProduct.views;
-      const baseImagesMapError: Record<string, {url: string, aiHint?: string, price?: number}> = {};
-      defaultViewsError.forEach(view => { baseImagesMapError[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
-      setViewBaseImages(baseImagesMapError);
-      setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
-      setActiveViewId(defaultViewsError[0]?.id || null);
-      setIsLoading(false);
-      return;
-    }
     
-    if (!productIdToLoad) { 
-        setError("Invalid state: Product ID became null unexpectedly. Displaying default.");
-        setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
-        setActiveViewId(defaultFallbackProduct.views[0]?.id || null);
-        setIsLoading(false);
-        return;
-    }
-
     if (authLoading && !user?.uid && !wpApiBaseUrlToUse && !configUserIdToUse) {
       setIsLoading(false); 
       return;
     }
 
-    let wcProduct: WCCustomProduct | undefined;
-    let fetchError: string | undefined;
-    let userWCCredentialsToUse: WooCommerceCredentials | undefined;
-
-    const shouldLoadUserDirectCredentials = user?.uid && !wpApiBaseUrlToUse && (!configUserIdToUse || !isEmbedded);
-
-    if (shouldLoadUserDirectCredentials) {
-      try {
-        const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid!); 
-        const credDocSnap = await getDoc(credDocRef);
-        if (credDocSnap.exists()) {
-          const credData = credDocSnap.data() as UserWooCommerceCredentials;
-          userWCCredentialsToUse = { storeUrl: credData.storeUrl, consumerKey: credData.consumerKey, consumerSecret: credData.consumerSecret };
-        } else if (!isEmbedded) { 
-          let message = "WooCommerce API credentials are not configured. Please connect your store in the 'Store Integration' section.";
-           setError(message + " Using default product view.");
-          const defaultViewsError = defaultFallbackProduct.views;
-          const baseImagesMapError: Record<string, {url: string, aiHint?: string, price?: number}> = {};
-          defaultViewsError.forEach(view => { baseImagesMapError[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
-          setViewBaseImages(baseImagesMapError);
-          setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
-          setActiveViewId(defaultViewsError[0]?.id || null);
-          setConfigurableAttributes([]); setSelectedVariationOptions({}); setIsLoading(false);
-          toast({ title: "WooCommerce Connection Note", description: "No saved WooCommerce credentials for this user.", variant: "default" });
-          return;
-        }
-      } catch (credError: any) {
-        if (!isEmbedded) toast({ title: "WooCommerce Connection Error", description: credError.message || "Could not load your WooCommerce store credentials.", variant: "destructive" });
-      }
-    }
-    
-    ({ product: wcProduct, error: fetchError } = await fetchWooCommerceProductById(productIdToLoad, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined));
-
-    if (fetchError || !wcProduct) {
-      let displayError = fetchError || `Failed to load product (ID: ${productIdToLoad}).`;
-      if (isEmbedded && wpApiBaseUrlToUse && (fetchError?.includes("credentials are not configured") || fetchError?.includes("required."))) {
-          displayError = `This product customizer (ID: ${productIdToLoad}) could not load data using the provided proxy. The embedding site might need to configure its connection or API proxy with Customizer Studio. Original error: ${fetchError}`;
-      } else if (isEmbedded && wpApiBaseUrlToUse && fetchError) {
-          if (fetchError.includes("Status: 403") || fetchError.includes("Invalid Origin")) { // Added check for "Invalid Origin"
-            displayError = `Failed to load product (ID: ${productIdToLoad}) via WordPress proxy. Access was forbidden (403). This often indicates a CORS or plugin configuration issue on your WordPress site. Please ensure the Customizer Studio plugin is configured correctly (Allowed Origins, User ID), and check REST API security and server logs. Original error: ${fetchError}`;
-          } else {
-            displayError = `Failed to load product (ID: ${productIdToLoad}) via WordPress proxy. Please ensure the Customizer Studio plugin is configured correctly on your WordPress site. Original error: ${fetchError}`;
-          }
-      } else if (isEmbedded && !wpApiBaseUrlToUse && !configUserIdToUse && (fetchError?.includes("credentials are not configured") || fetchError?.includes("User-specific WooCommerce credentials are required."))) {
-          displayError = `This product customizer (ID: ${productIdToLoad}) requires an API proxy from the embedding site, or the site needs user credentials. Original error: ${fetchError}`;
-      } else if (user?.uid && !wpApiBaseUrlToUse && !configUserIdToUse && (fetchError?.includes("credentials are not configured") || fetchError?.includes("User-specific WooCommerce credentials are required"))) {
-          displayError = `WooCommerce API credentials are not configured for your account. Please connect your store in the Dashboard > 'Store Integration' section.`;
-      } else if (!user?.uid && !wpApiBaseUrlToUse && !configUserIdToUse && (fetchError?.includes("credentials are not configured") || fetchError?.includes("User-specific WooCommerce credentials are required"))) {
-        displayError = "WooCommerce API credentials missing. Cannot load product details.";
-      }
-
-
-      setError(displayError + " Displaying default customizer view.");
-      const defaultViewsError = defaultFallbackProduct.views;
-      const baseImagesMapError: Record<string, {url: string, aiHint?: string, price?: number}> = {};
-      defaultViewsError.forEach(view => { baseImagesMapError[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
-      setViewBaseImages(baseImagesMapError);
-      setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
-      setActiveViewId(defaultViewsError[0]?.id || null);
-      setConfigurableAttributes([]); setSelectedVariationOptions({}); setIsLoading(false);
-      if (!isEmbedded && user?.uid && !configUserIdToUse && !wpApiBaseUrlToUse) toast({ title: "Product Load Error", description: fetchError || `Product ${productIdToLoad} not found.`, variant: "destructive"});
-      return;
-    }
-
-    let finalDefaultViews: ProductView[] = [];
-    let tempLoadedOptionsByColor: Record<string, ColorGroupOptionsForCustomizer> | null = null;
-    let tempLoadedGroupingAttributeName: string | null = null;
-    let firestoreOptions: ProductOptionsFirestoreData | undefined;
-    let finalAllowCustomization: boolean = true;
-
     const userIdForFirestoreOptions = configUserIdToUse || user?.uid;
+    let baseProductDetails: { id: string; name: string; type: ProductForCustomizer['type']; basePrice: number; };
+    let fetchedVariations: WCVariation[] | null = null;
 
-    if (userIdForFirestoreOptions) { 
-      const { options, error: firestoreLoadError } = await loadProductOptionsFromFirestore(userIdForFirestoreOptions, productIdToLoad);
-      if (firestoreLoadError) {
-        console.warn(`Customizer: Error loading options from Firestore for user/config ${userIdForFirestoreOptions}:`, firestoreLoadError);
-        if (!isEmbedded || (isEmbedded && !configUserIdToUse && user?.uid)) {
-            let toastMessage = "Could not load saved Customizer Studio settings. Using product defaults.";
-            if (firestoreLoadError.includes("Missing or insufficient permissions") || firestoreLoadError.includes("security rule issue")) {
-                toastMessage = "Cannot load saved settings due to permissions. Check Firestore rules. Using product defaults.";
+    if (source === 'shopify') {
+        if (!userIdForFirestoreOptions) { setError("User not available for Shopify."); setIsLoading(false); return; }
+        try {
+            const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
+            const credDocSnap = await getDoc(credDocRef);
+            if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
+            const creds = credDocSnap.data() as UserShopifyCredentials;
+            const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productIdToLoad);
+            if (error || !product) throw new Error(error || `Shopify product not found.`);
+            baseProductDetails = {
+                id: product.id, name: product.title, type: 'shopify',
+                basePrice: parseFloat(product.priceRangeV2?.minVariantPrice.amount || '0'),
+            };
+        } catch (e: any) {
+            setError(`Shopify Error: ${e.message}. Displaying default.`);
+            setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
+        }
+    } else { // WooCommerce
+        let userWCCredentialsToUse: WooCommerceCredentials | undefined;
+        if (user?.uid && !wpApiBaseUrlToUse && (!configUserIdToUse || !isEmbedded)) {
+            const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
+            const credDocSnap = await getDoc(credDocRef);
+            if (credDocSnap.exists()) {
+                const credData = credDocSnap.data() as UserWooCommerceCredentials;
+                userWCCredentialsToUse = { storeUrl: credData.storeUrl, consumerKey: credData.consumerKey, consumerSecret: credData.consumerSecret };
             }
-            toast({ title: "Settings Load Issue", description: toastMessage, variant: "default"});
         }
-      }
-      firestoreOptions = options;
+        
+        const wcProductId = productIdToLoad.split('/').pop() || productIdToLoad;
+        const { product: wcProduct, error: fetchError } = await fetchWooCommerceProductById(wcProductId, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
+        
+        if (fetchError || !wcProduct) {
+          setError((fetchError || "Failed to load product") + ". Displaying default.");
+          setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
+        }
+
+        baseProductDetails = { id: wcProduct.id.toString(), name: wcProduct.name, type: wcProduct.type, basePrice: parseFloat(wcProduct.price || wcProduct.regular_price || '0')};
+
+        if (wcProduct.type === 'variable') {
+            const { variations, error: variationsError } = await fetchWooCommerceProductVariations(wcProductId, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
+            if (variationsError) toast({ title: "Variations Load Error", description: variationsError, variant: "destructive" });
+            else fetchedVariations = variations;
+        }
     }
 
-    if (firestoreOptions) {
-        if (Array.isArray(firestoreOptions.defaultViews) && firestoreOptions.defaultViews.length > 0) {
-            finalDefaultViews = firestoreOptions.defaultViews.map(v => ({...v, price: v.price ?? 0}));
-        }
-        tempLoadedOptionsByColor = firestoreOptions.optionsByColor || {};
-        tempLoadedGroupingAttributeName = firestoreOptions.groupingAttributeName || null;
-        finalAllowCustomization = firestoreOptions.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
-    }
-
-    if (finalDefaultViews.length === 0) { // Fallback if Firestore options are missing or empty views
-      finalDefaultViews = [{
-        id: `default_view_wc_${wcProduct.id}`, name: "Front View",
-        imageUrl: wcProduct.images && wcProduct.images.length > 0 ? wcProduct.images[0].src : defaultFallbackProduct.views[0].imageUrl,
-        aiHint: wcProduct.images && wcProduct.images.length > 0 && wcProduct.images[0].alt ? wcProduct.images[0].alt.split(" ").slice(0,2).join(" ") : defaultFallbackProduct.views[0].aiHint,
-        boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes, price: defaultFallbackProduct.views[0].price ?? 0,
-      }];
-      tempLoadedOptionsByColor = {}; 
-      tempLoadedGroupingAttributeName = null; 
-      if (userIdForFirestoreOptions && !firestoreOptions) {
-        if ((!isEmbedded && user?.uid) || (isEmbedded && !configUserIdToUse && user?.uid)) {
-          toast({ title: "No Saved Settings", description: "No Customizer Studio settings found for this product. Displaying default view.", variant: "default" });
-        } else if (isEmbedded && configUserIdToUse) {
-           console.warn(`Customizer: No Firestore settings found for configUserId ${configUserIdToUse} and product ${productIdToLoad}. Using default view.`);
-        }
-      }
+    let firestoreOptions: ProductOptionsFirestoreData | undefined;
+    if (userIdForFirestoreOptions) {
+        const { options, error: firestoreError } = await loadProductOptionsFromFirestore(userIdForFirestoreOptions, baseProductDetails.id);
+        if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings.`, variant: "default" });
+        firestoreOptions = options;
     }
     
+    const finalAllowCustomization = firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
     if (!finalAllowCustomization) {
-        setError(`Customization for product "${wcProduct.name}" is currently disabled by the store owner.`);
-        // Keep wcProduct data for basic display, but mark as not customizable
-        setProductDetails({
-            id: wcProduct.id.toString(), name: wcProduct.name || `Product ${productIdToLoad}`, 
-            basePrice: parseFloat(wcProduct.price || wcProduct.regular_price || '0'),
-            views: finalDefaultViews, type: wcProduct.type, allowCustomization: false, meta: metaForProduct,
-        });
-        setActiveViewId(finalDefaultViews[0]?.id || null);
+        setError(`Customization for product "${baseProductDetails.name}" is disabled.`);
+        setProductDetails({ ...baseProductDetails, views: [], allowCustomization: false, meta: metaForProduct });
         setIsLoading(false);
-        return; // Stop further processing for variations etc.
+        return;
     }
     
-    setLoadedOptionsByColor(tempLoadedOptionsByColor);
-    setLoadedGroupingAttributeName(tempLoadedGroupingAttributeName);
+    let finalDefaultViews = firestoreOptions?.defaultViews?.map(v => ({...v, price: v.price ?? 0})) || [];
+    if (finalDefaultViews.length === 0) {
+        const defaultImageUrl = source === 'shopify' 
+            ? (await fetchShopifyProductById((await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.shop, (await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.accessToken, baseProductDetails.id)).product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl
+            : defaultFallbackProduct.views[0].imageUrl;
+        
+        finalDefaultViews = [{
+            id: `default_view_${baseProductDetails.id}`, name: "Front View",
+            imageUrl: defaultImageUrl,
+            aiHint: defaultFallbackProduct.views[0].aiHint,
+            boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes, price: 0,
+        }];
+        if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
+    }
+
+    setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
+    setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
 
     const baseImagesMapFinal: Record<string, {url: string, aiHint?: string, price?:number}> = {};
     finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
     setViewBaseImages(baseImagesMapFinal);
-    const productBasePrice = parseFloat(wcProduct.price || wcProduct.regular_price || '0');
-
-    setProductDetails({
-      id: wcProduct.id.toString(), name: wcProduct.name || `Product ${productIdToLoad}`, basePrice: productBasePrice,
-      views: finalDefaultViews, type: wcProduct.type, allowCustomization: finalAllowCustomization, meta: metaForProduct,
-    });
+    
+    setProductDetails({ ...baseProductDetails, views: finalDefaultViews, allowCustomization: true, meta: metaForProduct });
     setActiveViewId(finalDefaultViews[0]?.id || null);
 
-    if (wcProduct.type === 'variable') {
-      const { variations: fetchedVariations, error: variationsError } = await fetchWooCommerceProductVariations(productIdToLoad, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
-      if (variationsError) {
-        if (!isEmbedded || (user?.uid && !wpApiBaseUrlToUse && !configUserIdToUse)) toast({ title: "Variations Load Error", description: variationsError, variant: "destructive" });
-        setProductVariations(null); setConfigurableAttributes([]); setSelectedVariationOptions({});
-      } else if (fetchedVariations && fetchedVariations.length > 0) {
+    if (source === 'woocommerce' && fetchedVariations) {
         setProductVariations(fetchedVariations);
         const attributesMap: Record<string, Set<string>> = {};
         fetchedVariations.forEach(variation => variation.attributes.forEach(attr => {
-          if (!attributesMap[attr.name]) attributesMap[attr.name] = new Set();
-          attributesMap[attr.name].add(attr.option);
+            if (!attributesMap[attr.name]) attributesMap[attr.name] = new Set();
+            attributesMap[attr.name].add(attr.option);
         }));
         const allConfigurableAttributes: ConfigurableAttribute[] = Object.entries(attributesMap).map(([name, optionsSet]) => ({ name, options: Array.from(optionsSet) }));
         setConfigurableAttributes(allConfigurableAttributes);
         if (allConfigurableAttributes.length > 0) {
-          const initialSelectedOptions: Record<string, string> = {};
-          allConfigurableAttributes.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
-          setSelectedVariationOptions(initialSelectedOptions);
-        } else setSelectedVariationOptions({});
-      } else { setProductVariations(null); setConfigurableAttributes([]); setSelectedVariationOptions({}); }
-    } else { setProductVariations(null); setConfigurableAttributes([]); setSelectedVariationOptions({}); }
+            const initialSelectedOptions: Record<string, string> = {};
+            allConfigurableAttributes.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
+            setSelectedVariationOptions(initialSelectedOptions);
+        }
+    }
+    
     setIsLoading(false);
-  }, [user?.uid, authLoading, toast, isEmbedded, productDetails]);
+  }, [user?.uid, authLoading, toast, isEmbedded, router]);
 
 
   useEffect(() => {
     const targetProductId = productIdFromUrl || null;
+    const targetSource = sourceFromUrl;
     const targetProxyUrl = wpApiBaseUrlFromUrl || null;
     const targetConfigUserId = configUserIdFromUrl || null;
 
     if (authLoading && !user && !targetProxyUrl && !targetConfigUserId) {
         if (lastLoadedProductIdRef.current === undefined) { 
-            loadCustomizerData(null, null, null);
-            lastLoadedProductIdRef.current = null; 
-            lastLoadedProxyUrlRef.current = null;
-            lastLoadedConfigUserIdRef.current = null;
+            loadCustomizerData(null, 'woocommerce', null, null);
+            lastLoadedProductIdRef.current = null;
         }
         return; 
     }
     
     if (
         (lastLoadedProductIdRef.current !== targetProductId ||
-        lastLoadedProxyUrlRef.current !== targetProxyUrl ||
-        lastLoadedConfigUserIdRef.current !== targetConfigUserId) ||
+         productDetails?.meta?.source !== targetSource ||
+         lastLoadedProxyUrlRef.current !== targetProxyUrl ||
+         lastLoadedConfigUserIdRef.current !== targetConfigUserId) ||
         !productDetails 
     ) {
-        loadCustomizerData(targetProductId, targetProxyUrl, targetConfigUserId);
+        loadCustomizerData(targetProductId, targetSource, targetProxyUrl, targetConfigUserId);
         lastLoadedProductIdRef.current = targetProductId;
         lastLoadedProxyUrlRef.current = targetProxyUrl;
         lastLoadedConfigUserIdRef.current = targetConfigUserId;
     }
   }, [
-      authLoading,
-      user, 
-      productIdFromUrl,
-      wpApiBaseUrlFromUrl,
-      configUserIdFromUrl,
-      loadCustomizerData,
-      productDetails 
+      authLoading, user, productIdFromUrl, sourceFromUrl, wpApiBaseUrlFromUrl, configUserIdFromUrl,
+      loadCustomizerData, productDetails 
   ]);
 
 
  useEffect(() => {
     setProductDetails(prevProductDetails => {
-      if (!prevProductDetails || !viewBaseImages) return prevProductDetails;
-      if (prevProductDetails.type === 'variable' && !productVariations && Object.keys(selectedVariationOptions).length > 0) return prevProductDetails;
+      if (!prevProductDetails || !viewBaseImages || prevProductDetails.type !== 'variable') return prevProductDetails;
+      if (!productVariations && Object.keys(selectedVariationOptions).length > 0) return prevProductDetails;
 
-      const matchingVariation = prevProductDetails.type === 'variable' && productVariations ? productVariations.find(variation => {
+      const matchingVariation = productVariations ? productVariations.find(variation => {
         if (Object.keys(selectedVariationOptions).length === 0 && configurableAttributes && configurableAttributes.length > 0) return false;
         return variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option);
       }) : null;
@@ -699,7 +610,7 @@ function CustomizerLayoutAndLogic() {
           </p>
           {!isEmbedded && user && (
             <Button variant="outline" asChild>
-              <Link href={`/dashboard/products/${productDetails.id}/options`}>
+              <Link href={`/dashboard/products/${productDetails.id}/options?source=${productDetails.meta?.source}`}>
                 <SettingsIcon className="mr-2 h-4 w-4" /> Go to Product Options
               </Link>
             </Button>
@@ -722,20 +633,12 @@ function CustomizerLayoutAndLogic() {
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
 
   if (error && !productDetails) { 
-    let finalErrorMessage = error;
-     if (isEmbedded && wpApiBaseUrlFromUrl && error.includes("credentials are not configured")) {
-        finalErrorMessage = `Failed to load product data. Please ensure the Customizer Studio plugin on your WordPress site is correctly configured and can access WooCommerce products. Original Error: ${error}`;
-    } else if (isEmbedded && wpApiBaseUrlFromUrl && error.includes("Failed to fetch product")) {
-         finalErrorMessage = `Could not retrieve product information using the WordPress site's proxy. Please check the Customizer Studio plugin settings and your WooCommerce product status. Original Error: ${error}`;
-    } else if (isEmbedded && !wpApiBaseUrlFromUrl && error.includes("credentials are not configured")) {
-        finalErrorMessage = `This product customizer needs store credentials for direct access. If embedded, the parent site might need to provide a proxy URL or ensure proper configuration. Original Error: ${error}`;
-    }
     return (
       <div className="flex flex-col min-h-svh h-screen w-full items-center justify-center bg-background p-4">
         {!isEmbedded && <AppHeader />}
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold text-destructive mb-2">Customizer Error</h2>
-        <p className="text-muted-foreground text-center mb-6 max-w-lg">{finalErrorMessage}</p>
+        <p className="text-muted-foreground text-center mb-6 max-w-lg">{error}</p>
         {!isEmbedded && ( <Button variant="outline" asChild><Link href="/dashboard">Back to Dashboard</Link></Button> )}
       </div>
     );
@@ -767,7 +670,20 @@ function CustomizerLayoutAndLogic() {
            <Button onClick={toggleRightSidebar} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-r-none border-r-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isRightSidebarOpen ? "right-[theme(spacing.72)] md:right-[theme(spacing.80)] lg:right-[theme(spacing.96)]" : "right-0")} aria-label={isRightSidebarOpen ? "Collapse right sidebar" : "Expand right sidebar"} aria-expanded={isRightSidebarOpen} aria-controls="right-panel-content">
             {isRightSidebarOpen ? <PanelRightClose className="h-5 w-5"/> : <PanelLeftOpen className="h-5 w-5"/>}
           </Button>
-          <RightPanel showGrid={showGrid} toggleGrid={toggleGrid} showBoundaryBoxes={showBoundaryBoxes} toggleBoundaryBoxes={toggleBoundaryBoxes} productDetails={productDetails} activeViewId={activeViewId} setActiveViewId={setActiveViewId} className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} configurableAttributes={configurableAttributes} selectedVariationOptions={selectedVariationOptions} onVariantOptionSelect={handleVariantOptionSelect} productVariations={productVariations} />
+          <RightPanel 
+            showGrid={showGrid} 
+            toggleGrid={toggleGrid} 
+            showBoundaryBoxes={showBoundaryBoxes} 
+            toggleBoundaryBoxes={toggleBoundaryBoxes} 
+            productDetails={productDetails} 
+            activeViewId={activeViewId} 
+            setActiveViewId={setActiveViewId} 
+            className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
+            configurableAttributes={productDetails?.source === 'woocommerce' ? configurableAttributes : null}
+            selectedVariationOptions={productDetails?.source === 'woocommerce' ? selectedVariationOptions : {}}
+            onVariantOptionSelect={handleVariantOptionSelect} 
+            productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
+          />
         </div>
 
         <footer className="fixed bottom-0 left-0 right-0 h-16 border-t bg-card shadow-md px-4 py-2 flex items-center justify-between gap-4 z-40">
@@ -810,4 +726,5 @@ export default function CustomizerPage() {
 
 
     
+
 
