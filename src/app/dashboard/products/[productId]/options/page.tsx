@@ -417,7 +417,7 @@ export default function ProductOptionsPage() {
     router.push(`/customizer?productId=${productOptions.id}`);
   };
 
-  const handleSelectViewForSetup = (viewId: string) => { 
+  const handleSelectView = (viewId: string) => { 
     setActiveViewIdForSetup(viewId); setSelectedBoundaryBoxId(null);
   };
 
