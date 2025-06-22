@@ -869,7 +869,7 @@ export default function ProductOptionsPage() {
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectViewForSetup}
+            handleSelectView={handleSelectView}
             handleViewDetailChange={handleDefaultViewDetailChange}
             handleDeleteView={handleDeleteDefaultView}
             handleAddNewView={handleAddNewView}
@@ -896,9 +896,9 @@ export default function ProductOptionsPage() {
               <p className="text-sm text-muted-foreground">
                 Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span>
               </p>
-              <p className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge>
-              </p>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Total Default Views: <span className="font-semibold text-foreground">{productOptions.defaultViews.length}</span>
               </p>
