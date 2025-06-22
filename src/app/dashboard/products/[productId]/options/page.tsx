@@ -91,6 +91,24 @@ interface ActiveDragState {
 const MIN_BOX_SIZE_PERCENT = 5; 
 const MAX_PRODUCT_VIEWS = 4; 
 
+// Client-side Firestore function
+async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
+  if (!userId || !productId || !db) {
+    return { error: "User, Product ID, or DB service is missing." };
+  }
+  try {
+    const docRef = doc(db, 'userProductOptions', userId, 'products', productId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { options: docSnap.data() as ProductOptionsFirestoreData };
+    }
+    return { options: undefined };
+  } catch (error: any) {
+    console.error(`Error loading product options from Firestore for user ${userId}, product ${productId}:`, error);
+    return { error: `Failed to load options: ${error.message}` };
+  }
+}
+
 export default function ProductOptionsPage() {
   const params = useParams();
   const router = useRouter();
@@ -221,20 +239,9 @@ export default function ProductOptionsPage() {
       let loadedGroupingAttributeName: string | null = null;
       let loadedAllowCustomization: boolean = true; // Default to true
       
-      let firestoreOptions: ProductOptionsFirestoreData | undefined;
-      try {
-        const optionsDocRef = doc(db, 'userProductOptions', user.uid, 'products', productId);
-        const optionsDocSnap = await getDoc(optionsDocRef);
-        if (optionsDocSnap.exists()) {
-          firestoreOptions = optionsDocSnap.data() as ProductOptionsFirestoreData;
-        }
-      } catch (e: any) {
-        let detailedError = `Could not load saved settings: ${e.message || "Unknown Firestore error"}. Using defaults.`;
-        if (e.code === 'permission-denied' || e.message?.includes('Missing or insufficient permissions')) {
-          detailedError += " This could be a Firestore security rule issue. Ensure your rules allow read access for your user ID.";
-        }
-        console.error("Error loading product options from Firestore (client-side):", detailedError, e);
-        toast({ title: "Loading Issue", description: detailedError, variant: "default" });
+      const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, productId);
+      if (firestoreError) {
+          toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
       }
 
       if (firestoreOptions) {
@@ -983,8 +990,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-    
-
-
-    
-

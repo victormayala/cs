@@ -1,41 +1,14 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions'; // Assuming interface is exported
+// This file is now primarily for exporting types, as all Firestore operations
+// that depend on user authentication have been moved to client-side components
+// to ensure they run with the user's auth context, resolving permission errors.
+import type { WooCommerceCredentials as WC } from '@/app/actions/woocommerceActions';
 
-export interface UserWooCommerceCredentials extends WooCommerceCredentials {
+export interface UserWooCommerceCredentials extends WC {
   lastSaved?: any; // Firestore server timestamp
 }
 
-// The saveWooCommerceCredentials function is removed from here as its logic
-// has been moved to the client-side in src/app/dashboard/page.tsx
+// The save/load/delete functions have been moved to their respective client components
 // to correctly use the client's Firebase auth context for Firestore security rules.
-
-// The loadWooCommerceCredentials function is removed from here as its logic
-// has been moved to client-side components (dashboard, customizer, product options)
-// to correctly use the client's Firebase auth context for Firestore security rules.
-
-export async function deleteWooCommerceCredentials(
-  userId: string
-): Promise<{ success: boolean; error?: string }> {
-  if (!userId) {
-    return { success: false, error: 'User ID is required.' };
-  }
-  if (!db) {
-    console.error("Firestore not initialized. Check firebase.ts");
-    return { success: false, error: 'Database service is not available.' };
-  }
-
-  try {
-    const docRef = doc(db, 'userWooCommerceCredentials', userId);
-    await deleteDoc(docRef);
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error deleting WooCommerce credentials from Firestore:', error);
-    return { success: false, error: `Failed to delete credentials: ${error.message}` };
-  }
-}
-
-    

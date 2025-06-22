@@ -16,11 +16,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
 
 import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/actions/woocommerceActions";
-import { deleteWooCommerceCredentials, type UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
+import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
-import { loadShopifyCredentials, deleteShopifyCredentials, type UserShopifyCredentials, type ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
+import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
 import { db } from '@/lib/firebase'; 
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'; 
+import { doc, setDoc, getDoc, serverTimestamp, deleteDoc } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
 import type { ShopifyProduct } from '@/types/shopify';
 import {format} from 'date-fns';
@@ -222,26 +222,34 @@ export default function DashboardPage() {
     }
 
     // Fetch Shopify Products
-    if (shopifyCredentialsExist) {
-      const { credentials } = await loadShopifyCredentials(user.uid);
-      if (credentials?.shop && credentials.accessToken) {
-        const { products: fetchedShopifyProducts, error: fetchShopifyError } = await fetchShopifyProducts(credentials.shop, credentials.accessToken);
-        if (fetchedShopifyProducts) {
-          const shopifyDisplayProducts = fetchedShopifyProducts
-            .filter(p => !hiddenProductIds.includes(p.id))
-            .map(p => ({
-              id: p.id, name: p.title, status: p.status.toLowerCase(),
-              lastEdited: format(new Date(p.updatedAt), "PPP"),
-              imageUrl: p.featuredImage?.url || `https://placehold.co/150x150.png`,
-              aiHint: p.featuredImage?.altText?.split(" ").slice(0,2).join(" ") || "product image",
-              source: 'shopify' as const,
-            }));
-          allDisplayProducts.push(...shopifyDisplayProducts);
+    if (shopifyCredentialsExist && user.uid) {
+        try {
+            const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
+            const credDocSnap = await getDoc(credDocRef);
+            if (credDocSnap.exists()) {
+                const credentials = credDocSnap.data() as UserShopifyCredentials;
+                 if (credentials?.shop && credentials.accessToken) {
+                    const { products: fetchedShopifyProducts, error: fetchShopifyError } = await fetchShopifyProducts(credentials.shop, credentials.accessToken);
+                    if (fetchedShopifyProducts) {
+                    const shopifyDisplayProducts = fetchedShopifyProducts
+                        .filter(p => !hiddenProductIds.includes(p.id))
+                        .map(p => ({
+                        id: p.id, name: p.title, status: p.status.toLowerCase(),
+                        lastEdited: format(new Date(p.updatedAt), "PPP"),
+                        imageUrl: p.featuredImage?.url || `https://placehold.co/150x150.png`,
+                        aiHint: p.featuredImage?.altText?.split(" ").slice(0,2).join(" ") || "product image",
+                        source: 'shopify' as const,
+                        }));
+                    allDisplayProducts.push(...shopifyDisplayProducts);
+                    }
+                    if (fetchShopifyError) shopifyError = `Shopify: ${fetchShopifyError}`;
+                } else {
+                    shopifyError = "Shopify credentials could not be loaded.";
+                }
+            }
+        } catch (e: any) {
+            shopifyError = `Failed to load Shopify credentials from DB: ${e.message}`;
         }
-        if (fetchShopifyError) shopifyError = `Shopify: ${fetchShopifyError}`;
-      } else {
-        shopifyError = "Shopify credentials could not be loaded.";
-      }
     }
     
     setProducts(allDisplayProducts);
@@ -262,7 +270,7 @@ export default function DashboardPage() {
     setIsLoadingProducts(false);
   }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast]);
   
-  // Load WC Credentials
+  // Load WC Credentials (Client-side)
   useEffect(() => {
     if (user?.uid && db) {
       setIsLoadingWcCredentials(true);
@@ -289,26 +297,28 @@ export default function DashboardPage() {
     }
   }, [user, toast, db]);
 
-  // Load Shopify Credentials
+  // Load Shopify Credentials (Client-side)
   useEffect(() => {
-    if (user?.uid) {
+    if (user?.uid && db) {
       setIsLoadingShopifyCredentials(true);
-      loadShopifyCredentials(user.uid)
-        .then(({ credentials, error }) => {
-          if (error) {
-            toast({ title: "Shopify Credential Load Error", description: error, variant: "destructive" });
-          }
-          if (credentials) {
+      const docRef = doc(db, 'userShopifyCredentials', user.uid);
+      getDoc(docRef).then((docSnap) => {
+        if (docSnap.exists()) {
+            const credentials = docSnap.data() as UserShopifyCredentials;
             setShopifyCredentialsExist(true);
             setConnectedShopifyStore(credentials.shop);
-          } else {
+        } else {
             setShopifyCredentialsExist(false);
             setConnectedShopifyStore('');
-          }
-        })
-        .finally(() => setIsLoadingShopifyCredentials(false));
+        }
+      }).catch(e => {
+        console.error("Error loading Shopify credentials:", e);
+        toast({ title: "Shopify Credential Load Error", description: "Could not read saved Shopify credentials.", variant: "destructive"});
+      }).finally(() => {
+        setIsLoadingShopifyCredentials(false);
+      });
     }
-  }, [user, toast]);
+  }, [user, toast, db]);
 
   const handleSaveWcCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -334,20 +344,22 @@ export default function DashboardPage() {
   };
 
   const handleClearWcCredentials = async () => {
-    if (!user || !user.uid || isSavingWcCredentials) return;
+    if (!user || !user.uid || isSavingWcCredentials || !db) return;
     setIsSavingWcCredentials(true); 
-    const result = await deleteWooCommerceCredentials(user.uid); 
-    if (result.success) {
-      setWcStoreUrl(''); setWcConsumerKey(''); setWcConsumerSecret('');
-      setWcCredentialsExist(false);
-      toast({ title: "WooCommerce Credentials Cleared" });
-      if (activeTab === 'products') {
-        loadAllProducts();
-      }
-    } else {
-      toast({ title: "Error Clearing WC Credentials", description: result.error, variant: "destructive" });
+    try {
+        const docRef = doc(db, 'userWooCommerceCredentials', user.uid);
+        await deleteDoc(docRef);
+        setWcStoreUrl(''); setWcConsumerKey(''); setWcConsumerSecret('');
+        setWcCredentialsExist(false);
+        toast({ title: "WooCommerce Credentials Cleared" });
+        if (activeTab === 'products') {
+            loadAllProducts();
+        }
+    } catch (error: any) {
+        toast({ title: "Error Clearing WC Credentials", description: `Failed to delete credentials: ${error.message}`, variant: "destructive" });
+    } finally {
+        setIsSavingWcCredentials(false);
     }
-    setIsSavingWcCredentials(false);
   };
   
   const handleConnectShopify = () => {
@@ -366,21 +378,23 @@ export default function DashboardPage() {
   };
 
   const handleClearShopifyCredentials = async () => {
-    if (!user || !user.uid || isSavingShopifyCredentials) return;
+    if (!user || !user.uid || isSavingShopifyCredentials || !db) return;
     setIsSavingShopifyCredentials(true);
-    const result = await deleteShopifyCredentials(user.uid);
-    if (result.success) {
-      setShopifyStoreName('');
-      setShopifyCredentialsExist(false);
-      setConnectedShopifyStore('');
-      toast({ title: "Shopify Connection Removed" });
-      if (activeTab === 'products') {
-        loadAllProducts();
-      }
-    } else {
-       toast({ title: "Error Removing Shopify Connection", description: result.error, variant: "destructive" });
+    try {
+        const docRef = doc(db, 'userShopifyCredentials', user.uid);
+        await deleteDoc(docRef);
+        setShopifyStoreName('');
+        setShopifyCredentialsExist(false);
+        setConnectedShopifyStore('');
+        toast({ title: "Shopify Connection Removed" });
+        if (activeTab === 'products') {
+            loadAllProducts();
+        }
+    } catch(error: any) {
+       toast({ title: "Error Removing Shopify Connection", description: `Failed to delete credentials: ${error.message}`, variant: "destructive" });
+    } finally {
+        setIsSavingShopifyCredentials(false);
     }
-    setIsSavingShopifyCredentials(false);
   };
 
   useEffect(() => {
