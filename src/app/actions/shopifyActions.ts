@@ -73,3 +73,84 @@ export async function fetchShopifyProducts(
     return { error: `An unexpected network or fetch error occurred with Shopify. Please check server logs.` };
   }
 }
+
+// ---- New function and types for fetching a single product ----
+
+interface FetchShopifyProductByIdResponse {
+  product?: ShopifyProduct;
+  error?: string;
+}
+
+const getProductByIdQuery = `
+  query getProductById($id: ID!) {
+    node(id: $id) {
+      ... on Product {
+        id
+        title
+        handle
+        status
+        updatedAt
+        description(truncateAt: 1000)
+        featuredImage {
+          url
+          altText
+        }
+        priceRangeV2 {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function fetchShopifyProductById(
+  shop: string,
+  accessToken: string,
+  productId: string
+): Promise<FetchShopifyProductByIdResponse> {
+  const endpoint = `https://${shop}/admin/api/2024-07/graphql.json`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({
+        query: getProductByIdQuery,
+        variables: { id: productId },
+      }),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const errorLog = `Shopify API error fetching product ${productId}: ${response.status} ${response.statusText}. URL: ${endpoint}. Response: ${errorBody}`;
+      console.error(errorLog);
+      return { error: `Failed to fetch Shopify product. Status: ${response.status}. Please check server logs.` };
+    }
+
+    const jsonResponse = await response.json();
+
+    if (jsonResponse.errors) {
+      console.error(`Shopify GraphQL Errors for product ${productId}:`, jsonResponse.errors);
+      return { error: `GraphQL error fetching product: ${jsonResponse.errors[0].message}` };
+    }
+
+    const product: ShopifyProduct = jsonResponse.data.node;
+
+    if (!product) {
+      return { error: `Product with ID ${productId} not found or is not a Product type.` };
+    }
+
+    return { product };
+  } catch (error: any) {
+    const errorLog = `Network or fetch error fetching Shopify product ${productId}. URL: ${endpoint}. Error: ${error.message || error}`;
+    console.error(errorLog, error);
+    return { error: `An unexpected network or fetch error occurred with Shopify. Please check server logs.` };
+  }
+}

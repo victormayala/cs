@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import NextImage from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -17,10 +17,13 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
+import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db } from '@/lib/firebase'; 
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; 
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
-import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types/woocommerce';
+import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
+import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
+import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
@@ -57,7 +60,7 @@ export interface ProductOptionsFirestoreData {
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
-  allowCustomization?: boolean; // Added field
+  allowCustomization?: boolean;
   lastSaved?: any; 
   createdAt?: any; 
 }
@@ -67,13 +70,13 @@ interface ProductOptionsData {
   name: string; 
   description: string; 
   price: number; 
-  type: 'simple' | 'variable' | 'grouped' | 'external'; 
+  type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify'; // Added shopify type
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
   groupingAttributeName: string | null;
-  allowCustomization: boolean; // Added field
+  allowCustomization: boolean;
+  source: 'woocommerce' | 'shopify';
 }
-
 
 interface ActiveDragState {
   type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl';
@@ -91,7 +94,6 @@ interface ActiveDragState {
 const MIN_BOX_SIZE_PERCENT = 5; 
 const MAX_PRODUCT_VIEWS = 4; 
 
-// Client-side Firestore function
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
     return { error: "User, Product ID, or DB service is missing." };
@@ -116,7 +118,9 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
 export default function ProductOptionsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const productId = params.productId as string;
+  const source = searchParams.get('source') as 'woocommerce' | 'shopify' || 'woocommerce'; // Default to WC
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
 
@@ -153,124 +157,86 @@ export default function ProductOptionsPage() {
         return;
     }
     
-    if (isRefresh) {
-        setIsRefreshing(true);
-    } else {
-        setIsLoading(true); 
-    }
+    if (isRefresh) setIsRefreshing(true); else setIsLoading(true); 
     setError(null); 
     setVariationsError(null);
     
     try {
-      let userWCCredentialsToUse: WooCommerceCredentials | undefined;
-      try {
-        const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
-        const credDocSnap = await getDoc(credDocRef);
-        if (credDocSnap.exists()) {
-          const credData = credDocSnap.data() as UserWooCommerceCredentials;
-          userWCCredentialsToUse = { 
-            storeUrl: credData.storeUrl, 
-            consumerKey: credData.consumerKey, 
-            consumerSecret: credData.consumerSecret 
-          };
+      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; };
+      
+      // Fetch base product data from Shopify or WooCommerce
+      if (source === 'shopify') {
+          const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
+          const credDocSnap = await getDoc(credDocRef);
+          if (!credDocSnap.exists()) throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
           setCredentialsExist(true);
-        } else {
-          setCredentialsExist(false);
-          throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration' to connect your store first.");
-        }
-      } catch (credError: any) {
-        toast({ title: "Credential Error", description: credError.message, variant: "destructive"});
-        throw credError;
-      }
+          const creds = credDocSnap.data() as UserShopifyCredentials;
+          const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productId);
+          if (error || !product) throw new Error(error || `Shopify product ${productId} not found.`);
+          baseProduct = {
+            id: product.id, name: product.title,
+            description: product.description || 'No description available.',
+            price: parseFloat(product.priceRangeV2?.minVariantPrice.amount || '0'),
+            type: 'shopify', // Use a distinct type for Shopify
+            imageUrl: product.featuredImage?.url || 'https://placehold.co/600x600.png',
+            imageAlt: product.featuredImage?.altText || product.title,
+          };
+      } else { // WooCommerce
+          const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
+          const credDocSnap = await getDoc(credDocRef);
+          if (!credDocSnap.exists()) throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
+          setCredentialsExist(true);
+          const creds = credDocSnap.data() as UserWooCommerceCredentials;
+          const { product, error } = await fetchWooCommerceProductById(productId, creds);
+          if (error || !product) throw new Error(error || `WooCommerce product ${productId} not found.`);
+          baseProduct = {
+            id: product.id.toString(), name: product.name,
+            description: product.description?.replace(/<[^>]+>/g, '') || product.short_description?.replace(/<[^>]+>/g, '') || 'No description.',
+            price: parseFloat(product.price) || 0,
+            type: product.type,
+            imageUrl: product.images?.[0]?.src || 'https://placehold.co/600x600.png',
+            imageAlt: product.images?.[0]?.alt || product.name,
+          };
 
-      const { product: wcProduct, error: fetchError } = await fetchWooCommerceProductById(productId, userWCCredentialsToUse);
-      if (fetchError || !wcProduct) {
-        toast({ title: "Error Fetching Product", description: fetchError || `Product ${productId} not found.`, variant: "destructive"});
-        throw new Error(fetchError || `Product with ID ${productId} not found in your connected store.`);
-      }
-      
-      let tempGroupedVariationsData: Record<string, WCVariation[]> | null = null;
-      let identifiedGroupingAttr: string | null = null;
-
-      if (wcProduct.type === 'variable') {
-        setIsLoadingVariations(true);
-        try {
-            const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(productId, userWCCredentialsToUse);
-            if (varsError) {
-                setVariationsError(varsError);
-            } else if (fetchedVars && fetchedVars.length > 0) {
-                setVariations(fetchedVars); 
-                const firstVarAttributes = fetchedVars[0].attributes;
-                const colorAttr = firstVarAttributes.find(attr => attr.name.toLowerCase() === 'color' || attr.name.toLowerCase() === 'colour');
-                if (colorAttr) {
-                identifiedGroupingAttr = colorAttr.name;
-                } else {
-                const nonSizeAttr = firstVarAttributes.find(attr => !['size', 'talla'].includes(attr.name.toLowerCase()));
-                if (nonSizeAttr) identifiedGroupingAttr = nonSizeAttr.name;
-                else if (firstVarAttributes.length > 0) identifiedGroupingAttr = firstVarAttributes[0].name;
+          // Fetch WC Variations if applicable
+          if (product.type === 'variable') {
+            setIsLoadingVariations(true);
+            try {
+                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(productId, creds);
+                if (varsError) setVariationsError(varsError);
+                else if (fetchedVars?.length) {
+                  setVariations(fetchedVars);
+                  const firstVarAttributes = fetchedVars[0].attributes;
+                  const colorAttr = firstVarAttributes.find(attr => attr.name.toLowerCase() === 'color' || attr.name.toLowerCase() === 'colour');
+                  let identifiedGroupingAttr = colorAttr ? colorAttr.name : (firstVarAttributes.find(attr => !['size', 'talla'].includes(attr.name.toLowerCase()))?.name || firstVarAttributes[0]?.name);
+                  if (identifiedGroupingAttr) {
+                      const groups: Record<string, WCVariation[]> = {};
+                      fetchedVars.forEach(v => {
+                          const groupKey = v.attributes.find(a => a.name === identifiedGroupingAttr)?.option || 'Other';
+                          if (!groups[groupKey]) groups[groupKey] = [];
+                          groups[groupKey].push(v);
+                      });
+                      setGroupedVariations(groups);
+                  }
                 }
-
-                if (identifiedGroupingAttr) {
-                const groups: Record<string, WCVariation[]> = {};
-                fetchedVars.forEach(v => {
-                    const groupAttr = v.attributes.find(a => a.name === identifiedGroupingAttr);
-                    const groupKey = groupAttr ? groupAttr.option : 'Other';
-                    if (!groups[groupKey]) groups[groupKey] = [];
-                    groups[groupKey].push(v);
-                });
-                tempGroupedVariationsData = groups;
-                setGroupedVariations(groups);
-                } else {
-                tempGroupedVariationsData = { 'All Variations': fetchedVars };
-                setGroupedVariations({ 'All Variations': fetchedVars });
-                }
-            }
-        } finally {
-            setIsLoadingVariations(false);
-        }
+            } finally { setIsLoadingVariations(false); }
+          }
       }
 
-      const defaultImageUrl = wcProduct.images && wcProduct.images.length > 0 ? wcProduct.images[0].src : 'https://placehold.co/600x600.png';
-      const defaultAiHint = wcProduct.images && wcProduct.images.length > 0 && wcProduct.images[0].alt ? wcProduct.images[0].alt.split(" ").slice(0,2).join(" ") : 'product image';
-      const initialDefaultViews: ProductView[] = [{ id: crypto.randomUUID(), name: "Front", imageUrl: defaultImageUrl, aiHint: defaultAiHint, boundaryBoxes: [], price: 0 }];
-      
-      let plainTextDescription = 'No description available.';
-      const descriptionSource = wcProduct.description || wcProduct.short_description || '';
-      if (descriptionSource) { plainTextDescription = descriptionSource.replace(/<[^>]+>/g, ''); }
-
-      let loadedDefaultViews: ProductView[] = [];
-      let loadedOptionsByColor: Record<string, ColorGroupOptions> = {};
-      let loadedGroupingAttributeName: string | null = null;
-      let loadedAllowCustomization: boolean = true; // Default to true
-      
+      // Load existing options from Firestore, or set defaults
       const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, productId);
-      if (firestoreError) {
-          toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
-      }
+      if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
-      if (firestoreOptions) {
-          loadedDefaultViews = firestoreOptions.defaultViews.map((view: any) => ({ ...view, price: view.price ?? 0 })) || [];
-          loadedOptionsByColor = firestoreOptions.optionsByColor || {};
-          loadedGroupingAttributeName = firestoreOptions.groupingAttributeName || null;
-          loadedAllowCustomization = firestoreOptions.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
-      }
-
-      const finalDefaultViews = loadedDefaultViews.length > 0 ? loadedDefaultViews : initialDefaultViews;
-      let finalOptionsByColor = loadedOptionsByColor;
-      if (!firestoreOptions && tempGroupedVariationsData) { 
-          finalOptionsByColor = {};
-          Object.keys(tempGroupedVariationsData).forEach(colorKey => { finalOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {} }; });
-      } else if (!firestoreOptions && wcProduct.type !== 'variable') { 
-          finalOptionsByColor = { 'default': { selectedVariationIds: [], variantViewImages: {} }};
-      }
-
+      const initialDefaultViews: ProductView[] = [{ id: crypto.randomUUID(), name: "Front", imageUrl: baseProduct.imageUrl, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" "), boundaryBoxes: [], price: 0 }];
+      const finalDefaultViews = firestoreOptions?.defaultViews?.length ? firestoreOptions.defaultViews.map((v: any) => ({ ...v, price: v.price ?? 0 })) : initialDefaultViews;
+      
       setProductOptions({
-        id: wcProduct.id.toString(), name: wcProduct.name || `Product ${productId}`, description: plainTextDescription,
-        price: parseFloat(wcProduct.price) || 0, type: wcProduct.type,
-        defaultViews: finalDefaultViews.map(view => ({...view, price: view.price ?? 0})), 
-        optionsByColor: finalOptionsByColor,
-        groupingAttributeName: loadedGroupingAttributeName || identifiedGroupingAttr,
-        allowCustomization: loadedAllowCustomization,
+        ...baseProduct,
+        source,
+        defaultViews: finalDefaultViews,
+        optionsByColor: firestoreOptions?.optionsByColor || {},
+        groupingAttributeName: firestoreOptions?.groupingAttributeName || null,
+        allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
 
       setActiveViewIdForSetup(finalDefaultViews[0]?.id || null);
@@ -286,45 +252,16 @@ export default function ProductOptionsPage() {
         if (isRefresh) setIsRefreshing(false);
         else setIsLoading(false); 
     }
-  }, [productId, user?.uid, toast, hasUnsavedChanges]); 
+  }, [productId, user?.uid, toast, hasUnsavedChanges, source]); 
 
   useEffect(() => {
     let didCancel = false;
-
-    const loadInitialData = async () => {
-        if (authIsLoading) {
-            return;
-        }
-
-        if (!user?.uid) {
-            if (!didCancel) {
-                setError("User not authenticated. Please sign in.");
-                setIsLoading(false); 
-                setProductOptions(null);
-            }
-            return;
-        }
-        if (!productId) {
-            if (!didCancel) {
-                setError("Product ID is missing.");
-                setIsLoading(false); 
-                setProductOptions(null);
-            }
-            return;
-        }
-        
-        if (!productOptions && !error) {
-            await fetchAndSetProductData(false); 
-        } else if (productOptions || error) {
-            if (!didCancel) setIsLoading(false);
-        }
-    };
-    
-    loadInitialData();
-
-    return () => {
-        didCancel = true;
-    };
+    if (authIsLoading) return;
+    if (!user?.uid) { if (!didCancel) { setError("User not authenticated."); setIsLoading(false); } return; }
+    if (!productId) { if (!didCancel) { setError("Product ID is missing."); setIsLoading(false); } return; }
+    if (!productOptions && !error) { fetchAndSetProductData(false); } 
+    else { if (!didCancel) setIsLoading(false); }
+    return () => { didCancel = true; };
   }, [authIsLoading, user?.uid, productId, productOptions, error, fetchAndSetProductData]);
 
 
@@ -433,7 +370,7 @@ export default function ProductOptionsPage() {
       name: productOptions.name,
       description: productOptions.description,
       price: productOptions.price,
-      type: productOptions.type,
+      type: productOptions.type === 'shopify' ? 'simple' : productOptions.type, // Store shopify as simple
       defaultViews: productOptions.defaultViews,
       optionsByColor: productOptions.optionsByColor,
       groupingAttributeName: productOptions.groupingAttributeName,
@@ -665,18 +602,11 @@ export default function ProductOptionsPage() {
       const baseOptionsByColor = typeof prev.optionsByColor === 'object' && prev.optionsByColor !== null
                                  ? prev.optionsByColor
                                  : {};
-      // Deep clone to avoid direct state mutation
       const updatedOptionsByColor = JSON.parse(JSON.stringify(baseOptionsByColor));
 
-      if (!updatedOptionsByColor[colorKey]) {
-        updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {} };
-      }
-      if (!updatedOptionsByColor[colorKey].variantViewImages) { 
-          updatedOptionsByColor[colorKey].variantViewImages = {};
-      }
-      if (!updatedOptionsByColor[colorKey].variantViewImages[viewId]) {
-        updatedOptionsByColor[colorKey].variantViewImages[viewId] = { imageUrl: '', aiHint: '' };
-      }
+      if (!updatedOptionsByColor[colorKey]) updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {} };
+      if (!updatedOptionsByColor[colorKey].variantViewImages) updatedOptionsByColor[colorKey].variantViewImages = {};
+      if (!updatedOptionsByColor[colorKey].variantViewImages[viewId]) updatedOptionsByColor[colorKey].variantViewImages[viewId] = { imageUrl: '', aiHint: '' };
       
       updatedOptionsByColor[colorKey].variantViewImages[viewId][field] = value;
 
@@ -700,7 +630,7 @@ export default function ProductOptionsPage() {
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Product Options</h2>
         <p className="text-muted-foreground text-center mb-6">{error}</p>
-        {error.includes("store not connected") && (
+        {(error.includes("store not connected") || error.includes("credentials")) && (
            <Button variant="link" asChild>
               <Link href="/dashboard"><PlugZap className="mr-2 h-4 w-4" />Go to Dashboard to Connect</Link>
           </Button>
@@ -749,13 +679,13 @@ export default function ProductOptionsPage() {
       </div>
 
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
-      <p className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {productOptions.id})</p>
+      <p className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {productId})</p>
       {!credentialsExist && (
          <ShadCnAlert variant="destructive" className="mb-6">
             <PlugZap className="h-4 w-4" />
             <ShadCnAlertTitle>Store Not Connected</ShadCnAlertTitle>
             <ShadCnAlertDescription>
-            Your WooCommerce store credentials are not configured. Product data cannot be fetched. 
+            Your {source} store credentials are not configured. Product data cannot be fetched. 
             Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up in the 'Store Integration' tab.
             </ShadCnAlertDescription>
         </ShadCnAlert>
@@ -765,7 +695,7 @@ export default function ProductOptionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
           <Card className="shadow-md">
-            <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your WooCommerce store (Read-only).</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store (Read-only).</CardDescription></CardHeader>
             <CardContent className="space-y-4">
               <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className="mt-1 bg-muted/50" readOnly /></div>
               <div><Label htmlFor="productDescription">Description</Label><Textarea id="productDescription" value={productOptions.description} className="mt-1 bg-muted/50" rows={4} readOnly /></div>
@@ -923,7 +853,7 @@ export default function ProductOptionsPage() {
               </CardContent>
             </Card>
           )}
-          {productOptions.type !== 'variable' && (
+          {productOptions.type !== 'variable' && productOptions.source === 'woocommerce' && (
             <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle></CardHeader><CardContent className="text-center py-8 text-muted-foreground"><Shirt className="mx-auto h-10 w-10 mb-2" />This is a simple product and does not have variations to configure here.</CardContent></Card>
           )}
         </div>
@@ -934,7 +864,7 @@ export default function ProductOptionsPage() {
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectView}
+            handleSelectView={handleSelectViewForSetup}
             handleViewDetailChange={handleDefaultViewDetailChange}
             handleDeleteView={handleDeleteDefaultView}
             handleAddNewView={handleAddNewView}
@@ -972,7 +902,7 @@ export default function ProductOptionsPage() {
               </p>
               {currentSetupView && (
                 <p className="text-sm text-muted-foreground">
-                  Areas in <span className="font-semibold text-primary">{currentSetupView.name}</span>: <span className="font-semibold text-foreground">{currentSetupView.boundaryBoxes.length}</span>
+                  Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span>
                 </p>
               )}
               {productOptions.type === 'variable' && (

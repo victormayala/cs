@@ -125,7 +125,7 @@ export default function DashboardPage() {
     } finally {
       setIsSavingShopifyCredentials(false);
     }
-  }, [user, db, toast, activeTab]);
+  }, [user, toast, activeTab, loadAllProducts]);
 
   // Effect to handle the callback from Shopify OAuth
   useEffect(() => {
@@ -272,7 +272,7 @@ export default function DashboardPage() {
     }
 
     setIsLoadingProducts(false);
-  }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast]);
+  }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast, db]);
   
   // Load WC Credentials (Client-side)
   useEffect(() => {
@@ -561,10 +561,10 @@ export default function DashboardPage() {
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuItem disabled={product.source === 'shopify'} onSelect={() => router.push(`/dashboard/products/${product.id}/options`)}>
-                                          <Settings className="mr-2 h-4 w-4" /> Configure Options {product.source === 'shopify' && "(soon)"}
+                                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); router.push(`/dashboard/products/${encodeURIComponent(product.id)}/options?source=${product.source}`)}}>
+                                          <Settings className="mr-2 h-4 w-4" /> Configure Options
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem disabled={product.source === 'shopify'} onSelect={() => router.push(`/customizer?productId=${product.id}`)} >
+                                        <DropdownMenuItem onSelect={() => router.push(`/customizer?productId=${product.id}`)} >
                                           <Code className="mr-2 h-4 w-4" /> Open in Customizer
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => handleDeleteProduct(product)}>
