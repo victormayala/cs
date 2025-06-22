@@ -1,39 +1,25 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for user-specific product option configurations
-    // (e.g., views, boundary boxes, variant images)
-    match /userProductOptions/{userId}/products/{productId} {
-      // Allow ANYONE to READ these product configurations.
-      // This is necessary for the embedded customizer using configUserId.
-      allow read: if true;
-
-      // Allow WRITE (create, update, delete) only if the authenticated user
-      // is the owner of these configurations (matches the {userId} in the path).
-      // This protects the dashboard functionality for saving options.
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rules for user-specific WooCommerce API credentials
+    // Secure user-specific credentials. 
+    // Only the logged-in user can read or write their own document.
     match /userWooCommerceCredentials/{userId} {
-      // Allow READ and WRITE only if the authenticated user
-      // is the owner of these credentials.
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Add rules for any other collections you might have here.
-    // For example, if you had a 'publicProducts' collection:
-    // match /publicProducts/{productId} {
-    //   allow read: if true;
-    //   allow write: if false; // Or specific admin role
-    // }
+    match /userShopifyCredentials/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
 
-    // Default deny for any paths not explicitly matched above.
-    // This is a security best practice.
-    match /{document=**} {
-      allow read, write: if false;
+    // Product options configuration.
+    // ANYONE can read these settings (for public storefront plugins).
+    // ONLY the authenticated owner can write/update them from the dashboard.
+    match /userProductOptions/{userId}/products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
