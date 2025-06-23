@@ -9,6 +9,7 @@ import { ArrowRight, Palette, ShoppingBag, Zap, Users, Settings2, Edit, BarChart
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { FaShopify, FaWordpress, FaHtml5 } from 'react-icons/fa';
 
 const FeatureHighlightCard = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
   <div className="flex flex-col items-center p-6 text-center bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 h-full">
@@ -35,6 +36,15 @@ const StepCard = ({ icon: Icon, number, title, description }: { icon: React.Elem
   </div>
 );
 
+const IntegrationCard = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
+  <div className="flex flex-col items-center p-8 text-center bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 h-full border">
+    <div className="bg-primary/10 p-5 rounded-full w-fit mb-6">
+      <Icon className="h-10 w-10 text-primary" />
+    </div>
+    <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
+    <p className="text-sm text-muted-foreground leading-relaxed flex-grow">{description}</p>
+  </div>
+);
 
 export default function MarketingHomePage() {
   return (
@@ -82,30 +92,30 @@ export default function MarketingHomePage() {
           </div>
         </section>
 
-        {/* Trusted By Section */}
-        <section className="py-12 bg-card">
+        {/* Integrations Section */}
+        <section className="py-16 md:py-24 bg-muted/20">
           <div className="container mx-auto px-4">
-            <h2 className="text-sm font-semibold text-muted-foreground text-center mb-8 tracking-wider uppercase">
-              Powering Personalization For Brands Like Yours
-            </h2>
-            <div className="flex flex-wrap justify-center items-center gap-x-10 gap-y-6 md:gap-x-16 lg:gap-x-20">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="relative h-10 w-32 opacity-60 hover:opacity-100 transition-opacity">
-                  <Image
-                    src={`https://placehold.co/128x40.png`} 
-                    alt={`Partner Company Logo ${i + 1}`}
-                    fill
-                    className="object-contain"
-                    data-ai-hint="company brand logo"
-                  />
-                </div>
-              ))}
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground mb-4">
+                Seamlessly Integrate With Your Platform
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Customizer Studio works where you work. Effortlessly connect with the world's most popular e-commerce platforms.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              <IntegrationCard icon={FaShopify} title="Shopify" description="One-click install with our dedicated Shopify App. Automatic theme injection gets you running in minutes." />
+              <IntegrationCard icon={FaWordpress} title="WooCommerce" description="Use our powerful WordPress plugin to embed the customizer on your WooCommerce product pages." />
+              <IntegrationCard icon={FaHtml5} title="Custom HTML/JS" description="Embed our customizer anywhere with a simple iframe or JavaScript snippet for full flexibility." />
+            </div>
+            <div className="text-center mt-12">
+                <p className="text-muted-foreground">More integrations for BigCommerce, Wix, and Squarespace are coming soon!</p>
             </div>
           </div>
         </section>
 
         {/* Core Features Section */}
-        <section className="py-16 md:py-24 bg-muted/20">
+        <section className="py-16 md:py-24 bg-background">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground mb-4">
@@ -285,5 +295,3 @@ export default function MarketingHomePage() {
     </div>
   );
 }
-
-    
