@@ -246,7 +246,7 @@ function CustomizerLayoutAndLogic() {
   const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
     setIsLoading(true);
     setError(null);
-    setProductDetails(null); setProductVariations(null); setConfigurableAttributes(null);
+    setProductVariations(null); setConfigurableAttributes(null);
     setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
     setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0); setActiveViewId(null);
     
@@ -728,3 +728,6 @@ export default function CustomizerPage() {
     
 
 
+
+
+    
