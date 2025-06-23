@@ -53,7 +53,7 @@ export default function HowItWorksPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <MarketingHeader />
       <main className="flex-1 py-16 md:py-24 lg:py-32 bg-card"> 
-        <div className="container mx-auto px-4">
+        <div className="container max-w-[1440px] mx-auto px-4">
           <div className="text-center mb-20 md:mb-24">
             <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground mb-6">
               How Customizer Studio Transforms Your Store

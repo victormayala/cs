@@ -8,7 +8,7 @@ export default function MarketingFooter() {
   const currentYear = new Date().getFullYear();
   return (
     <footer className="border-t border-border/40 bg-background">
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="container max-w-[1440px] mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center mb-4 md:mb-0">
             <Logo />

@@ -54,7 +54,7 @@ export default function MarketingHomePage() {
       <main className="flex-1">
         {/* Hero Section */}
         <section className="py-20 md:py-28 text-center bg-gradient-to-b from-background via-primary/5 to-background">
-          <div className="container mx-auto px-4">
+          <div className="container max-w-[1440px] mx-auto px-4">
              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-headline text-foreground mb-6 leading-tight">
               Craft. Click. <span className="text-primary">Convert.</span>
             </h1>
@@ -94,7 +94,7 @@ export default function MarketingHomePage() {
 
         {/* Integrations Section */}
         <section className="py-16 md:py-24 bg-muted/20">
-          <div className="container mx-auto px-4">
+          <div className="container max-w-[1440px] mx-auto px-4">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground mb-4">
                 Seamlessly Integrate With Your Platform
@@ -116,7 +116,7 @@ export default function MarketingHomePage() {
 
         {/* Core Features Section */}
         <section className="py-16 md:py-24 bg-background">
-          <div className="container mx-auto px-4">
+          <div className="container max-w-[1440px] mx-auto px-4">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground mb-4">
                 Why Choose Customizer Studio?
@@ -162,7 +162,7 @@ export default function MarketingHomePage() {
 
         {/* How It Works Section */}
         <section className="py-16 md:py-24 bg-card">
-          <div className="container mx-auto px-4">
+          <div className="container max-w-[1440px] mx-auto px-4">
             <div className="text-center mb-16">
                <h2 className="text-3xl md:text-4xl font-bold font-headline text-foreground mb-4">
                 Launch in <span className="text-primary">3 Simple Steps</span>
@@ -206,7 +206,7 @@ export default function MarketingHomePage() {
 
         {/* Value Prop Section */}
         <section className="py-16 md:py-24 bg-muted/20">
-          <div className="container mx-auto px-4">
+          <div className="container max-w-[1440px] mx-auto px-4">
             <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
               <div className="lg:w-1/2">
                 <div className="w-full rounded-xl overflow-hidden">
@@ -259,7 +259,7 @@ export default function MarketingHomePage() {
 
         {/* Final CTA Section */}
         <section className="py-20 md:py-32 bg-primary text-primary-foreground">
-          <div className="container mx-auto px-4 text-center">
+          <div className="container max-w-[1440px] mx-auto px-4 text-center">
             <h2 className="text-3xl md:text-4xl font-bold font-headline mb-6">
               Ready to Unleash Personalization?
             </h2>
