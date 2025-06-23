@@ -33,7 +33,7 @@ env:
       - RUNTIME
   # INSTRUCTION: The value below must match your app's public URL.
   - variable: NEXT_PUBLIC_APP_URL
-    value: "https://customizer-studio.fly.dev"
+    value: "https://customizerstudio.com"
     availability:
       - RUNTIME
 

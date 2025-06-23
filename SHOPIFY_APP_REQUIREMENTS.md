@@ -46,8 +46,8 @@ This entire process ensures that the correct, up-to-date product information is 
 1.  **Create a New App**: In your Shopify Partner Dashboard, create a new "Public App" or "Custom App".
 2.  **Authentication**:
     *   The app must use OAuth 2.0 to get API credentials from merchants.
-    *   **App URL**: `https://customizer-studio.fly.dev/`
-    *   **Allowed redirection URL(s)**: `https://customizer-studio.fly.dev/api/shopify/callback`
+    *   **App URL**: `https://customizerstudio.com/`
+    *   **Allowed redirection URL(s)**: `https://customizerstudio.com/api/shopify/callback`
 3.  **API Scopes**: Request the following access scopes.
     *   `read_products`, `write_products`: To get product details for the customizer and potentially create new ones.
     *   `read_themes`, `write_themes`: **Required for automated installation.** These scopes allow the app to programmatically add the Customizer Studio app block to the merchant's theme, providing a seamless onboarding experience.
@@ -187,7 +187,7 @@ This script is the brain of the operation.
 1.  **Initialize**: On page load, get the `productId` and `configUserId` from the `data-*` attributes of the container `div`.
 
 2.  **Open Modal & Construct URL**: When the "Customize" button is clicked, it must construct the correct Customizer Studio URL and set it as the `iframe`'s `src`.
-    *   **URL Structure**: `https://customizer-studio.fly.dev/customizer`
+    *   **URL Structure**: `https://customizerstudio.com/customizer`
     *   **Required Query Parameters**:
         *   `productId`: The product's GID (e.g., `gid://shopify/Product/12345`). The script must construct this from the numeric product ID.
         *   `source`: Set to `shopify`.
@@ -195,7 +195,7 @@ This script is the brain of the operation.
         *   `viewMode`: Set to `embedded`. This tells the Customizer Studio UI to hide its standard header/footer, making it look seamless inside the modal.
 
 3.  **Listen for Design Data (`postMessage`)**: The script must listen for a `message` event from the iframe. This is how the final design data is sent back from Customizer Studio.
-    *   **SECURITY**: It is **critical** to validate the origin of the message (`event.origin`) to ensure it's coming from your Customizer Studio domain (`https://customizer-studio.fly.dev`). This prevents malicious data from being injected.
+    *   **SECURITY**: It is **critical** to validate the origin of the message (`event.origin`) to ensure it's coming from your Customizer Studio domain (`https://customizerstudio.com`). This prevents malicious data from being injected.
     *   The data will be in a specific format, e.g., `event.data.customizerStudioDesignData`.
 
 4.  **Update Form**: When valid data is received, the script must `JSON.stringify()` the data object and set it as the `value` of the hidden `_customizationData` input field. It then closes the modal.
