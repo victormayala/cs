@@ -6,8 +6,8 @@
 This document outlines the technical requirements and data flow for building a Shopify App to seamlessly integrate the Customizer Studio into a Shopify product page. The goal is to allow customers to personalize a product using the Customizer Studio iframe and have their unique design data attached to the product when they add it to the cart.
 
 The integration relies on three main components:
-1.  **A Shopify App**: Handles authentication and provides the necessary Theme App Extension.
-2.  **A Theme App Extension (App Block)**: The frontend component that gets added to a product page in the Shopify Theme Editor. It renders the "Customize" button and the iframe that loads Customizer Studio.
+1.  **A Shopify App**: Handles authentication, automated theme injection, and provides the necessary Theme App Extension.
+2.  **A Theme App Extension (App Block)**: The frontend component that gets added to a product page. It renders the "Customize" button and the iframe that loads Customizer Studio.
 3.  **The Customizer Studio Application**: The existing application which runs inside the iframe and serves the customization experience.
 
 ---
@@ -21,7 +21,7 @@ Before diving into the implementation, it's crucial to understand how the Shopif
 Every user account in Customizer Studio has a unique **User ID**. In the context of this integration, we refer to it as the `configUserId`. This ID is the **single most important piece of data** for the integration.
 
 - **What it does**: The `configUserId` acts as a key that links a Shopify store to a specific set of product configurations (views, design areas, color-variant images, etc.) saved within the Customizer Studio database.
-- **How it's used**: The Shopify merchant will copy their User ID from their Customizer Studio profile and paste it into a setting field within the Shopify App Block on their product page.
+- **How it's used**: The Shopify merchant will copy their User ID from their Customizer Studio profile and paste it into a setting field within your app's admin interface. Your app then uses this ID to configure the app block.
 
 ### The Data Lookup Process (The "Magic")
 
@@ -45,32 +45,92 @@ This entire process ensures that the correct, up-to-date product information is 
 
 1.  **Create a New App**: In your Shopify Partner Dashboard, create a new "Public App" or "Custom App".
 2.  **Authentication**:
-    *   The app must use OAuth 2.0 to get API credentials from merchants. This allows Customizer Studio to fetch product data on their behalf.
+    *   The app must use OAuth 2.0 to get API credentials from merchants.
     *   **App URL**: `https://<your-app-domain>/`
     *   **Allowed redirection URL(s)**: `https://<your-app-domain>/api/shopify/callback`
-3.  **API Scopes**: Request the following minimum access scopes.
-    *   `read_products`: To get product details (like the main image) for the customizer.
-    *   You may require more scopes in the future (e.g., `write_products` if you want to manage metafields).
+3.  **API Scopes**: Request the following access scopes.
+    *   `read_products`: To get product details for the customizer.
+    *   `read_themes`, `write_themes`: **Required for automated installation.** These scopes allow the app to programmatically add the Customizer Studio app block to the merchant's theme, providing a seamless onboarding experience.
 4.  **API Credentials**: Note the **Client ID (API key)** and **Client secret**. These will be used as environment variables in your Customizer Studio deployment (`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET_KEY`).
 
 ---
 
 ## 4. Theme App Extension: The Integration Bridge
 
-This is the most critical part of the integration. This block will be added to product templates via the Shopify Theme Editor.
+This is the most critical part of the integration. For the best user experience, the app block should be added to product templates **automatically** by your app upon installation.
 
-### User Flow (Merchant & Customer)
+### 4.1. Automated Theme Injection (Recommended)
 
-- **Merchant**: Adds the "Customizer" block to their product page template, enters their unique `configUserId` into the block's settings, and saves the theme.
-- **Customer**: Sees a "Customize Product" button. Clicking it opens a full-screen modal containing the Customizer Studio iframe. After creating their design, they click "Add to Cart" *inside the iframe*. The iframe sends the design data back to the product page, the modal closes, and the data is silently attached to the main product form.
+To provide a seamless setup for merchants, your app should automatically inject the Customizer App Block into their active theme after they've installed the app and provided their `configUserId`. This process uses the Shopify Admin API.
 
-### App Block Settings (The Merchant's Configuration)
+**User Flow:**
+1.  The merchant installs your Shopify App.
+2.  In the app's onboarding or settings page, they are prompted to enter their `configUserId` from Customizer Studio.
+3.  Upon saving, your app's backend performs a one-time setup: it identifies the main published theme and injects the Customizer app block into the product template.
+4.  The merchant receives a confirmation that the customizer is now active on their product pages.
 
-The app block must have one crucial setting:
+**Technical Implementation (Backend Logic):**
 
-*   **Customizer Studio User ID (`config_user_id`)**: A text field where the merchant pastes their unique User ID from their Customizer Studio profile. This is the `configUserId` discussed in the Core Concepts section.
+This logic should run after the app has the `configUserId` and the shop's OAuth access token.
 
-### Frontend Logic (Liquid & JavaScript - The Technical Implementation)
+1.  **Get the Main Theme:**
+    *   Make a `GET` request to `/admin/api/2024-07/themes.json?role=main`.
+    *   This will return a list of themes; find the one where `role` is `"main"`. Note its `id`.
+
+2.  **Get the Product Template Asset:**
+    *   Most modern Shopify themes use a JSON file to structure the product page. The typical location is `templates/product.json`.
+    *   Make a `GET` request to `/admin/api/2024-07/themes/{theme_id}/assets.json?asset[key]=templates/product.json`.
+    *   Parse the `value` of the returned asset, which will be a JSON string.
+
+3.  **Modify the Template JSON:**
+    *   The parsed JSON will have a `"sections"` object with a `"main"` key, which in turn has a `"block_order"` array.
+    *   Generate a unique ID for your app block (e.g., `customizer_studio_block_<random_string>`).
+    *   Add your new block ID to the `block_order` array (e.g., a good place is right before the `recommendations` block or at the end of the `main` section).
+    *   Add a new key to the `"blocks"` object with your unique ID. This block will be of `type: "apps"`. It must also reference the `block_id` of your Theme App Extension file.
+
+    **Example `product.json` modification:**
+    ```json
+    // Inside the "main" section of product.json
+    "block_order": [
+      "vendor",
+      "title",
+      "price",
+      "customizer_studio_block_12345", // <-- Your new block ID added here
+      "buy_buttons",
+      // ... other blocks
+    ],
+    "blocks": {
+      // ... other blocks
+      "customizer_studio_block_12345": { // <-- Your new block definition
+        "type": "apps",
+        "settings": {
+          "block_id": "YOUR_THEME_APP_EXTENSION_BLOCK_ID" // The ID from your extension's files
+        }
+      }
+    }
+    ```
+    *The `config_user_id` is passed via the Liquid file itself, reading from `block.settings`, so it doesn't need to be hardcoded in the JSON template if you follow the Liquid example below.*
+
+4.  **Save the Modified Asset:**
+    *   Make a `PUT` request to `/admin/api/2024-07/themes/{theme_id}/assets.json`.
+    *   The body of the request should contain the asset key and the updated, stringified JSON value.
+    *   Payload: `{ "asset": { "key": "templates/product.json", "value": "..." } }`
+
+5.  **Handle Fallbacks:** If `templates/product.json` does not exist (indicating an older "vintage" theme), you should gracefully fail the automated injection and guide the merchant to the manual installation process described below.
+
+### 4.2. Manual Installation (Fallback)
+
+If automated injection fails or for older themes, the merchant can add the block manually.
+
+- **Merchant Flow**: Adds the "Customizer" app block to their product page template in the Theme Editor, enters their unique `configUserId` into the block's settings, and saves the theme.
+
+### 4.3. App Block Settings (The Merchant's Configuration)
+
+The app block must have one crucial setting within the Theme App Extension's schema:
+
+*   **Customizer Studio User ID (`config_user_id`)**: A text field where the merchant pastes their unique User ID from their Customizer Studio profile.
+
+### 4.4. Frontend Logic (Liquid & JavaScript - The Technical Implementation)
 
 The app block will contain Liquid to render HTML and JavaScript to handle all the logic.
 
