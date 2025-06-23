@@ -12,19 +12,19 @@ env:
   # --- Required for AI Features ---
   # INSTRUCTION: Create a secret named 'GEMINI_API_KEY' in Google Secret Manager with your Gemini API key value.
   - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
+    secret: Gemini-API-Key
     availability:
       - RUNTIME
 
   # --- Required for Shopify Integration ---
   # INSTRUCTION: Create a secret named 'SHOPIFY_API_KEY' with your Shopify App's API Key (Client ID).
   - variable: SHOPIFY_API_KEY
-    secret: SHOPIFY_API_KEY
+    secret: shopify-cs-app-api
     availability:
       - RUNTIME
   # INSTRUCTION: Create a secret named 'SHOPIFY_API_SECRET_KEY' with your Shopify App's API Secret Key.
   - variable: SHOPIFY_API_SECRET_KEY
-    secret: SHOPIFY_API_SECRET_KEY
+    secret: shopify-cs-secret-api
     availability:
       - RUNTIME
   - variable: SHOPIFY_APP_SCOPES
