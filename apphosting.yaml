@@ -10,21 +10,21 @@ runConfig:
 # Environment variables and secrets.
 env:
   # --- Required for AI Features ---
-  # INSTRUCTION: Create a secret named 'gemini-api-key' in Google Secret Manager with your Gemini API key value.
+  # INSTRUCTION: Create a secret named 'GEMINI_API_KEY' in Google Secret Manager with your Gemini API key value.
   - variable: GEMINI_API_KEY
-    secret: Gemini-API-Key
+    secret: GEMINI_API_KEY
     availability:
       - RUNTIME
 
   # --- Required for Shopify Integration ---
-  # INSTRUCTION: Create a secret named 'shopify-api-key' with your Shopify App's API Key (Client ID).
+  # INSTRUCTION: Create a secret named 'SHOPIFY_API_KEY' with your Shopify App's API Key (Client ID).
   - variable: SHOPIFY_API_KEY
-    secret: shopify-cs-app-api
+    secret: SHOPIFY_API_KEY
     availability:
       - RUNTIME
-  # INSTRUCTION: Create a secret named 'shopify-api-secret-key' with your Shopify App's API Secret Key.
+  # INSTRUCTION: Create a secret named 'SHOPIFY_API_SECRET_KEY' with your Shopify App's API Secret Key.
   - variable: SHOPIFY_API_SECRET_KEY
-    secret: shopify-cs-secret-api
+    secret: SHOPIFY_API_SECRET_KEY
     availability:
       - RUNTIME
   - variable: SHOPIFY_APP_SCOPES
@@ -33,7 +33,7 @@ env:
       - RUNTIME
   # INSTRUCTION: The value below must match your app's public URL.
   - variable: NEXT_PUBLIC_APP_URL
-    value: "https://customizerstudio.com"
+    value: "https://customizer-studio.fly.dev"
     availability:
       - RUNTIME
 
