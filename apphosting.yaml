@@ -12,23 +12,23 @@ env:
   # --- Required for AI Features ---
   # Replace 'YOUR_GEMINI_SECRET_NAME' with the name of the secret you created in Google Secret Manager.
   - variable: GEMINI_API_KEY
-    secret: YOUR_GEMINI_SECRET_NAME # <-- REPLACE THIS
+    secret: Gemini-API-Key # <-- REPLACE THIS
     availability:
       - RUNTIME
 
   # --- Required for Shopify Integration ---
   # Replace 'YOUR_SHOPIFY_KEY_SECRET_NAME' with the name of the secret for your Shopify API Key.
   - variable: SHOPIFY_API_KEY
-    secret: YOUR_SHOPIFY_KEY_SECRET_NAME # <-- REPLACE THIS
+    secret: shopify-cs-app-api # <-- REPLACE THIS
     availability:
       - RUNTIME
   # Replace 'YOUR_SHOPIFY_SECRET_SECRET_NAME' with the name of the secret for your Shopify API Secret Key.
   - variable: SHOPIFY_API_SECRET_KEY
-    secret: YOUR_SHOPIFY_SECRET_SECRET_NAME # <-- REPLACE THIS
+    secret: shopify-cs-secret-api # <-- REPLACE THIS
     availability:
       - RUNTIME
   - variable: SHOPIFY_APP_SCOPES
-    value: "read_products, read_themes, write_themes"
+    value: "read_products, write_products, read_themes, write_themes"
     availability:
       - RUNTIME
   # Replace 'YOUR_DEPLOYED_APP_URL' with your actual public app URL (e.g., https://myapp-123.web.app)
