@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -52,29 +51,37 @@ export default function HowItWorksPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <MarketingHeader />
-      <main className="flex-1 py-16 md:py-24 lg:py-32 bg-card"> 
-        <div className="container max-w-[1440px] mx-auto px-4">
-          <div className="text-center mb-20 md:mb-24">
-            <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground mb-6">
-              How Customizer Studio Transforms Your Store
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto">
-              Integrating powerful product customization into your e-commerce store is straightforward with Customizer Studio. Follow these simple steps to unlock a new level of customer engagement and boost your sales.
-            </p>
+      <main className="flex-1"> 
+        <section className="py-16 md:py-24 lg:py-32 bg-card">
+          <div className="container max-w-[1440px] mx-auto px-4">
+            <div className="text-center mb-20 md:mb-24">
+              <h1 className="text-4xl md:text-5xl font-bold font-headline text-foreground mb-6">
+                How Customizer Studio Transforms Your Store
+              </h1>
+              <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto">
+                Integrating powerful product customization into your e-commerce store is straightforward with Customizer Studio. Follow these simple steps to unlock a new level of customer engagement and boost your sales.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-1 gap-16 lg:gap-20">
+              {steps.map((step, index) => (
+                <CardStep key={index} step={step} index={index} totalSteps={steps.length} />
+              ))}
+            </div>
           </div>
-          
-          <div className="grid md:grid-cols-1 gap-16 lg:gap-20">
-            {steps.map((step, index) => (
-              <CardStep key={index} step={step} index={index} totalSteps={steps.length} />
-            ))}
-          </div>
+        </section>
 
-          <div className="mt-24 md:mt-32 text-center">
-            <h2 className="text-3xl font-bold font-headline text-foreground mb-4">Ready to Get Started?</h2>
-            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+        <section className="py-20 md:py-32 bg-primary text-primary-foreground">
+          <div className="container max-w-[1440px] mx-auto px-4 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold font-headline mb-6">Ready to Get Started?</h2>
+            <p className="text-lg text-primary-foreground/90 mb-10 max-w-xl mx-auto">
               Join businesses already leveraging the power of personalization with Customizer Studio. Sign up today and take the first step towards a more interactive and profitable online store.
             </p>
-            <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              asChild
+              size="lg"
+              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
+            >
               <Link href="/signup">
                 <span className="flex items-center">
                    Sign Up for Free <ArrowRight className="ml-2 h-5 w-5" />
@@ -82,7 +89,7 @@ export default function HowItWorksPage() {
               </Link>
             </Button>
           </div>
-        </div>
+        </section>
       </main>
       <MarketingFooter />
     </div>
@@ -134,4 +141,3 @@ const CardStep = ({ step, index }: CardStepProps) => {
     </div>
   );
 };
-    
