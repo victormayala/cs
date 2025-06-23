@@ -33,7 +33,7 @@ env:
       - RUNTIME
   # Replace 'YOUR_DEPLOYED_APP_URL' with your actual public app URL (e.g., https://myapp-123.web.app)
   - variable: NEXT_PUBLIC_APP_URL
-    value: "https://customizer-studio.fly.dev" # <-- REPLACE THIS
+    value: "https://customizerstudio.com"
     availability:
       - RUNTIME
 
