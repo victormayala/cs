@@ -47,7 +47,7 @@ This entire process ensures that the correct, up-to-date product information is 
 2.  **Authentication**:
     *   The app must use OAuth 2.0 to get API credentials from merchants.
     *   **App URL**: `https://customizerstudio.com/`
-    *   **Allowed redirection URL(s)**: `https://customizerstudio.com/api/shopify/callback`
+    *   **Allowed redirection URL(s)**: `https://customizerstudio.com/api/callback`
 3.  **API Scopes**: Request the following access scopes.
     *   `read_products`, `write_products`: To get product details for the customizer and potentially create new ones.
     *   `read_themes`, `write_themes`: **Required for automated installation.** These scopes allow the app to programmatically add the Customizer Studio app block to the merchant's theme, providing a seamless onboarding experience.
