@@ -40,6 +40,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/callback',
+        destination: '/api/shopify/callback',
+      },
+    ];
+  },
   // Minor change to potentially help with build issues
 };
 

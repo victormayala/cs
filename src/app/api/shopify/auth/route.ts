@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Shopify application credentials are not configured on the server.' }, { status: 500 });
   }
 
-  const redirectUri = `${appUrl}/api/shopify/callback`;
+  // Use the shorter, rewritten callback URL
+  const redirectUri = `${appUrl}/api/callback`;
   
   // The state parameter is used for security and to pass the userId back to the callback.
   const state = userId; 
