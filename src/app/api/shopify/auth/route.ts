@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   // This must be whitelisted in the Shopify Partner Dashboard.
-  const redirectUri = `${appUrl}/api/shopify/callback`;
+  const redirectUri = `${appUrl}/api/auth/callback`;
   
   // The state parameter is used for security and to pass the userId back to the callback.
   const state = userId; 
