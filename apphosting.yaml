@@ -28,12 +28,12 @@ env:
     availability:
       - RUNTIME
   - variable: SHOPIFY_APP_SCOPES
-    value: "read_products, write_products, read_themes, write_themes"
+    value: "read_products,write_products,read_themes,write_themes"
     availability:
       - RUNTIME
   # Replace 'YOUR_DEPLOYED_APP_URL' with your actual public app URL (e.g., https://myapp-123.web.app)
   - variable: NEXT_PUBLIC_APP_URL
-    value: "YOUR_DEPLOYED_APP_URL" # <-- REPLACE THIS
+    value: "https://customizer-studio.fly.dev/" # <-- REPLACE THIS
     availability:
       - RUNTIME
 
