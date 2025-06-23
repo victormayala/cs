@@ -50,9 +50,13 @@ export async function fetchShopifyProducts(
 
     if (!response.ok) {
       const errorBody = await response.text();
+      let errorMessage = `Failed to fetch Shopify products. Status: ${response.status}. Please check server logs.`;
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = `Authentication with Shopify failed (Status: ${response.status}). This can happen if the access token is invalid or permissions have changed. Please try disconnecting and reconnecting your Shopify store from the 'Store Integration' tab.`;
+      }
       const errorLog = `Shopify API error during product fetch: ${response.status} ${response.statusText}. URL: ${endpoint}. Response: ${errorBody}`;
       console.error(errorLog);
-      return { error: `Failed to fetch Shopify products. Status: ${response.status}. Please check server logs.` };
+      return { error: errorMessage };
     }
 
     const jsonResponse = await response.json();
@@ -138,9 +142,13 @@ export async function fetchShopifyProductById(
 
     if (!response.ok) {
       const errorBody = await response.text();
+      let errorMessage = `Failed to fetch Shopify product. Status: ${response.status}. Please check server logs.`;
+      if (response.status === 401 || response.status === 403) {
+          errorMessage = `Authentication with Shopify failed (Status: ${response.status}). This can happen if the access token is invalid or permissions have changed. Please try disconnecting and reconnecting your Shopify store from the 'Store Integration' tab.`;
+      }
       const errorLog = `Shopify API error fetching product ${gqlProductId}: ${response.status} ${response.statusText}. URL: ${endpoint}. Response: ${errorBody}`;
       console.error(errorLog);
-      return { error: `Failed to fetch Shopify product. Status: ${response.status}. Please check server logs.` };
+      return { error: errorMessage };
     }
 
     const jsonResponse = await response.json();
