@@ -12,27 +12,22 @@ import { cn } from '@/lib/utils';
 import { FaShopify, FaWordpress, FaHtml5 } from 'react-icons/fa';
 
 const FeatureHighlightCard = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
-  <div className="flex flex-col items-center p-6 text-center bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 h-full">
-    <div className="bg-secondary/10 p-4 rounded-full w-fit mb-6">
-      <Icon className="h-10 w-10 text-secondary" />
+  <div className="flex flex-col items-center p-8 text-center bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 h-full border">
+    <div className="bg-primary/10 p-5 rounded-full w-fit mb-6">
+      <Icon className="h-10 w-10 text-primary" />
     </div>
     <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
     <p className="text-sm text-muted-foreground leading-relaxed flex-grow">{description}</p>
   </div>
 );
 
-const StepCard = ({ icon: Icon, number, title, description }: { icon: React.ElementType, number: string, title: string, description: string }) => (
-  <div className="flex flex-col p-6 bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-    <div className="flex items-center mb-4">
-      <div className="flex-shrink-0 bg-primary text-primary-foreground rounded-full h-10 w-10 flex items-center justify-center text-lg font-bold mr-4">
-        {number}
-      </div>
-      <h3 className="text-xl font-semibold text-foreground">{title}</h3>
+const StepCard = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
+  <div className="flex flex-col items-center p-8 text-center bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 h-full border">
+    <div className="bg-primary/10 p-5 rounded-full w-fit mb-6">
+      <Icon className="h-10 w-10 text-primary" />
     </div>
-     <div className="flex-shrink-0 mb-4 flex justify-center">
-      <Icon className="h-12 w-12 text-secondary" />
-    </div>
-    <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+    <h3 className="text-xl font-semibold mb-3 text-foreground">{title}</h3>
+    <p className="text-sm text-muted-foreground leading-relaxed flex-grow">{description}</p>
   </div>
 );
 
@@ -173,21 +168,18 @@ export default function MarketingHomePage() {
             </div>
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               <StepCard
-                number="1"
                 icon={Link2}
-                title="Connect Your Store"
+                title="1. Connect Your Store"
                 description="Easily link Customizer Studio to your existing e-commerce platform like Shopify or WooCommerce."
               />
               <StepCard
-                number="2"
                 icon={Edit}
-                title="Configure Products"
+                title="2. Configure Products"
                 description="Select products, define customizable views, design areas, and set up options using our intuitive tools."
               />
               <StepCard
-                number="3"
                 icon={ShoppingCart}
-                title="Embed &amp; Go Live"
+                title="3. Embed &amp; Go Live"
                 description="Add the Customizer Studio tool to your product pages and start offering unique personalized items."
               />
             </div>
