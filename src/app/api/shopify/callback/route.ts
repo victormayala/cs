@@ -3,6 +3,27 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 
+function createRedirectResponse(url: string): Response {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <script type="text/javascript">
+          window.top.location.href = "${url}";
+        </script>
+      </head>
+      <body>
+        <p>Redirecting...</p>
+      </body>
+    </html>
+  `;
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html',
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
@@ -49,29 +70,27 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
+    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
+
     if (!accessToken) {
       console.error("Shopify callback error: Did not receive access token. Shopify's response:", tokenData);
       const shopifyError = tokenData.error_description || JSON.stringify(tokenData);
-      // Redirect back to dashboard with the specific error
-      const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
       redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
       redirectDashboardUrl.searchParams.set('error_description', shopifyError);
-      return NextResponse.redirect(redirectDashboardUrl);
+      return createRedirectResponse(redirectDashboardUrl.toString());
     }
 
     // 3. Redirect back to the dashboard with the token to be saved on the client-side
-    // This ensures the write to Firestore happens with the user's authenticated context.
-    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
     redirectDashboardUrl.searchParams.set('shopify_shop', shop);
     redirectDashboardUrl.searchParams.set('shopify_access_token', accessToken);
     
-    return NextResponse.redirect(redirectDashboardUrl);
+    return createRedirectResponse(redirectDashboardUrl.toString());
 
   } catch (error: any) {
     console.error("Error during Shopify token exchange:", error);
     const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
     redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
     redirectDashboardUrl.searchParams.set('error_description', `An unexpected error occurred: ${error.message}`);
-    return NextResponse.redirect(redirectDashboardUrl);
+    return createRedirectResponse(redirectDashboardUrl.toString());
   }
 }
