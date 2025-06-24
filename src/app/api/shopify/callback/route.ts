@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      console.error("Shopify callback error: Did not receive access token.", tokenData);
-      return NextResponse.json({ error: 'Failed to obtain access token from Shopify.' }, { status: 500 });
+      console.error("Shopify callback error: Did not receive access token. Shopify's response:", tokenData);
+      const shopifyError = tokenData.error_description || JSON.stringify(tokenData);
+      return NextResponse.json({ error: `Authentication failed. Shopify Error: ${shopifyError}` }, { status: 500 });
     }
 
     // 3. Redirect back to the dashboard with the token to be saved on the client-side
