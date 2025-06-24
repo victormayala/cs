@@ -413,7 +413,7 @@ export default function ProductOptionsPage() {
       toast({ title: "Customization Disabled", description: "This product is currently marked as 'Do Not Customize'. Enable customization to open in the customizer.", variant: "default"});
       return;
     }
-    router.push(`/customizer?productId=${productOptions.id}`);
+    router.push(`/customizer?productId=${productOptions.id}&source=${productOptions.source}`);
   };
 
   const handleSelectView = (viewId: string) => { 

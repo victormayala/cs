@@ -587,7 +587,7 @@ function DashboardPageContent() {
                                         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); router.push(`/dashboard/products/${encodeURIComponent(product.id)}/options?source=${product.source}`)}}>
                                           <Settings className="mr-2 h-4 w-4" /> Configure Options
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => router.push(`/customizer?productId=${product.id}`)} >
+                                        <DropdownMenuItem onSelect={() => router.push(`/customizer?productId=${product.id}&source=${product.source}`)} >
                                           <Code className="mr-2 h-4 w-4" /> Open in Customizer
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => handleDeleteProduct(product)}>
