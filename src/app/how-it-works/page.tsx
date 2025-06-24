@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -98,7 +97,7 @@ export default function HowItWorksPage() {
                             alt={step.title}
                             width={500}
                             height={350}
-                            className="rounded-xl object-cover border w-full aspect-video shadow-lg"
+                            className="rounded-xl object-cover w-full aspect-video"
                             data-ai-hint={step.aiHint}
                             sizes="(max-width: 768px) 100vw, 50vw"
                           />
