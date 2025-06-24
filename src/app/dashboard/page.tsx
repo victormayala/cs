@@ -94,6 +94,23 @@ function DashboardPageContent() {
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
 
+  // Effect to handle Shopify OAuth error callback
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
+
+    if (error === 'shopify_auth_failed' && errorDescription) {
+      toast({
+        title: "Shopify Connection Failed",
+        description: `Reason: ${errorDescription}`,
+        variant: "destructive",
+        duration: 10000, // Show for longer
+      });
+      // Clean up the URL
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, router, toast]);
+
   const getLocallyHiddenProductIds = useCallback((): string[] => {
     if (typeof window === 'undefined' || !user || !user.uid) { 
         return [];

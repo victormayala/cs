@@ -52,7 +52,11 @@ export async function GET(request: NextRequest) {
     if (!accessToken) {
       console.error("Shopify callback error: Did not receive access token. Shopify's response:", tokenData);
       const shopifyError = tokenData.error_description || JSON.stringify(tokenData);
-      return NextResponse.json({ error: `Authentication failed. Shopify Error: ${shopifyError}` }, { status: 500 });
+      // Redirect back to dashboard with the specific error
+      const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
+      redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
+      redirectDashboardUrl.searchParams.set('error_description', shopifyError);
+      return NextResponse.redirect(redirectDashboardUrl);
     }
 
     // 3. Redirect back to the dashboard with the token to be saved on the client-side
@@ -65,6 +69,9 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error("Error during Shopify token exchange:", error);
-    return NextResponse.json({ error: `An unexpected error occurred: ${error.message}` }, { status: 500 });
+    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
+    redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
+    redirectDashboardUrl.searchParams.set('error_description', `An unexpected error occurred: ${error.message}`);
+    return NextResponse.redirect(redirectDashboardUrl);
   }
 }
