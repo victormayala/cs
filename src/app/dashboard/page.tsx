@@ -407,9 +407,16 @@ function DashboardPageContent() {
       toast({ title: "Missing Information", description: "Please enter your Shopify store name (e.g., your-store-name).", variant: "destructive" });
       return;
     }
-    const shopDomain = `${shopifyStoreName.replace(/.myshopify.com/gi, '').trim()}.myshopify.com`;
+    
+    // Improved sanitization of the shop name
+    let cleanShop = shopifyStoreName.trim().replace(/^https?:\/\//, '');
+    cleanShop = cleanShop.split('/')[0];
+    const shopDomain = `${cleanShop.replace('.myshopify.com', '')}.myshopify.com`;
+
     const authUrl = `/api/shopify/auth?shop=${shopDomain}&userId=${user.uid}`;
-    window.top?.location.assign(authUrl);
+    
+    // Use window.location.href for a direct redirect, as per the guide.
+    window.location.href = authUrl;
   };
 
   const handleClearShopifyCredentials = async () => {
