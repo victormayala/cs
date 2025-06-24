@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -81,7 +82,7 @@ export default function HowItWorksPage() {
                     <div key={index} className="relative md:grid md:grid-cols-2 md:items-center md:gap-12">
                       {/* Text Content */}
                       <div className={cn("relative mb-8 md:mb-0", isEven ? 'md:col-start-1' : 'md:col-start-2')}>
-                        <div className="absolute -top-12 -left-12 text-[12rem] font-bold text-gray-100 dark:text-gray-800/50 -z-0 opacity-50 select-none">
+                        <div className="absolute -top-12 -left-12 text-[12rem] font-bold text-gray-200 dark:text-gray-700 -z-0 opacity-50 select-none">
                           {stepNumber}
                         </div>
                         <div className="relative z-10 p-4">
