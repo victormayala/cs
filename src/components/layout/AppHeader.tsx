@@ -24,11 +24,15 @@ export default function AppHeader() {
 
   useEffect(() => {
     const productIdFromParams = searchParams.get('productId');
+    const sourceFromParams = searchParams.get('source');
     setCurrentProductId(productIdFromParams);
 
     if (pathname.startsWith('/customizer')) {
       if (productIdFromParams) {
         let urlPath = `/customizer?productId=${productIdFromParams}`;
+        if(sourceFromParams) {
+          urlPath += `&source=${sourceFromParams}`;
+        }
         if (user?.uid) {
           urlPath += `&userId=${user.uid}`;
         }
@@ -65,6 +69,7 @@ export default function AppHeader() {
   };
 
   const showCustomizerSpecificButtons = pathname.startsWith('/customizer');
+  const source = searchParams.get('source');
 
   return (
     <header className="flex items-center justify-between h-16 border-b bg-card shadow-sm px-4 md:px-6 w-full flex-shrink-0">
@@ -87,7 +92,7 @@ export default function AppHeader() {
         )}
         {showCustomizerSpecificButtons && currentProductId && (
           <Button asChild variant="outline" className="hover:bg-accent hover:text-accent-foreground">
-            <Link href={`/dashboard/products/${currentProductId}/options`}>
+            <Link href={`/dashboard/products/${encodeURIComponent(currentProductId)}/options?source=${source}`}>
               <Settings className="mr-2 h-4 w-4" />
               Product Options
             </Link>
