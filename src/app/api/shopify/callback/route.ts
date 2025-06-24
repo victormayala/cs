@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 
-function createRedirectResponse(url: string): Response {
+/**
+ * Creates an HTML response that redirects the top-level window, breaking out of Shopify's iframe.
+ * @param url The URL to redirect to.
+ * @returns A Response object containing the redirect script.
+ */
+function createExitIframeRedirectResponse(url: string): Response {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -35,13 +40,22 @@ export async function GET(request: NextRequest) {
   const apiSecret = process.env.SHOPIFY_API_SECRET_KEY;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
+  const dashboardUrl = new URL(appUrl ? `${appUrl}/dashboard` : '/dashboard');
+
+  // Helper to create a standardized error redirect response
+  const createErrorRedirect = (description: string) => {
+    dashboardUrl.searchParams.set('error', 'shopify_auth_failed');
+    dashboardUrl.searchParams.set('error_description', description);
+    return createExitIframeRedirectResponse(dashboardUrl.toString());
+  };
+
   if (!code || !shop || !hmac || !userId) {
-    return NextResponse.json({ error: 'Missing required parameters from Shopify callback.' }, { status: 400 });
+    return createErrorRedirect('Missing required parameters from Shopify callback.');
   }
 
   if (!apiKey || !apiSecret || !appUrl) {
     console.error("Shopify callback error: Shopify credentials are not fully configured on the server.");
-    return NextResponse.json({ error: 'Application credentials for Shopify are not configured.' }, { status: 500 });
+    return createErrorRedirect('Application credentials for Shopify are not configured on the server.');
   }
 
   // 1. HMAC Verification
@@ -51,7 +65,7 @@ export async function GET(request: NextRequest) {
   const generatedHmac = crypto.createHmac('sha256', apiSecret).update(message).digest('hex');
 
   if (generatedHmac !== hmac) {
-    return NextResponse.json({ error: 'HMAC validation failed. Request might be fraudulent.' }, { status: 403 });
+    return createErrorRedirect('HMAC validation failed. The request could not be verified. Please try again.');
   }
 
   // 2. Exchange authorization code for an access token
@@ -67,30 +81,29 @@ export async function GET(request: NextRequest) {
       }),
     });
 
+    if (!tokenResponse.ok) {
+      const errorBody = await tokenResponse.text();
+      console.error(`Shopify token exchange failed with status ${tokenResponse.status}:`, errorBody);
+      return createErrorRedirect(`Shopify API returned an error (Status: ${tokenResponse.status}). Please check the server logs.`);
+    }
+
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
-
     if (!accessToken) {
-      console.error("Shopify callback error: Did not receive access token. Shopify's response:", tokenData);
       const shopifyError = tokenData.error_description || JSON.stringify(tokenData);
-      redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
-      redirectDashboardUrl.searchParams.set('error_description', shopifyError);
-      return createRedirectResponse(redirectDashboardUrl.toString());
+      console.error("Shopify callback error: Did not receive access token. Shopify's response:", tokenData);
+      return createErrorRedirect(`Authentication failed. Shopify's reason: ${shopifyError}`);
     }
 
-    // 3. Redirect back to the dashboard with the token to be saved on the client-side
-    redirectDashboardUrl.searchParams.set('shopify_shop', shop);
-    redirectDashboardUrl.searchParams.set('shopify_access_token', accessToken);
+    // 3. Success: Redirect back to the dashboard with the token
+    dashboardUrl.searchParams.set('shopify_shop', shop);
+    dashboardUrl.searchParams.set('shopify_access_token', accessToken);
     
-    return createRedirectResponse(redirectDashboardUrl.toString());
+    return createExitIframeRedirectResponse(dashboardUrl.toString());
 
   } catch (error: any) {
-    console.error("Error during Shopify token exchange:", error);
-    const redirectDashboardUrl = new URL(`${appUrl}/dashboard`);
-    redirectDashboardUrl.searchParams.set('error', 'shopify_auth_failed');
-    redirectDashboardUrl.searchParams.set('error_description', `An unexpected error occurred: ${error.message}`);
-    return createRedirectResponse(redirectDashboardUrl.toString());
+    console.error("Error during Shopify token exchange fetch call:", error);
+    return createErrorRedirect(`An unexpected network or server error occurred: ${error.message}`);
   }
 }
