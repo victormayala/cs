@@ -27,43 +27,7 @@ import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
-
-interface BoundaryBox {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface ProductView {
-  id: string;
-  name: string;
-  imageUrl: string;
-  aiHint?: string;
-  boundaryBoxes: BoundaryBox[];
-  price?: number; 
-}
-
-interface ColorGroupOptions {
-  selectedVariationIds: string[];
-  variantViewImages: Record<string, { imageUrl: string; aiHint?: string }>; 
-}
-
-export interface ProductOptionsFirestoreData {
-  id: string; 
-  name: string;
-  description: string;
-  price: number;
-  type: 'simple' | 'variable' | 'grouped' | 'external';
-  defaultViews: ProductView[];
-  optionsByColor: Record<string, ColorGroupOptions>;
-  groupingAttributeName: string | null;
-  allowCustomization?: boolean;
-  lastSaved?: any; 
-  createdAt?: any; 
-}
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions } from '@/app/actions/productOptionsActions';
 
 interface ProductOptionsData {
   id: string; 

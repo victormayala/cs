@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import type { ProductOptionsFirestoreData } from '@/app/dashboard/products/[productId]/options/page';
+import type { ProductOptionsFirestoreData } from '@/app/actions/productOptionsActions';
 
 export async function POST(request: Request) {
   try {

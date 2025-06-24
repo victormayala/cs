@@ -1,12 +1,47 @@
 
 'use server';
 
-// This file is now primarily for exporting types, as all Firestore operations
-// that depend on user authentication have been moved to client-side components
-// to ensure they run with the user's auth context, resolving permission errors.
-import type { ProductOptionsFirestoreData as Data } from '@/app/dashboard/products/[productId]/options/page';
+// This file defines shared types for product customization options.
 
-// The save/load/delete functions have been moved to their respective client components
-// to correctly use the client's Firebase auth context for Firestore security rules.
+// Note: The actual Firestore save/load functions are in client components
+// to correctly use the client's Firebase auth context for security rules.
 
-export type ProductOptionsFirestoreData = Data;
+interface BoundaryBox {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface ProductView {
+  id: string;
+  name: string;
+  imageUrl: string;
+  aiHint?: string;
+  boundaryBoxes: BoundaryBox[];
+  price?: number;
+}
+
+interface ColorGroupOptions {
+  selectedVariationIds: string[];
+  variantViewImages: Record<string, { imageUrl: string; aiHint?: string }>;
+}
+
+export interface ProductOptionsFirestoreData {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  type: 'simple' | 'variable' | 'grouped' | 'external';
+  defaultViews: ProductView[];
+  optionsByColor: Record<string, ColorGroupOptions>;
+  groupingAttributeName: string | null;
+  allowCustomization?: boolean;
+  lastSaved?: any; // Firestore server timestamp
+  createdAt?: any; // Firestore server timestamp
+}
+
+// These types are also used on the client, so we export them.
+export type { BoundaryBox, ProductView, ColorGroupOptions };

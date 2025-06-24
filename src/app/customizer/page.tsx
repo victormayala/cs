@@ -162,7 +162,17 @@ function CustomizerLayoutAndLogic() {
   const viewMode = useMemo(() => searchParams.get('viewMode'), [searchParams]);
   const isEmbedded = useMemo(() => viewMode === 'embedded', [viewMode]);
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
-  const sourceFromUrl = useMemo(() => (searchParams.get('source') as 'woocommerce' | 'shopify' | null) || 'woocommerce', [searchParams]);
+  const sourceFromUrl = useMemo(() => {
+    const sourceParam = searchParams.get('source');
+    if (sourceParam === 'shopify' || sourceParam === 'woocommerce') {
+      return sourceParam as 'shopify' | 'woocommerce';
+    }
+    // Fallback logic if source is missing, which can happen in some navigation scenarios.
+    if (productIdFromUrl && productIdFromUrl.startsWith('gid://shopify/Product/')) {
+      return 'shopify';
+    }
+    return 'woocommerce'; // Default if no other clues are present.
+  }, [searchParams, productIdFromUrl]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
 
@@ -710,7 +720,7 @@ function CustomizerLayoutAndLogic() {
 export default function CustomizerPage() {
   return (
     <UploadProvider>
-      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> </div> }>
+      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> d`iv> }>
         <CustomizerLayoutAndLogic />
       </Suspense>
     </UploadProvider>
@@ -729,5 +739,7 @@ export default function CustomizerPage() {
 
 
 
+
+    
 
     
