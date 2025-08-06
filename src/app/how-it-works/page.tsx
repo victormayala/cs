@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -8,8 +9,8 @@ import Link from 'next/link';
 import { ArrowRight, Link2, Settings2, Code, Palette, PackageCheck } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Removed numbers from titles to be generated dynamically
 const steps = [
   {
     icon: Link2,
@@ -124,17 +125,29 @@ export default function HowItWorksPage() {
             <p className="text-lg text-primary-foreground/90 mb-10 max-w-xl mx-auto">
               Join businesses already leveraging the power of personalization with Customizer Studio. Sign up today and take the first step towards a more interactive and profitable online store.
             </p>
-            <Button
-              asChild
-              size="lg"
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
-            >
-              <Link href="/signup">
-                <span className="flex items-center">
-                   Sign Up for Free <ArrowRight className="ml-2 h-5 w-5" />
-                </span>
-              </Link>
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-block cursor-not-allowed">
+                    <Button
+                      asChild
+                      size="lg"
+                      className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
+                      disabled
+                    >
+                      <Link href="#">
+                        <span className="flex items-center">
+                           Sign Up for Free <ArrowRight className="ml-2 h-5 w-5" />
+                        </span>
+                      </Link>
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Launching soon! Sign-ups will open shortly.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </section>
       </main>

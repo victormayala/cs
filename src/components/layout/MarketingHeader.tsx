@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -114,9 +115,20 @@ export default function MarketingHeader() {
         <Button asChild variant="outline" className="w-full text-base">
           <Link href="/signin">Sign In</Link>
         </Button>
-        <Button asChild variant="default" className="w-full text-base">
-          <Link href="/signup">Sign Up</Link>
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-full cursor-not-allowed">
+                <Button asChild variant="default" className="w-full text-base" disabled>
+                  <Link href="#">Sign Up</Link>
+                </Button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Launching soon! Sign-ups will open shortly.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </>
     );
   };
@@ -178,9 +190,20 @@ export default function MarketingHeader() {
                   <Button asChild variant="outline" size="sm">
                     <Link href="/signin">Sign In</Link>
                   </Button>
-                  <Button asChild variant="default" size="sm">
-                    <Link href="/signup">Sign Up</Link>
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="inline-block cursor-not-allowed">
+                          <Button asChild variant="default" size="sm" disabled>
+                            <Link href="#">Sign Up</Link>
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Launching soon! Sign-ups will open shortly.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </>
               )}
             </div>

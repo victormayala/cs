@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle } from 'lucide-react';
 import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const pricingTiers = [
   {
@@ -101,18 +102,30 @@ export default function PricingPage() {
                   </ul>
                 </CardContent>
                 <CardFooter>
-                  <Button 
-                    asChild 
-                    className={`w-full ${
-                      tier.ctaVariant === 'default' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 
-                      tier.ctaVariant === 'secondary' ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 
-                      'bg-transparent text-accent border border-accent hover:bg-accent/10' // Outline Accent
-                    }`} 
-                    size="lg"
-                    variant={tier.ctaVariant === 'outline' ? 'outline' : 'default'} // Set variant for proper styling base
-                  >
-                    <Link href={tier.href}>{tier.cta}</Link>
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-full cursor-not-allowed">
+                          <Button 
+                            asChild 
+                            className={`w-full ${
+                              tier.ctaVariant === 'default' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 
+                              tier.ctaVariant === 'secondary' ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 
+                              'bg-transparent text-accent border border-accent hover:bg-accent/10' // Outline Accent
+                            }`} 
+                            size="lg"
+                            variant={tier.ctaVariant === 'outline' ? 'outline' : 'default'}
+                            disabled
+                          >
+                            <Link href="#">{tier.cta}</Link>
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Launching soon! Sign-ups will open shortly.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </CardFooter>
               </Card>
             ))}
