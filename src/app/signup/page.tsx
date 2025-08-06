@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
-import { useState, FormEvent } from 'react'; // Added FormEvent
+import { useState, FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext'; 
-import { Loader2, UserPlus, AlertCircle } from 'lucide-react'; 
+import { Loader2, UserPlus, AlertCircle, Info } from 'lucide-react'; 
 import { FcGoogle } from 'react-icons/fc'; 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -21,49 +22,17 @@ export default function SignUpPage() {
   const [localIsLoading, setLocalIsLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: FormEvent) => { // Typed event
+  const handleSubmit = async (e: FormEvent) => { 
     e.preventDefault();
-    if (authIsLoading || localIsLoading) return;
-    
-    setLocalError(null); // Clear previous errors
-
-    if (password !== confirmPassword) {
-      setLocalError("The passwords you entered do not match.");
-      return;
-    }
-    if (password.length < 6) {
-      setLocalError("Password should be at least 6 characters long.");
-      return;
-    }
-
-    setLocalIsLoading(true);
-    try {
-      await signUp(email, password);
-      // Navigation is handled by AuthContext's onAuthStateChanged effect
-    } catch (error: any) {
-      // AuthContext's signUp method already toasts. We set localError for inline display.
-      setLocalError(error.message || "Sign up failed. Please try again.");
-    } finally {
-      setLocalIsLoading(false);
-    }
+    // Form is disabled, so this function is effectively blocked.
+    // Kept for completeness in case it's re-enabled later.
   };
 
   const handleGoogleSignUp = async () => {
-    if (authIsLoading || localIsLoading) return;
-    setLocalIsLoading(true);
-    setLocalError(null);
-    try {
-      await signInWithGoogle(); 
-      // Navigation is handled by AuthContext
-    } catch (error: any) {
-      // AuthContext's signInWithGoogle method already toasts.
-      setLocalError(error.message || "Google sign-up failed. Please try again.");
-    } finally {
-      setLocalIsLoading(false);
-    }
+    // Form is disabled, so this function is effectively blocked.
   };
-
-  const currentIsLoading = authIsLoading || localIsLoading;
+  
+  const isFormDisabled = true; // Hardcoded to disable the form
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -75,6 +44,13 @@ export default function SignUpPage() {
             <CardDescription>Join Customizer Studio and start customizing today!</CardDescription>
           </CardHeader>
           <CardContent>
+            <Alert variant="default" className="mb-6 bg-primary/5 border-primary/20">
+              <Info className="h-4 w-4 text-primary" />
+              <AlertTitle className="font-semibold text-primary/90">Launching Soon!</AlertTitle>
+              <AlertDescription className="text-primary/80">
+                We are currently not accepting new sign-ups. Please check back soon!
+              </AlertDescription>
+            </Alert>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
@@ -86,7 +62,7 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="bg-input/50"
-                  disabled={currentIsLoading}
+                  disabled={isFormDisabled}
                 />
               </div>
               <div className="space-y-2">
@@ -99,7 +75,7 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-input/50"
-                  disabled={currentIsLoading}
+                  disabled={isFormDisabled}
                 />
               </div>
                <div className="space-y-2">
@@ -112,7 +88,7 @@ export default function SignUpPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="bg-input/50"
-                  disabled={currentIsLoading}
+                  disabled={isFormDisabled}
                 />
               </div>
 
@@ -123,8 +99,8 @@ export default function SignUpPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" size="lg" disabled={currentIsLoading}>
-                {currentIsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+              <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" size="lg" disabled={isFormDisabled}>
+                <UserPlus className="mr-2 h-4 w-4" />
                 Sign Up
               </Button>
             </form>
@@ -133,8 +109,8 @@ export default function SignUpPage() {
               <span className="mx-4 text-xs uppercase text-muted-foreground">Or continue with</span>
               <div className="flex-grow border-t border-muted-foreground/20"></div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignUp} disabled={currentIsLoading}>
-              {currentIsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FcGoogle className="mr-2 h-5 w-5" />}
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignUp} disabled={isFormDisabled}>
+              <FcGoogle className="mr-2 h-5 w-5" />
               Sign Up with Google
             </Button>
             <div className="text-center mt-4">
