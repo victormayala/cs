@@ -1,32 +1,38 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for user-specific credentials. Only the owner can read/write.
+    // Secure user-specific credentials. 
+    // Only the logged-in user can read or write their own document.
     match /userWooCommerceCredentials/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
     match /userShopifyCredentials/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rules for product options. Publicly readable for the customizer, owner-only write.
+    // Product options configuration.
+    // ANYONE can read these settings (for public storefront plugins).
+    // ONLY the authenticated owner can write/update them from the dashboard.
     match /userProductOptions/{userId}/products/{productId} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Rules for user-generated stores. Publicly readable, owner-only write.
+
+    // User-generated store configurations
     match /userStores/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId && request.resource.data.userId == request.auth.uid;
+      allow read: if true; // Public read for storefronts
+      allow write: if request.auth != null && request.auth.uid == userId && request.resource.data.userId == userId;
     }
 
-    // Rules for native products stored under a user.
-    // Publicly readable for the storefront, owner-only write.
+    // Native products created within Customizer Studio
+    // Public can read product details for storefronts.
+    // Only the authenticated owner can create/update/delete their own products.
     match /users/{userId}/products/{productId} {
-      allow read: if true; 
+      allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
