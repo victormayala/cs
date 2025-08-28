@@ -8,14 +8,14 @@ import { db } from '@/lib/firebase';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
 
-import MarketingHeader from '@/components/layout/MarketingHeader';
-import MarketingFooter from '@/components/layout/MarketingFooter';
 import { CasualLayout } from '@/components/store/homepage-layouts/CasualLayout';
 import { CorporateLayout } from '@/components/store/homepage-layouts/CorporateLayout';
 import { MarketingLayout } from '@/components/store/homepage-layouts/MarketingLayout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import Head from 'next/head';
+import { StoreHeader } from '@/components/store/StoreHeader';
+import { StoreFooter } from '@/components/store/StoreFooter';
 
 function hexToHsl(hex: string): string | null {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -49,18 +49,17 @@ function hexToHsl(hex: string): string | null {
   return `${h} ${s}% ${l}%`;
 }
 
-
 function StoreLoadingSkeleton() {
     return (
         <div className="flex flex-col min-h-screen bg-background">
-            <MarketingHeader />
+            <header className="sticky top-0 z-50 w-full border-b bg-card h-16"></header>
             <main className="flex-1 flex items-center justify-center">
                 <div className="flex items-center text-muted-foreground">
                     <Loader2 className="h-8 w-8 mr-3 animate-spin text-primary" />
                     <span className="text-lg">Loading Store...</span>
                 </div>
             </main>
-            <MarketingFooter />
+            <footer className="border-t bg-muted/50 h-20"></footer>
         </div>
     );
 }
@@ -68,7 +67,7 @@ function StoreLoadingSkeleton() {
 function StoreErrorState({ error }: { error: string }) {
     return (
         <div className="flex flex-col min-h-screen bg-background">
-            <MarketingHeader />
+            <header className="sticky top-0 z-50 w-full border-b bg-card h-16"></header>
             <main className="flex-1 flex items-center justify-center p-4">
                 <Alert variant="destructive" className="max-w-md">
                     <AlertTriangle className="h-4 w-4" />
@@ -76,7 +75,7 @@ function StoreErrorState({ error }: { error: string }) {
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             </main>
-            <MarketingFooter />
+            <footer className="border-t bg-muted/50 h-20"></footer>
         </div>
     );
 }
@@ -174,11 +173,7 @@ export default function StorefrontHomepage() {
         </style>
       </Head>
       <div className="flex flex-col min-h-screen bg-background">
-        <MarketingHeader />
-        <main className="flex-1">
-          {renderLayout()}
-        </main>
-        <MarketingFooter />
+        {renderLayout()}
       </div>
     </>
   );

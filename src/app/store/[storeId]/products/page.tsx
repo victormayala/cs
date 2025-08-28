@@ -3,17 +3,52 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import MarketingHeader from '@/components/layout/MarketingHeader';
-import MarketingFooter from '@/components/layout/MarketingFooter';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, PackageSearch } from 'lucide-react';
 import type { PublicProduct } from '@/types/product';
+import { StoreHeader } from '@/components/store/StoreHeader';
+import { StoreFooter } from '@/components/store/StoreFooter';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { UserStoreConfig } from '@/app/actions/userStoreActions';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function ProductListingLoadingSkeleton() {
+    return (
+    <div className="flex flex-col min-h-screen bg-background">
+        <header className="sticky top-0 z-50 w-full border-b bg-card h-16 flex items-center">
+            <div className="container mx-auto px-4 md:px-6">
+                <Skeleton className="h-6 w-1/4" />
+            </div>
+        </header>
+      <main className="flex-1 py-12 md:py-16">
+        <div className="container max-w-7xl mx-auto px-4">
+          <div className="mb-12">
+            <Skeleton className="h-10 w-1/3 mb-4" />
+            <Skeleton className="h-6 w-1/2" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <ProductCardSkeleton key={index} />
+            ))}
+          </div>
+        </div>
+      </main>
+      <footer className="border-t bg-muted/50 h-20 flex items-center">
+        <div className="container mx-auto px-4 md:px-6">
+            <Skeleton className="h-4 w-1/4" />
+        </div>
+      </footer>
+    </div>
+    )
+}
 
 export default function ProductListingPage() {
   const params = useParams();
   const storeId = params.storeId as string;
 
+  const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
   const [products, setProducts] = useState<PublicProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +60,20 @@ export default function ProductListingPage() {
       return;
     }
 
-    const fetchProducts = async () => {
+    const fetchPageData = async () => {
       setIsLoading(true);
       setError(null);
       try {
+        // Fetch store config for header/footer
+        const storeDocRef = doc(db, 'userStores', storeId);
+        const storeDocSnap = await getDoc(storeDocRef);
+        if (storeDocSnap.exists()) {
+          setStoreConfig({ ...storeDocSnap.data(), id: storeDocSnap.id } as UserStoreConfig);
+        } else {
+            throw new Error("Store configuration not found.");
+        }
+
+        // Fetch products
         const response = await fetch(`/api/store/products?configUserId=${storeId}`);
         if (!response.ok) {
           const errorData = await response.json();
@@ -37,19 +82,23 @@ export default function ProductListingPage() {
         const data = await response.json();
         setProducts(data.products || []);
       } catch (err: any) {
-        console.error('Error fetching products:', err);
+        console.error('Error fetching page data:', err);
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchPageData();
   }, [storeId]);
+  
+  if (isLoading || !storeConfig) {
+      return <ProductListingLoadingSkeleton />
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <MarketingHeader />
+      <StoreHeader storeConfig={storeConfig} />
       <main className="flex-1 py-12 md:py-16">
         <div className="container max-w-7xl mx-auto px-4">
           <div className="text-left mb-12">
@@ -61,13 +110,7 @@ export default function ProductListingPage() {
             </p>
           </div>
 
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <ProductCardSkeleton key={index} />
-              ))}
-            </div>
-          ) : error ? (
+          {error ? (
             <Alert variant="destructive" className="max-w-2xl mx-auto">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Error Loading Products</AlertTitle>
@@ -90,7 +133,7 @@ export default function ProductListingPage() {
           )}
         </div>
       </main>
-      <MarketingFooter />
+      <StoreFooter storeConfig={storeConfig} />
     </div>
   );
 }

@@ -8,6 +8,8 @@ import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import { ArrowRight, Building, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { StoreHeader } from '../StoreHeader';
+import { StoreFooter } from '../StoreFooter';
 
 interface CorporateLayoutProps {
   storeConfig: UserStoreConfig;
@@ -19,6 +21,8 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
   const heroProduct = products?.[0];
 
   return (
+    <>
+    <StoreHeader storeConfig={storeConfig} />
     <div className="w-full bg-background">
       {/* Hero Section */}
       <section className="w-full py-20 md:py-28 bg-white border-b">
@@ -108,5 +112,7 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
         </div>
       </section>
     </div>
+    <StoreFooter storeConfig={storeConfig} />
+    </>
   );
 }
