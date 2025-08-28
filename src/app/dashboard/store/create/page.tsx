@@ -3,13 +3,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,21 +31,21 @@ const layouts = [
     name: 'casual',
     title: 'Casual',
     description: 'A fun, modern layout with rounded elements and a friendly feel.',
-    preview: '/images/layout-casual.png',
+    preview: 'https://picsum.photos/seed/casual-layout/300/180',
     aiHint: 'casual website layout'
   },
   {
     name: 'corporate',
     title: 'Corporate',
     description: 'A clean, professional, and structured layout for trust and clarity.',
-    preview: '/images/layout-corporate.png',
+    preview: 'https://picsum.photos/seed/corporate-layout/300/180',
     aiHint: 'corporate website layout'
   },
   {
     name: 'marketing',
     title: 'Marketing',
     description: 'A conversion-focused layout with a strong hero and calls-to-action.',
-    preview: '/images/layout-marketing.png',
+    preview: 'https://picsum.photos/seed/marketing-layout/300/180',
     aiHint: 'marketing website layout'
   }
 ] as const;
@@ -60,7 +61,28 @@ export default function CreateStorePage() {
   const [primaryColor, setPrimaryColor] = useState("#0635C9");
   const [secondaryColor, setSecondaryColor] = useState("#1BE5BE");
   const [selectedLayout, setSelectedLayout] = useState<LayoutName>('casual');
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        toast({ title: "Invalid File", description: "Please upload an image file.", variant: "destructive" });
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({ title: "File Too Large", description: "Please upload a logo smaller than 2MB.", variant: "destructive" });
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        setLogoDataUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +102,7 @@ export default function CreateStorePage() {
         primaryColorHex: primaryColor,
         secondaryColorHex: secondaryColor,
         layout: selectedLayout,
+        logoUrl: logoDataUrl || undefined,
       });
 
       if (result.success) {
@@ -173,7 +196,7 @@ export default function CreateStorePage() {
                       )}
                     >
                       <div className="relative aspect-video w-full rounded-md overflow-hidden bg-muted/50 mb-3">
-                        {/* Placeholder for layout preview image */}
+                        <Image src={layout.preview} alt={layout.title} fill className="object-cover" data-ai-hint={layout.aiHint} sizes="(max-width: 768px) 100vw, 33vw"/>
                       </div>
                       <div className="flex items-center justify-between">
                         <h4 className="font-semibold text-sm">{layout.title}</h4>
@@ -192,7 +215,7 @@ export default function CreateStorePage() {
                   <Palette className="mr-2 h-5 w-5 text-primary" />
                   Branding & Style
                 </Label>
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-1">
                     <Label htmlFor="primaryColor" className="text-sm">Primary Color</Label>
                     <Input 
@@ -201,6 +224,7 @@ export default function CreateStorePage() {
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
                       disabled={isSaving}
+                      className="h-10 p-1"
                     />
                   </div>
                   <div className="space-y-1">
@@ -211,12 +235,32 @@ export default function CreateStorePage() {
                       value={secondaryColor}
                       onChange={(e) => setSecondaryColor(e.target.value)}
                       disabled={isSaving}
+                      className="h-10 p-1"
                     />
                   </div>
-                  <div className="space-y-1 md:col-span-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="logoUpload" className="text-sm">Store Logo</Label>
-                    <Input id="logoUpload" type="file" disabled />
-                     <p className="text-xs text-muted-foreground">Logo uploads are coming soon.</p>
+                    {logoDataUrl ? (
+                      <div className="flex items-center gap-3 p-2 border rounded-md">
+                        <div className="relative w-16 h-16 bg-muted/50 rounded">
+                           <Image src={logoDataUrl} alt="Logo preview" fill className="object-contain" />
+                        </div>
+                        <Button variant="destructive" size="sm" onClick={() => setLogoDataUrl(null)}>
+                            <X className="mr-1.5 h-4 w-4" /> Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center w-full">
+                        <label htmlFor="logo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/30 hover:bg-muted/50">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <Upload className="w-8 h-8 mb-3 text-muted-foreground" />
+                                <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                <p className="text-xs text-muted-foreground">PNG, JPG, or GIF (max 2MB)</p>
+                            </div>
+                            <input id="logo-upload" type="file" className="hidden" onChange={handleLogoUpload} accept="image/*" />
+                        </label>
+                      </div> 
+                    )}
                   </div>
                 </div>
               </div>
