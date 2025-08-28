@@ -28,18 +28,19 @@ import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, Alert
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions } from '@/app/actions/productOptionsActions';
+import type { NativeProduct } from '@/app/actions/productActions';
 
 interface ProductOptionsData {
   id: string; 
   name: string; 
   description: string; 
   price: number; 
-  type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify'; // Added shopify type
+  type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
   groupingAttributeName: string | null;
   allowCustomization: boolean;
-  source: 'woocommerce' | 'shopify';
+  source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
 interface ActiveDragState {
@@ -84,7 +85,7 @@ export default function ProductOptionsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const productIdFromUrl = decodeURIComponent(params.productId as string);
-  const source = searchParams.get('source') as 'woocommerce' | 'shopify' || 'woocommerce';
+  const source = searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce';
   const firestoreDocId = productIdFromUrl.split('/').pop() || productIdFromUrl;
 
   const { toast } = useToast();
@@ -96,7 +97,7 @@ export default function ProductOptionsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null); 
-  const [credentialsExist, setCredentialsExist] = useState(false);
+  const [credentialsExist, setCredentialsExist] = useState(true); // Assume true for native products
 
   const [variations, setVariations] = useState<WCVariation[]>([]);
   const [isLoadingVariations, setIsLoadingVariations] = useState(false);
@@ -133,7 +134,10 @@ export default function ProductOptionsPage() {
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
           const credDocSnap = await getDoc(credDocRef);
-          if (!credDocSnap.exists()) throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
+          if (!credDocSnap.exists()) {
+            setCredentialsExist(false);
+            throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
+          }
           setCredentialsExist(true);
           const creds = credDocSnap.data() as UserShopifyCredentials;
           const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productIdFromUrl);
@@ -146,10 +150,13 @@ export default function ProductOptionsPage() {
             imageUrl: product.featuredImage?.url || 'https://placehold.co/600x600.png',
             imageAlt: product.featuredImage?.altText || product.title,
           };
-      } else { 
+      } else if (source === 'woocommerce') { 
           const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
           const credDocSnap = await getDoc(credDocRef);
-          if (!credDocSnap.exists()) throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
+           if (!credDocSnap.exists()) {
+            setCredentialsExist(false);
+            throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
+          }
           setCredentialsExist(true);
           const credsData = credDocSnap.data() as UserWooCommerceCredentials;
           const userCredentialsToUse: WooCommerceCredentials = {
@@ -190,6 +197,22 @@ export default function ProductOptionsPage() {
                 }
             } finally { setIsLoadingVariations(false); }
           }
+      } else { // source === 'customizer-studio'
+        const productDocRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
+        const productDocSnap = await getDoc(productDocRef);
+        if (!productDocSnap.exists()) {
+          throw new Error(`Native product with ID ${firestoreDocId} not found.`);
+        }
+        const nativeProduct = productDocSnap.data() as NativeProduct;
+        baseProduct = {
+          id: firestoreDocId,
+          name: nativeProduct.name,
+          description: nativeProduct.description || 'No description provided.',
+          price: 0, // Native products price is managed in options
+          type: 'simple',
+          imageUrl: 'https://placehold.co/600x600.png', // Placeholder, to be configured in options
+          imageAlt: nativeProduct.name,
+        };
       }
 
       const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
@@ -234,6 +257,10 @@ export default function ProductOptionsPage() {
 
 
   const handleRefreshData = () => {
+    if (source === 'customizer-studio') {
+        toast({ title: "Not applicable", description: "Native products do not need to be refreshed.", variant: "default" });
+        return;
+    }
     if (!authIsLoading && user && productIdFromUrl) {
         fetchAndSetProductData(true);
     } else {
@@ -338,7 +365,7 @@ export default function ProductOptionsPage() {
       name: productOptions.name,
       description: productOptions.description,
       price: productOptions.price,
-      type: productOptions.type === 'shopify' ? 'simple' : productOptions.type, // Store shopify as simple
+      type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
       defaultViews: productOptions.defaultViews,
       optionsByColor: productOptions.optionsByColor,
       groupingAttributeName: productOptions.groupingAttributeName,
@@ -353,6 +380,11 @@ export default function ProductOptionsPage() {
         dataToSave.createdAt = serverTimestamp();
       }
       await setDoc(docRef, dataToSave, { merge: true });
+
+      if (source === 'customizer-studio') {
+        const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
+        await setDoc(productBaseRef, { name: productOptions.name, description: productOptions.description, lastModified: serverTimestamp() }, { merge: true });
+      }
       
       toast({ title: "Saved", description: "Custom views, areas, and variation selections saved to your account." });
       setHasUnsavedChanges(false);
@@ -641,9 +673,11 @@ export default function ProductOptionsPage() {
         <Button variant="outline" asChild className="hover:bg-accent hover:text-accent-foreground">
           <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link>
         </Button>
-        <Button variant="outline" onClick={handleRefreshData} disabled={isRefreshing || isLoading} className="hover:bg-accent hover:text-accent-foreground">
-          {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}Refresh Product Data
-        </Button>
+        {source !== 'customizer-studio' && (
+            <Button variant="outline" onClick={handleRefreshData} disabled={isRefreshing || isLoading} className="hover:bg-accent hover:text-accent-foreground">
+                {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}Refresh Product Data
+            </Button>
+        )}
       </div>
 
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
@@ -663,10 +697,16 @@ export default function ProductOptionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
           <Card className="shadow-md">
-            <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store (Read-only).</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store {source !== 'customizer-studio' && '(Read-only)'}.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
-              <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className="mt-1 bg-muted/50" readOnly /></div>
-              <div><Label htmlFor="productDescription">Description</Label><Textarea id="productDescription" value={productOptions.description} className="mt-1 bg-muted/50" rows={4} readOnly /></div>
+              <div>
+                  <Label htmlFor="productName">Product Name</Label>
+                  <Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => setProductOptions(prev => prev ? {...prev, name: e.target.value} : null)} />
+              </div>
+              <div>
+                  <Label htmlFor="productDescription">Description</Label>
+                  <Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => setProductOptions(prev => prev ? {...prev, description: e.target.value} : null)} />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label htmlFor="productPrice">Price ($)</Label><Input id="productPrice" type="number" value={productOptions.price} className="mt-1 bg-muted/50" readOnly /></div>
                 <div><Label htmlFor="productType">Type</Label><Input id="productType" value={productOptions.type.charAt(0).toUpperCase() + productOptions.type.slice(1)} className="mt-1 bg-muted/50" readOnly /></div>
