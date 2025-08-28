@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import type { PublicProduct } from '@/types/product';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { ArrowRight, Building, CheckCircle } from 'lucide-react';
+import { ArrowRight, Building, CheckCircle, Briefcase, Percent, Rss } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { StoreHeader } from '../StoreHeader';
 import { StoreFooter } from '../StoreFooter';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface CorporateLayoutProps {
   storeConfig: UserStoreConfig;
@@ -68,17 +69,17 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
         <div className="container mx-auto px-4">
             <div className="grid md:grid-cols-3 gap-8 text-center">
                 <div className="p-4">
-                    <CheckCircle className="h-10 w-10 text-primary mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
+                    <CheckCircle className="h-10 w-10 mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
                     <h3 className="text-lg font-semibold text-gray-800">Quality Guaranteed</h3>
                     <p className="text-sm text-gray-600 mt-1">Premium materials for a professional finish.</p>
                 </div>
                 <div className="p-4">
-                    <CheckCircle className="h-10 w-10 text-primary mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
+                    <CheckCircle className="h-10 w-10 mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
                     <h3 className="text-lg font-semibold text-gray-800">Bulk Discounts</h3>
                     <p className="text-sm text-gray-600 mt-1">Competitive pricing for large volume orders.</p>
                 </div>
                 <div className="p-4">
-                    <CheckCircle className="h-10 w-10 text-primary mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
+                    <CheckCircle className="h-10 w-10 mx-auto mb-3" style={{color: `hsl(var(--primary))`}}/>
                     <h3 className="text-lg font-semibold text-gray-800">Easy Online Design</h3>
                     <p className="text-sm text-gray-600 mt-1">Intuitive tools to upload logos and add text.</p>
                 </div>
@@ -111,6 +112,77 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
             )}
         </div>
       </section>
+
+        {/* Featured Categories */}
+        <section className="py-16 md:py-24 bg-gray-50">
+            <div className="container mx-auto px-4">
+                <h2 className="text-3xl font-bold font-headline text-gray-900 text-center mb-10">Browse by Department</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {['Apparel', 'Office & Drinkware', 'Trade Show Gear'].map((category) => (
+                        <Link href={`/store/${storeConfig.id}/products`} key={category} className="group block">
+                            <div className="relative aspect-[4/3] rounded-lg overflow-hidden">
+                                <Image src={`https://picsum.photos/seed/${category}/500/375`} alt={category} fill className="object-cover transition-transform group-hover:scale-105" />
+                            </div>
+                            <h3 className="font-semibold text-lg mt-3 text-gray-800 group-hover:text-primary">{category} <ArrowRight className="inline-block h-4 w-4 transition-transform group-hover:translate-x-1" /></h3>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+        </section>
+
+        {/* Special Offer */}
+        <section className="py-20 bg-primary text-primary-foreground">
+            <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-center md:text-left gap-6">
+                <div>
+                    <h2 className="text-3xl font-bold font-headline mb-2">Volume Discount Available</h2>
+                    <p className="text-lg opacity-90">Contact our sales team for a custom quote on orders over 50 units.</p>
+                </div>
+                <Button size="lg" variant="secondary" asChild>
+                    <Link href="#">Request a Quote</Link>
+                </Button>
+            </div>
+        </section>
+
+        {/* Lifestyle Section */}
+        <section className="py-16 md:py-24 bg-white">
+            <div className="container mx-auto px-4 text-center">
+                <h2 className="text-3xl font-bold font-headline text-gray-900 mb-4">Our Products in Action</h2>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-10">Trusted by leading companies for their branding and corporate gifting needs.</p>
+                <div className="relative aspect-video max-w-4xl mx-auto rounded-lg overflow-hidden shadow-lg">
+                    <Image src="https://picsum.photos/seed/corporate-lifestyle/1200/675" alt="Products in a corporate setting" fill className="object-cover"/>
+                </div>
+            </div>
+        </section>
+        
+        {/* Recommended for you */}
+        <section className="py-16 md:py-24 bg-gray-50">
+            <div className="container mx-auto px-4">
+                <h2 className="text-3xl font-bold font-headline text-gray-900 mb-10">Recommended For You</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {products.slice(0, 4).map((p,i) => <ProductCard key={p.id} product={{...p, imageUrl: `https://picsum.photos/seed/recc${i}/400`}} />)}
+                </div>
+            </div>
+        </section>
+
+        {/* Blog section */}
+        <section className="py-16 md:py-24 bg-white">
+            <div className="container mx-auto px-4">
+                <h2 className="text-3xl font-bold font-headline text-gray-900 text-center mb-10">Latest Insights</h2>
+                <div className="grid md:grid-cols-3 gap-8">
+                     {[1, 2, 3].map(i => (
+                        <Card key={i} className="group overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                             <Link href="#">
+                                <div className="p-6">
+                                    <p className="text-sm text-gray-500 mb-2">Branding Tips</p>
+                                    <h3 className="font-semibold text-lg text-gray-800 group-hover:text-primary mb-3">How to Choose the Perfect Corporate Gift</h3>
+                                    <p className="text-sm text-gray-600 line-clamp-2">A great corporate gift can strengthen relationships and build brand loyalty. Here's how to get it right.</p>
+                                </div>
+                            </Link>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        </section>
     </div>
     <StoreFooter storeConfig={storeConfig} />
     </>
