@@ -52,7 +52,7 @@ function AuthLogicHandler({
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         setAuthProviderUser({
           uid: firebaseUser.uid,
@@ -60,6 +60,11 @@ function AuthLogicHandler({
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
         });
+
+        // Add user ID to a temporary global state for server actions
+        if (typeof window !== 'undefined') {
+          (window as any).__USER_ID__ = firebaseUser.uid;
+        }
         
         const redirectUrl = searchParams.get('redirect');
         const isAuthPage = pathname === '/signin' || pathname === '/signup';
@@ -71,6 +76,11 @@ function AuthLogicHandler({
         }
       } else {
         setAuthProviderUser(null);
+        // Clear the global user ID
+        if (typeof window !== 'undefined') {
+          delete (window as any).__USER_ID__;
+        }
+
         const protectedUserPaths = ['/dashboard', '/dashboard/products']; 
         const isCurrentlyOnProtectedPath = protectedUserPaths.some(p => pathname.startsWith(p));
 
@@ -107,6 +117,29 @@ function AuthLogicHandler({
 
   return null; // This component doesn't render anything itself
 }
+
+// Interceptor for fetch to add user ID header
+const originalFetch = typeof window !== 'undefined' ? window.fetch : () => Promise.reject('fetch is not available in this environment');
+
+if (typeof window !== 'undefined') {
+    window.fetch = async (...args) => {
+        const [resource, config] = args;
+        const newHeaders = new Headers(config?.headers);
+
+        const userId = (window as any).__USER_ID__;
+        if (userId) {
+            newHeaders.set('X-User-ID', userId);
+        }
+
+        const newConfig = {
+            ...config,
+            headers: newHeaders,
+        };
+
+        return originalFetch(resource, newConfig);
+    };
+}
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

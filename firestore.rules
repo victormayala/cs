@@ -2,42 +2,39 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // PUBLIC READABLE, USER-WRITABLE DATA
+    
+    // Store configurations: public can read, owner can write.
+    match /userStores/{userId} {
+      allow read: if true;
+      // Allow write if the user is authenticated and the incoming data's userId matches their UID.
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Product options: public can read, owner can write.
+    match /userProductOptions/{userId}/products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
 
-    // Rules for user-specific data like products and credentials.
-    match /users/{userId}/{document=**} {
+    // NATIVE (CUSTOMIZER STUDIO) PRODUCTS
+    // Public can read product info (for generated stores), owner can write.
+    match /users/{userId}/products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // SECURE, USER-PRIVATE DATA
+
+    // WooCommerce credentials should only be readable/writable by the owner.
+    match /userWooCommerceCredentials/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rules for store configurations.
-    // ANYONE can read these for public storefronts.
-    // ONLY the owner can write.
-    match /userStores/{userId} {
-       allow read: if true;
-       allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rules for product options.
-    // ANYONE can read these for public customizers.
-    // ONLY the owner can write.
-    match /userProductOptions/{userId}/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rules for Shopify credentials.
-    // Publicly readable by server-side functions (via API key), but not clients.
-    // ONLY the owner can write.
+    // Shopify credentials should only be readable/writable by the owner.
     match /userShopifyCredentials/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rules for WooCommerce credentials.
-    // Publicly readable by server-side functions (via API key), but not clients.
-    // ONLY the owner can write.
-    match /userWooCommerceCredentials/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

@@ -97,8 +97,9 @@ export default function CreateStorePage() {
 
     setIsSaving(true);
     try {
+      // The `userId` is no longer passed from the client.
+      // The server action will get it from the session.
       const result = await saveUserStoreConfig({
-        userId: user.uid,
         storeName,
         primaryColorHex: primaryColor,
         secondaryColorHex: secondaryColor,
