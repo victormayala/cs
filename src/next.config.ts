@@ -29,6 +29,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdnp.sanmar.com',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
   async redirects() {
