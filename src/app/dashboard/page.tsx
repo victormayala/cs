@@ -262,7 +262,7 @@ function DashboardPageContent() {
     }
 
     setIsLoadingProducts(false);
-  }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast, db]);
+  }, [user, getLocallyHiddenProductIds, wcCredentialsExist, shopifyCredentialsExist, wcStoreUrl, wcConsumerKey, wcConsumerSecret, toast]);
 
   // Client-side function to save Shopify credentials
   const saveShopifyCredentialsClientSide = useCallback(async (credentials: ShopifyCredentials) => {
@@ -338,7 +338,7 @@ function DashboardPageContent() {
     } else if (!user) {
       setIsLoadingWcCredentials(false);
     }
-  }, [user, toast, db]);
+  }, [user, toast]);
 
   // Load Shopify Credentials (Client-side)
   useEffect(() => {
@@ -365,7 +365,7 @@ function DashboardPageContent() {
         setIsLoadingShopifyCredentials(false);
       });
     }
-  }, [user, toast, db]);
+  }, [user, toast]);
 
   const handleSaveWcCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -768,5 +768,3 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
-
-      
