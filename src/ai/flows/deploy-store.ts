@@ -11,10 +11,9 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 // We can't import UserStoreConfig directly into the schema, so we define a Zod schema that matches it.
+// This schema represents the plain object received from the client.
 const DeployStoreInputSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -25,13 +24,10 @@ const DeployStoreInputSchema = z.object({
     primaryColorHex: z.string(),
     secondaryColorHex: z.string(),
   }),
-  deployment: z.object({
-    status: z.enum(['uninitialized', 'pending', 'active', 'error']),
-    deployedUrl: z.string().optional(),
-    lastDeployedAt: z.any().optional(),
-  }),
-  createdAt: z.any(),
-  lastSaved: z.any(),
+  // Timestamps will be plain objects after JSON serialization from the client.
+  createdAt: z.any().optional(),
+  lastSaved: z.any().optional(),
+  // Deployment object is not needed as input since the flow's job is to create it.
 });
 
 export type DeployStoreInput = z.infer<typeof DeployStoreInputSchema>;
@@ -55,21 +51,10 @@ const deployStoreFlow = ai.defineFlow(
     outputSchema: DeployStoreOutputSchema,
   },
   async (config) => {
-    console.log(`[deployStoreFlow] Starting deployment for store: ${config.storeName} (User: ${config.userId})`);
+    console.log(`[deployStoreFlow] Starting deployment simulation for store: ${config.storeName} (User: ${config.userId})`);
 
-    const storeRef = doc(db, 'userStores', config.userId);
-
-    // 1. Update status to 'pending' in Firestore
-    await setDoc(storeRef, {
-        deployment: {
-            ...config.deployment,
-            status: 'pending',
-        }
-    }, { merge: true });
-
-    // 2. Simulate the deployment process
     // In a real application, this is where you would call a cloud build service,
-    // generate files, and run deployment scripts.
+    // generate files, and run deployment scripts. This flow no longer interacts with Firestore.
     await new Promise(resolve => setTimeout(resolve, 5000)); // Simulate a 5-second deployment
 
     // This is a mock URL. In a real deployment, you'd get this from your hosting provider.
@@ -77,34 +62,11 @@ const deployStoreFlow = ai.defineFlow(
 
     console.log(`[deployStoreFlow] Mock deployment complete for store: ${config.storeName}. URL: ${mockDeployedUrl}`);
     
-    // 3. Update status to 'active' and save the URL in Firestore
-    try {
-        await setDoc(storeRef, {
-            deployment: {
-                status: 'active',
-                deployedUrl: mockDeployedUrl,
-                lastDeployedAt: serverTimestamp(),
-            }
-        }, { merge: true });
-
-        console.log(`[deployStoreFlow] Successfully updated Firestore with active status for store: ${config.storeName}`);
-        
-        return {
-          deploymentUrl: mockDeployedUrl,
-          status: 'active',
-        };
-    } catch (error: any) {
-        console.error(`[deployStoreFlow] Error updating Firestore after deployment for user ${config.userId}:`, error);
-        
-        // Try to update status to 'error'
-        await setDoc(storeRef, {
-            deployment: {
-                ...config.deployment,
-                status: 'error',
-            }
-        }, { merge: true });
-        
-        throw new Error(`Deployment simulation succeeded, but failed to update status in database: ${error.message}`);
-    }
+    // The flow now only returns the result of the deployment.
+    // The client is responsible for updating the database.
+    return {
+      deploymentUrl: mockDeployedUrl,
+      status: 'active',
+    };
   }
 );

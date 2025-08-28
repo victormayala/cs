@@ -100,52 +100,63 @@ export default function CreateStorePage() {
     }
 
     setIsSaving(true);
-    let storeConfig: UserStoreConfig | null = null;
+    const storeRef = doc(db, 'userStores', user.uid);
+
     try {
-        const storeRef = doc(db, 'userStores', user.uid);
-        
-        const newStoreData: Omit<UserStoreConfig, 'createdAt' | 'id'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
-            userId: user.uid,
-            storeName,
-            layout: selectedLayout,
-            branding: {
-                primaryColorHex: primaryColor,
-                secondaryColorHex: secondaryColor,
-                logoUrl: logoDataUrl || undefined,
-            },
-            deployment: {
-                status: 'uninitialized',
-            },
-            lastSaved: serverTimestamp(),
-        };
+      // Step 1: Save initial config with 'pending' status
+      const initialStoreData: Omit<UserStoreConfig, 'createdAt' | 'id'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
+        userId: user.uid,
+        storeName,
+        layout: selectedLayout,
+        branding: {
+          primaryColorHex: primaryColor,
+          secondaryColorHex: secondaryColor,
+          logoUrl: logoDataUrl || undefined,
+        },
+        deployment: {
+          status: 'pending', // Start as pending
+        },
+        lastSaved: serverTimestamp(),
+      };
 
-        const docSnap = await getDoc(storeRef);
-        if (!docSnap.exists()) {
-            newStoreData.createdAt = serverTimestamp();
+      const docSnap = await getDoc(storeRef);
+      if (!docSnap.exists()) {
+        initialStoreData.createdAt = serverTimestamp();
+      }
+
+      await setDoc(storeRef, initialStoreData, { merge: true });
+      
+      toast({
+        title: "Configuration Saved!",
+        description: "Your store settings have been saved. Now starting deployment...",
+      });
+      
+      // Step 2: Call the deployment flow (which no longer touches the DB)
+      const storeConfigForFlow: UserStoreConfig = {
+        ...initialStoreData,
+        id: user.uid,
+        createdAt: docSnap.data()?.createdAt || serverTimestamp(), // Use existing or new timestamp
+        deployment: { status: 'pending' }, // Pass current deployment state
+      };
+      
+      const plainStoreConfig = JSON.parse(JSON.stringify(storeConfigForFlow));
+      const deploymentResult = await deployStore(plainStoreConfig);
+
+      // Step 3: Update the doc with the deployment result from the client
+      await setDoc(storeRef, {
+        deployment: {
+          status: 'active',
+          deployedUrl: deploymentResult.deploymentUrl,
+          lastDeployedAt: serverTimestamp(),
         }
+      }, { merge: true });
 
-        await setDoc(storeRef, newStoreData, { merge: true });
-        
-        storeConfig = {
-            ...newStoreData,
-            id: user.uid,
-            createdAt: docSnap.data()?.createdAt || serverTimestamp(),
-        } as UserStoreConfig;
+      toast({
+        title: "Deployment Succeeded!",
+        description: `Your store is now active.`,
+      });
 
-        toast({
-          title: "Configuration Saved!",
-          description: "Your store settings have been saved. Now starting deployment...",
-        });
-
-        // Trigger deployment flow
-        const deploymentResult = await deployStore(storeConfig);
-
-        toast({
-            title: "Deployment Initiated!",
-            description: `Store deployment process started. Mock URL: ${deploymentResult.deploymentUrl}`,
-        });
-
-        router.push(`/store/${user.uid}`);
+      router.push(`/store/${user.uid}`);
 
     } catch (error: any) {
       let errorMessage = `Failed to save or deploy: ${error.message}`;
@@ -158,6 +169,9 @@ export default function CreateStorePage() {
         variant: "destructive",
       });
       console.error("Save/Deploy error:", error);
+      // Optional: Set status to 'error' in Firestore
+      await setDoc(storeRef, { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
+
     } finally {
       setIsSaving(false);
     }
