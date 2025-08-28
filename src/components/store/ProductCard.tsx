@@ -1,3 +1,4 @@
+
 'use client';
 
 import Image from 'next/image';
@@ -14,7 +15,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   return (
-    <Card className="flex flex-col overflow-hidden h-full shadow-md hover:shadow-xl transition-shadow duration-300">
+    <Card className="flex flex-col overflow-hidden h-full shadow-md hover:shadow-xl transition-shadow duration-300 group">
       <div className="relative aspect-square w-full bg-muted/30 overflow-hidden">
         <Link href={product.productUrl}>
           <Image
@@ -28,7 +29,7 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
       <CardContent className="p-4 flex-grow">
         <h3 className="font-semibold text-lg text-foreground truncate">
-          <Link href={product.productUrl}>{product.name}</Link>
+          <Link href={product.productUrl} className="hover:text-primary transition-colors">{product.name}</Link>
         </h3>
         <p className="text-muted-foreground text-sm mt-1">
           From ${product.price.toFixed(2)}
@@ -49,8 +50,8 @@ export function ProductCardSkeleton() {
   return (
     <Card className="flex flex-col overflow-hidden">
         <Skeleton className="aspect-square w-full" />
-      <CardContent className="p-4">
-        <Skeleton className="h-6 w-3/4 mb-2" />
+      <CardContent className="p-4 space-y-2">
+        <Skeleton className="h-6 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
       </CardContent>
       <CardFooter className="p-4 pt-0">

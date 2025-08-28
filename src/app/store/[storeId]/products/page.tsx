@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -73,7 +74,7 @@ export default function ProductListingPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : products.length === 0 ? (
-            <div className="text-center py-16 border border-dashed rounded-lg">
+            <div className="text-center py-16 border border-dashed rounded-lg bg-muted/20">
                 <PackageSearch className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
                 <h2 className="text-2xl font-semibold text-foreground">No Products Found</h2>
                 <p className="text-muted-foreground mt-2">
