@@ -98,6 +98,7 @@ export default function CreateStorePage() {
     setIsSaving(true);
     try {
       const result = await saveUserStoreConfig({
+        userId: user.uid,
         storeName,
         primaryColorHex: primaryColor,
         secondaryColorHex: secondaryColor,

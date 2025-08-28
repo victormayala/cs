@@ -37,7 +37,7 @@ export default function CreateProductPage() {
 
     setIsCreating(true);
     try {
-      const result = await createProduct({ name: productName });
+      const result = await createProduct({ name: productName, userId: user.uid });
       if (result.success && result.productId) {
         toast({
           title: "Product Created!",

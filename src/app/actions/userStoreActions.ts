@@ -35,6 +35,7 @@ export interface UserStoreConfig {
 
 
 interface SaveStoreConfigInput {
+    userId: string;
     storeName: string;
     primaryColorHex: string;
     secondaryColorHex: string;
@@ -49,16 +50,13 @@ interface SaveStoreConfigResponse {
 }
 
 export async function saveUserStoreConfig(input: SaveStoreConfigInput): Promise<SaveStoreConfigResponse> {
-    const headersList = headers();
-    // This is NOT secure for production without proper token validation.
-    // In a real app, this should be derived from a verified session/token on the server.
-    const userId = headersList.get('x-user-id');
+    const { userId, storeName, layout, primaryColorHex, secondaryColorHex, logoUrl } = input;
 
     if (!userId) {
         return { success: false, error: "Authentication required. User ID not found." };
     }
     
-    if (!input.storeName || input.storeName.trim().length < 3) {
+    if (!storeName || storeName.trim().length < 3) {
         return { success: false, error: 'Store name must be at least 3 characters long.' };
     }
      if (!db) {
@@ -68,12 +66,12 @@ export async function saveUserStoreConfig(input: SaveStoreConfigInput): Promise<
     const storeRef = doc(db, 'userStores', userId);
 
     const newStoreData: Omit<UserStoreConfig, 'id' | 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
-        storeName: input.storeName,
-        layout: input.layout,
+        storeName: storeName,
+        layout: layout,
         branding: {
-            primaryColorHex: input.primaryColorHex,
-            secondaryColorHex: input.secondaryColorHex,
-            logoUrl: input.logoUrl,
+            primaryColorHex: primaryColorHex,
+            secondaryColorHex: secondaryColorHex,
+            logoUrl: logoUrl,
         },
         deployment: {
             status: 'uninitialized',

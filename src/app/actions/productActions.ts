@@ -22,6 +22,7 @@ export interface NativeProduct {
 
 interface CreateProductInput {
     name: string;
+    userId: string;
 }
 
 interface CreateProductResponse {
@@ -31,18 +32,13 @@ interface CreateProductResponse {
 }
 
 export async function createProduct(input: CreateProductInput): Promise<CreateProductResponse> {
-  const headersList = headers();
-  // TODO: This is a placeholder for server-side auth.
-  // In a real app, you'd get the user from the session/token.
-  // For now, we'll assume the client passes the UID, or we extract it from a custom header.
-  // This is NOT secure for production without proper token validation.
-  const userId = headersList.get('x-user-id');
+  const { userId, name } = input;
 
   if (!userId) {
       return { success: false, error: "Authentication required. User ID not found." };
   }
   
-  if (!input.name || input.name.trim().length === 0) {
+  if (!name || name.trim().length === 0) {
     return { success: false, error: 'Product name is required.' };
   }
 
@@ -55,7 +51,7 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
 
   const newProductData: Omit<NativeProduct, 'id'> = {
     userId,
-    name: input.name,
+    name: name,
     description: "", // Can be edited later on the options page
     createdAt: serverTimestamp(),
     lastModified: serverTimestamp(),
@@ -68,7 +64,7 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     const optionsRef = doc(db, 'userProductOptions', userId, 'products', productId);
     await setDoc(optionsRef, {
         id: productId,
-        name: input.name,
+        name: name,
         description: "",
         price: 0,
         type: 'simple', // Native products are simple by default
@@ -86,5 +82,4 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     return { success: false, error: `Failed to create product in database: ${error.message}` };
   }
 }
-
     
