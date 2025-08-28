@@ -1,28 +1,35 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Allow users to read and write their own credentials and store configurations.
+
+    // Users can only manage their own documents within the 'users' collection.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Product options can be read by anyone (for public customizers/storefronts)
+    // but only written to by the authenticated owner.
     match /userProductOptions/{userId}/{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    match /userShopifyCredentials/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
+    // Credentials can only be read/written by the authenticated owner.
     match /userWooCommerceCredentials/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    match /userStores/{userId} {
+    // Credentials can only be read/written by the authenticated owner.
+    match /userShopifyCredentials/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Store configurations can be read by anyone (for public storefronts)
+    // but only written to by the authenticated owner.
+    match /userStores/{userId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
