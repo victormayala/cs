@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, LogOut, LayoutDashboardIcon, UserCircle } from 'lucide-react';
+import { Menu, LogOut, LayoutDashboardIcon } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -115,20 +114,9 @@ export default function MarketingHeader() {
         <Button asChild variant="outline" className="w-full text-base">
           <Link href="/signin">Sign In</Link>
         </Button>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-full cursor-not-allowed">
-                <Button asChild variant="default" className="w-full text-base" disabled>
-                  <Link href="#">Sign Up</Link>
-                </Button>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Launching soon! Sign-ups will open shortly.</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Button asChild variant="default" className="w-full text-base">
+          <Link href="/signup">Sign Up</Link>
+        </Button>
       </>
     );
   };
@@ -190,20 +178,9 @@ export default function MarketingHeader() {
                   <Button asChild variant="outline" size="sm">
                     <Link href="/signin">Sign In</Link>
                   </Button>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="inline-block cursor-not-allowed">
-                          <Button asChild variant="default" size="sm" disabled>
-                            <Link href="#">Sign Up</Link>
-                          </Button>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Launching soon! Sign-ups will open shortly.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Button asChild variant="default" size="sm">
+                    <Link href="/signup">Sign Up</Link>
+                  </Button>
                 </>
               )}
             </div>

@@ -58,24 +58,13 @@ export default function MarketingHomePage() {
               Customizer Studio empowers e-commerce businesses to offer intuitive product personalization at scale, effortlessly.
             </p>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-block cursor-not-allowed">
-                      <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 px-8 py-3 text-base w-full sm:w-auto" disabled>
-                        <Link href="#">
-                          <span className="flex items-center">
-                            Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
-                          </span>
-                        </Link>
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Launching soon! Sign-ups will open shortly.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 px-8 py-3 text-base w-full sm:w-auto">
+                <Link href="/signup">
+                  <span className="flex items-center">
+                    Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
+                  </span>
+                </Link>
+              </Button>
                <Button asChild size="lg" variant="outline" className="shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 px-8 py-3 text-base w-full sm:w-auto">
                 <Link href="/how-it-works">
                   <span className="flex items-center">
@@ -196,24 +185,13 @@ export default function MarketingHomePage() {
               />
             </div>
             <div className="text-center mt-12">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-block cursor-not-allowed">
-                      <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" disabled>
-                        <Link href="#">
-                          <span className="flex items-center">
-                            Start Customizing Today <ArrowRight className="ml-2 h-5 w-5" />
-                          </span>
-                        </Link>
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Launching soon! Sign-ups will open shortly.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Link href="/signup">
+                  <span className="flex items-center">
+                    Start Customizing Today <ArrowRight className="ml-2 h-5 w-5" />
+                  </span>
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -282,27 +260,15 @@ export default function MarketingHomePage() {
               Join hundreds of businesses offering unique, personalized products. Start your journey with Customizer Studio today.
             </p>
             <div className="space-y-4 sm:space-y-0 sm:space-x-4 flex flex-col sm:flex-row justify-center items-center">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="inline-block cursor-not-allowed">
-                        <Button
-                          asChild
-                          size="lg"
-                          className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
-                          disabled
-                        >
-                          <Link href="#">
-                            <span>Start Your Free Trial</span>
-                          </Link>
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Launching soon! Sign-ups will open shortly.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
+                >
+                  <Link href="/signup">
+                    <span>Start Your Free Trial</span>
+                  </Link>
+                </Button>
                 <Button
                   asChild
                   size="lg"
