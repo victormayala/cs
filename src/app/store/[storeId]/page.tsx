@@ -14,7 +14,41 @@ import { CasualLayout } from '@/components/store/homepage-layouts/CasualLayout';
 import { CorporateLayout } from '@/components/store/homepage-layouts/CorporateLayout';
 import { MarketingLayout } from '@/components/store/homepage-layouts/MarketingLayout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, PackageSearch } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
+import Head from 'next/head';
+
+function hexToHsl(hex: string): string | null {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    console.warn(`Invalid hex color provided to hexToHsl: ${hex}`);
+    return null;
+  }
+
+  const r = parseInt(hex.substring(1, 3), 16) / 255;
+  const g = parseInt(hex.substring(3, 5), 16) / 255;
+  const b = parseInt(hex.substring(5, 7), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  h = Math.round(h * 360);
+  s = Math.round(s * 100);
+  l = Math.round(l * 100);
+  
+  return `${h} ${s}% ${l}%`;
+}
+
 
 function StoreLoadingSkeleton() {
     return (
@@ -74,14 +108,8 @@ export default function StorefrontHomepage() {
         if (!storeDocSnap.exists()) {
           throw new Error('This store could not be found. Please check the URL.');
         }
-        const config = storeDocSnap.data() as UserStoreConfig;
+        const config = { ...storeDocSnap.data(), id: storeDocSnap.id } as UserStoreConfig;
         setStoreConfig(config);
-
-        // Set CSS variables for branding
-        if (typeof document !== 'undefined') {
-          document.documentElement.style.setProperty('--primary', config.branding.primaryColorHex.replace('#', ''));
-          document.documentElement.style.setProperty('--secondary', config.branding.secondaryColorHex.replace('#', ''));
-        }
 
         // Fetch products for the store
         const productsResponse = await fetch(`/api/store/products?configUserId=${storeId}`);
@@ -116,6 +144,9 @@ export default function StorefrontHomepage() {
      return <StoreErrorState error="Store configuration is missing." />;
   }
   
+  const primaryHsl = hexToHsl(storeConfig.branding.primaryColorHex);
+  const secondaryHsl = hexToHsl(storeConfig.branding.secondaryColorHex);
+  
   const renderLayout = () => {
     switch (storeConfig.layout) {
       case 'casual':
@@ -130,12 +161,25 @@ export default function StorefrontHomepage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <MarketingHeader />
-      <main className="flex-1">
-        {renderLayout()}
-      </main>
-      <MarketingFooter />
-    </div>
+    <>
+      <Head>
+        <style id="dynamic-theme-styles">
+          {`
+            :root {
+              ${primaryHsl ? `--primary: ${primaryHsl};` : ''}
+              ${secondaryHsl ? `--secondary: ${secondaryHsl};` : ''}
+              ${secondaryHsl ? `--accent: ${secondaryHsl};` : ''}
+            }
+          `}
+        </style>
+      </Head>
+      <div className="flex flex-col min-h-screen bg-background">
+        <MarketingHeader />
+        <main className="flex-1">
+          {renderLayout()}
+        </main>
+        <MarketingFooter />
+      </div>
+    </>
   );
 }
