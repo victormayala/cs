@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,10 @@ interface CartItem {
     productId: string;
     variationId: string | null;
     quantity: number;
-    productName: string; // Storing for easy display
-    basePrice: number;
+    productName: string; 
     totalCustomizationPrice: number;
-    // For display purposes, we can store a preview image
     previewImageUrl?: string; // Generated on the customizer page
-    customizationDetails: any; // The full design data object
+    customizationDetails: any; 
 }
 
 function CartLoadingSkeleton() {
@@ -64,6 +62,7 @@ function CartLoadingSkeleton() {
 
 export default function CartPage() {
   const params = useParams();
+  const router = useRouter();
   const storeId = params.storeId as string;
   const { toast } = useToast();
 
@@ -84,10 +83,49 @@ export default function CartPage() {
         }
     } catch (e) {
         console.error("Failed to parse cart from localStorage", e);
-        // Clear corrupted cart data
         localStorage.removeItem(getCartStorageKey());
     }
   }, [storeId, getCartStorageKey]);
+
+  // This effect listens for postMessage from the customizer iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Basic security check: ensure the message is from a trusted origin if possible
+      // In a real scenario, you might want to check event.origin against your app's domain.
+      
+      const designData = event.data?.customizerStudioDesignData;
+      if (designData) {
+        const cartKey = getCartStorageKey();
+        try {
+          const currentCart: CartItem[] = JSON.parse(localStorage.getItem(cartKey) || '[]');
+          const newCartItem: CartItem = {
+            id: crypto.randomUUID(),
+            productId: designData.productId,
+            variationId: designData.variationId,
+            quantity: 1,
+            productName: designData.customizationDetails.productName || 'Custom Product',
+            totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
+            previewImageUrl: designData.customizationDetails.previewImageUrl,
+            customizationDetails: designData.customizationDetails,
+          };
+          const updatedCart = [...currentCart, newCartItem];
+          localStorage.setItem(cartKey, JSON.stringify(updatedCart));
+          setCartItems(updatedCart);
+          toast({ title: "Item Added to Cart!", description: `${newCartItem.productName} is now in your cart.` });
+          // Optional: Redirect to cart page after adding
+          // router.push(`/store/${storeId}/cart`);
+        } catch (e) {
+            console.error("Error updating cart from postMessage:", e);
+            toast({ title: "Cart Error", description: "Could not add item to cart.", variant: "destructive" });
+        }
+      }
+    };
+  
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [storeId, toast, router, getCartStorageKey]);
 
   // Fetch store config
   useEffect(() => {
@@ -125,7 +163,6 @@ export default function CartPage() {
   };
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0);
-
 
   if (isLoading || !storeConfig) {
     return <CartLoadingSkeleton />;
@@ -178,7 +215,7 @@ export default function CartPage() {
                     <ul className="divide-y divide-border">
                         {cartItems.map(item => (
                             <li key={item.id} className="flex gap-4 p-4">
-                                <div className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 flex-shrink-0">
+                                <div className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 flex-shrink-0 border">
                                     <Image 
                                         src={item.previewImageUrl || '/placeholder-image.png'} 
                                         alt={item.productName} 

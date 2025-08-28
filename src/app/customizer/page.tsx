@@ -167,11 +167,10 @@ function CustomizerLayoutAndLogic() {
     if (sourceParam === 'shopify' || sourceParam === 'woocommerce') {
       return sourceParam as 'shopify' | 'woocommerce';
     }
-    // Fallback logic if source is missing, which can happen in some navigation scenarios.
     if (productIdFromUrl && productIdFromUrl.startsWith('gid://shopify/Product/')) {
       return 'shopify';
     }
-    return 'woocommerce'; // Default if no other clues are present.
+    return 'woocommerce';
   }, [searchParams, productIdFromUrl]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
@@ -183,6 +182,7 @@ function CustomizerLayoutAndLogic() {
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<string>(toolItems[0]?.id || "layers");
   const [showGrid, setShowGrid] = useState(false);
@@ -207,6 +207,7 @@ function CustomizerLayoutAndLogic() {
   const lastLoadedProductIdRef = useRef<string | null | undefined>(undefined);
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
+  const designCanvasWrapperRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
@@ -503,11 +504,11 @@ function CustomizerLayoutAndLogic() {
     const tool = toolItems.find(item => item.id === toolId);
     return tool ? tool.label : "Design Tool";
   };
-
-  const renderActiveToolPanelContent = () => {
+  
+  const getToolPanelContent = () => {
      if (!activeViewId && (activeTool !== "layers" && activeTool !== "ai-assistant")) {
        return (
-         <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center">
+         <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
            <SettingsIcon className="w-12 h-12 mb-4 text-muted-foreground/50" />
            <h3 className="text-lg font-semibold mb-1">Select a View</h3>
            <p className="text-sm">Please select a product view before adding elements.</p>
@@ -525,7 +526,7 @@ function CustomizerLayoutAndLogic() {
       case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} />;
       default:
         return (
-          <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center">
+          <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
             <SettingsIcon className="w-12 h-12 mb-4 text-muted-foreground/50" />
             <h3 className="text-lg font-semibold mb-1">{getToolPanelTitle(activeTool)}</h3>
             <p className="text-sm">Tool panel not yet implemented.</p>
@@ -534,70 +535,121 @@ function CustomizerLayoutAndLogic() {
     }
   };
 
-  const handleAddToCart = () => {
-    if (productDetails && productDetails.allowCustomization === false) {
-      toast({ title: "Customization Disabled", description: "This product is not available for customization at this time.", variant: "destructive" });
-      return;
-    }
-    if (!activeViewId && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)){
-       toast({ title: "Select a View", description: "Please ensure an active product view is selected before adding to cart if you have customizations.", variant: "default"});
+  const handleAddToCart = async () => {
+    if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
+    if (!activeViewId && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
+      toast({ title: "Select a View", description: "Please ensure an active product view is selected before adding to cart if you have customizations.", variant: "default" });
       return;
     }
     if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
       toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
       return;
     }
-    if (!isEmbedded && !user && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
-       toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart (if applicable).", variant: "default" });
+    if (!isEmbedded && !user && hasCanvasElements) {
+      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
       return;
     }
-
-    const currentProductIdFromUrlResolved = productIdFromUrl;
-    const baseProductPrice = productDetails?.basePrice ?? 0;
-    const viewsUsedForSurcharge = new Set<string>();
-    canvasImages.forEach(item => { if(item.viewId) viewsUsedForSurcharge.add(item.viewId); });
-    canvasTexts.forEach(item => { if(item.viewId) viewsUsedForSurcharge.add(item.viewId); });
-    canvasShapes.forEach(item => { if(item.viewId) viewsUsedForSurcharge.add(item.viewId); });
-    if (activeViewId && (viewsUsedForSurcharge.has(activeViewId) || viewsUsedForSurcharge.size === 0)) {
-        viewsUsedForSurcharge.add(activeViewId);
+  
+    setIsAddingToCart(true);
+    toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. Please wait." });
+  
+    let previewImageUrl: string | undefined;
+    let finalAltText: string | undefined;
+    try {
+      const activeView = productDetails?.views.find(v => v.id === activeViewId);
+      if (!activeView || !designCanvasWrapperRef.current) throw new Error("Active view or canvas not found.");
+  
+      const canvasRect = designCanvasWrapperRef.current.getBoundingClientRect();
+      const allElements = [...canvasImages, ...canvasTexts, ...canvasShapes].filter(el => el.viewId === activeViewId);
+  
+      const res = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseImageDataUri: activeView.imageUrl,
+          elements: allElements,
+          widthPx: canvasRect.width,
+          heightPx: canvasRect.height,
+        }),
+      });
+  
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Preview generation failed.');
+      }
+      const { previewImageUrl: generatedUrl, altText } = await res.json();
+      previewImageUrl = generatedUrl;
+      finalAltText = altText;
+    } catch (err: any) {
+      console.error("Preview generation failed:", err);
+      toast({
+        title: "Preview Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+      setIsAddingToCart(false);
+      return; // Stop if preview fails
     }
-    let totalViewSurcharge = 0;
-    viewsUsedForSurcharge.forEach(vid => { totalViewSurcharge += productDetails?.views.find(v => v.id === vid)?.price ?? 0; });
-
+  
     const designData = {
-      productId: currentProductIdFromUrlResolved || productDetails?.id,
+      productId: productIdFromUrl || productDetails?.id,
       variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
       quantity: 1,
       customizationDetails: {
         viewData: productDetails?.views.map(view => ({
-            viewId: view.id, viewName: view.name,
-            images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ src: img.dataUrl, name: img.name, type: img.type, x: img.x, y: img.y, scale: img.scale, rotation: img.rotation })),
-            texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowBlur, archAmount: txt.archAmount })),
-            shapes: canvasShapes.filter(item => item.viewId === view.id).map(shp => ({ type: shp.shapeType, color: shp.color, strokeColor: shp.strokeColor, strokeWidth: shp.strokeWidth, x: shp.x, y: shp.y, scale: shp.scale, rotation: shp.rotation, width: shp.width, height: shp.height })),
+          viewId: view.id,
+          viewName: view.name,
+          images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ src: img.dataUrl, name: img.name, type: img.type, x: img.x, y: img.y, scale: img.scale, rotation: img.rotation })),
+          texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowOffsetY, shadowBlur: txt.shadowBlur, archAmount: txt.archAmount })),
+          shapes: canvasShapes.filter(item => item.viewId === view.id).map(shp => ({ type: shp.shapeType, color: shp.color, strokeColor: shp.strokeColor, strokeWidth: shp.strokeWidth, x: shp.x, y: shp.y, scale: shp.scale, rotation: shp.rotation, width: shp.width, height: shp.height })),
         })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
-        selectedOptions: selectedVariationOptions, baseProductPrice: baseProductPrice, totalViewSurcharge: totalViewSurcharge,
-        totalCustomizationPrice: totalCustomizationPrice, activeViewIdUsed: activeViewId,
+        selectedOptions: selectedVariationOptions,
+        baseProductPrice: productDetails?.basePrice ?? 0,
+        totalCustomizationPrice: totalCustomizationPrice,
+        previewImageUrl: previewImageUrl,
       },
-      userId: user?.uid || null, 
-      configUserId: productDetails?.meta?.configUserIdUsed || null, 
+      userId: user?.uid || null,
+      configUserId: productDetails?.meta?.configUserIdUsed || null,
     };
-
+  
     let targetOrigin = '*';
     if (window.parent !== window && document.referrer) {
       try { targetOrigin = new URL(document.referrer).origin; }
       catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
     } else if (window.parent !== window) {
-        console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
+      console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
     }
-
+  
     if (window.parent !== window) {
       window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
-      toast({ title: "Design Sent!", description: `Your design details have been sent. The embedding site must verify the origin of this message (${targetOrigin === '*' ? 'any origin, or a specific one if referrer was available' : targetOrigin}) for security.`});
+      toast({ title: "Design Sent!", description: `Your design details have been sent. The embedding site must verify the origin of this message.` });
     } else {
-       toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to an embedded store. Design data logged to console.", variant: "default"});
-      console.log("Add to Cart - Design Data:", designData);
+      const cartKey = `cs_cart_${configUserIdFromUrl || user?.uid}`;
+      try {
+        const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+        const newCartItem = {
+          id: crypto.randomUUID(),
+          productId: designData.productId,
+          variationId: designData.variationId,
+          quantity: 1,
+          productName: productDetails?.name || 'Custom Product',
+          basePrice: designData.customizationDetails.baseProductPrice,
+          totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
+          previewImageUrl: previewImageUrl,
+          customizationDetails: designData.customizationDetails,
+        };
+        currentCart.push(newCartItem);
+        localStorage.setItem(cartKey, JSON.stringify(currentCart));
+        toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+      } catch (e) {
+        console.error("Error saving to local cart:", e);
+        toast({ title: "Error", description: "Could not add item to local cart.", variant: "destructive" });
+      }
     }
+  
+    setIsAddingToCart(false);
   };
+  
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -662,7 +714,7 @@ function CustomizerLayoutAndLogic() {
           <div id="tool-panel-content" className={cn("border-r bg-card shadow-sm flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out h-full", isToolPanelOpen ? "w-72 md:w-80 opacity-100" : "w-0 opacity-0 pointer-events-none")}>
             <div className="p-4 border-b flex-shrink-0"> <h2 className="font-headline text-lg font-semibold text-foreground">{getToolPanelTitle(activeTool)}</h2> </div>
             <div className={cn("flex-1 h-full overflow-y-auto overflow-x-hidden pb-20 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500", !isToolPanelOpen && "invisible opacity-0")}>
-               {renderActiveToolPanelContent()}
+               {getToolPanelContent()}
             </div>
           </div>
           <Button onClick={toggleToolPanel} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-l-none border-l-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isToolPanelOpen ? "left-[calc(theme(spacing.16)_+_theme(spacing.72))] md:left-[calc(theme(spacing.16)_+_theme(spacing.80))]" : "left-16")} aria-label={isToolPanelOpen ? "Collapse tool panel" : "Expand tool panel"} aria-expanded={isToolPanelOpen} aria-controls="tool-panel-content">
@@ -672,7 +724,7 @@ function CustomizerLayoutAndLogic() {
           <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
             {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
              {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
+             <div ref={designCanvasWrapperRef} className="w-full flex flex-col flex-1 min-h-0 pb-4">
               <DesignCanvas productImageUrl={currentProductImage} productImageAlt={`${currentProductName} - ${currentProductAlt}`} productImageAiHint={currentProductAiHint} productDefinedBoundaryBoxes={currentBoundaryBoxes} activeViewId={activeViewId} showGrid={showGrid} showBoundaryBoxes={showBoundaryBoxes} />
             </div>
           </main>
@@ -700,9 +752,9 @@ function CustomizerLayoutAndLogic() {
             <div className="text-md font-medium text-muted-foreground truncate max-w-xs sm:max-w-sm md:max-w-md" title={currentProductName}> {currentProductName} </div>
             <div className="flex items-center gap-3">
                 <div className="text-lg font-semibold text-foreground">Total: ${totalCustomizationPrice.toFixed(2)}</div>
-                <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false}> 
-                    {productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" /> }
-                    {productDetails?.allowCustomization === false ? "Not Customizable" : "Add to Cart"}
+                <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
+                    {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
+                    {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : "Add to Cart")}
                 </Button>
             </div>
         </footer>
@@ -726,22 +778,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-    
-    
-
-    
-
-    
-
-
-
-    
-
-
-
-
-    
-
-    
-
-    

@@ -1,50 +1,26 @@
 
+'use server';
+
 import { NextResponse } from 'next/server';
 import { compositeImages, type CompositeImagesInput, type ImageTransform } from '@/ai/flows/composite-images';
 import { generateTextImage, type GenerateTextImageInput } from '@/ai/flows/generate-text-image';
 import { generateShapeImage, type GenerateShapeImageInput } from '@/ai/flows/generate-shape-image';
+import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
-interface PreviewElement {
-  id: string;
-  type: 'image' | 'text' | 'shape';
-  viewId: string;
-  dataUrl?: string; // For images
-  content?: string; // For text
-  fontFamily?: string;
-  fontSize?: number;
-  color?: string;
-  // Text style props
-  fontWeight?: 'normal' | 'bold';
-  fontStyle?: 'normal' | 'italic';
-  textDecoration?: 'none' | 'underline';
-  textTransform?: 'none' | 'uppercase' | 'lowercase';
-  lineHeight?: number;
-  letterSpacing?: number;
-  outlineColor?: string;
-  outlineWidth?: number;
-  shadowColor?: string;
-  shadowOffsetX?: number;
-  shadowOffsetY?: number;
-  shadowBlur?: number;
-  archAmount?: number;
-  // Shape props
-  shapeType?: 'rectangle' | 'circle';
-  strokeColor?: string;
-  strokeWidth?: number;
-  // Common props
-  name?: string;
-  x: number;
-  y: number;
-  scale: number;
-  rotation: number;
-  zIndex: number;
-  originalWidthPx?: number; 
-  originalHeightPx?: number; 
-}
+// Extended type that includes all possible element properties
+type DesignElement = Partial<CanvasImage> & Partial<CanvasText> & Partial<CanvasShape> & {
+    itemType: 'image' | 'text' | 'shape';
+    viewId: string;
+    x: number;
+    y: number;
+    scale: number;
+    rotation: number;
+    zIndex: number;
+};
 
 interface PreviewRequestBody {
   baseImageDataUri: string;
-  elements: PreviewElement[];
+  elements: DesignElement[];
   widthPx: number; 
   heightPx: number; 
 }
@@ -60,33 +36,32 @@ export async function POST(request: Request) {
 
     const overlayTransforms: ImageTransform[] = [];
 
-    for (const element of elements) {
-      let imageDataUri: string | undefined = element.dataUrl;
-      // let altTextForOverlay: string | undefined; // Not currently used by composite flow
+    // Process elements in parallel to generate images for text and shapes
+    const processingPromises = elements.map(async (element) => {
+      let imageDataUri: string | undefined;
 
-      if (element.type === 'text' && element.content) {
+      if (element.itemType === 'text' && element.content) {
         const textInput: GenerateTextImageInput = {
           text: element.content,
           fontFamily: element.fontFamily || 'Arial',
           fontSize: element.fontSize || 24,
           color: element.color || '#000000',
-          // TODO: Pass more text style properties if generateTextImageFlow supports them
         };
         try {
           const { imageDataUri: textImgUri } = await generateTextImage(textInput);
           imageDataUri = textImgUri;
         } catch (textGenError: any) {
           console.warn(`Skipping text element "${element.content}" due to generation error: ${textGenError.message}`);
-          continue;
+          return null; // Skip this element on error
         }
-      } else if (element.type === 'shape' && element.shapeType) {
+      } else if (element.itemType === 'shape' && element.shapeType) {
         const shapeInput: GenerateShapeImageInput = {
-          shapeType: element.shapeType as 'rectangle' | 'circle',
+          shapeType: element.shapeType,
           color: element.color || '#FF0000',
           strokeColor: element.strokeColor || '#000000',
           strokeWidth: element.strokeWidth || 0,
-          aspectRatio: (element.originalWidthPx && element.originalHeightPx && element.originalHeightPx !== 0) 
-            ? `${element.originalWidthPx / element.originalHeightPx}:1` 
+          aspectRatio: (element.width && element.height && element.height !== 0) 
+            ? `${element.width / element.height}:1` 
             : '1:1',
         };
          try {
@@ -94,40 +69,40 @@ export async function POST(request: Request) {
           imageDataUri = shapeImgUri;
         } catch (shapeGenError: any) {
           console.warn(`Skipping shape element "${element.shapeType}" due to generation error: ${shapeGenError.message}`);
-          continue;
+          return null; // Skip this element on error
         }
+      } else if (element.itemType === 'image' && element.dataUrl) {
+          imageDataUri = element.dataUrl;
       }
 
       if (imageDataUri) {
-        overlayTransforms.push({
+        return {
           imageDataUri,
           x: element.x,
           y: element.y,
           scale: element.scale,
           rotation: element.rotation,
           zIndex: element.zIndex,
-          originalWidthPx: element.originalWidthPx,
-          originalHeightPx: element.originalHeightPx,
-        });
+          originalWidthPx: element.width,
+          originalHeightPx: element.height,
+        } as ImageTransform;
       }
-    }
+      return null;
+    });
+
+    const results = await Promise.all(processingPromises);
+    const validTransforms = results.filter((r): r is ImageTransform => r !== null);
     
-    if (overlayTransforms.length === 0 && elements.length > 0 && !elements.some(el => el.type === 'image')) {
-      // This means there were non-image elements but all failed generation
-      console.warn("No valid image data could be prepared for compositing. All text/shape elements might have failed generation.");
-      // Return base image if no overlays could be processed from text/shapes
+    if (validTransforms.length === 0 && elements.length > 0) {
+      console.warn("No valid image data could be prepared for compositing. All text/shape elements might have failed generation, or no image elements were present.");
       return NextResponse.json({ previewImageUrl: baseImageDataUri, altText: "Base image preview (overlay generation failed)." });
     }
-    
-    // If elements array was empty, or only contained images that were directly added, proceed.
-    // If elements contained text/shapes and some or all were successfully converted, proceed.
-
 
     const compositeInput: CompositeImagesInput = {
       baseImageDataUri,
       baseImageWidthPx: widthPx,
       baseImageHeightPx: heightPx,
-      overlays: overlayTransforms,
+      overlays: validTransforms,
     };
 
     const { compositeImageUrl, altText } = await compositeImages(compositeInput);
@@ -143,4 +118,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Preview generation failed: ${error.message || 'Unknown error'}` }, { status: 500 });
   }
 }
-    
