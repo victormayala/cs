@@ -16,8 +16,11 @@ import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { saveUserStoreConfig } from "@/app/actions/userStoreActions";
 import { cn } from "@/lib/utils";
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
+import type { UserStoreConfig } from "@/app/actions/userStoreActions";
+
 
 const generatedPages = [
   'Homepage', 'About', 'FAQ', 'Contact', 
@@ -58,8 +61,8 @@ export default function CreateStorePage() {
   const { user } = useAuth();
   
   const [storeName, setStoreName] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#0635C9");
-  const [secondaryColor, setSecondaryColor] = useState("#1BE5BE");
+  const [primaryColor, setPrimaryColor] = useState("#468189");
+  const [secondaryColor, setSecondaryColor] = useState("#8A56AC");
   const [selectedLayout, setSelectedLayout] = useState<LayoutName>('casual');
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -97,31 +100,49 @@ export default function CreateStorePage() {
 
     setIsSaving(true);
     try {
-      // The `userId` is no longer passed from the client.
-      // The server action will get it from the session.
-      const result = await saveUserStoreConfig({
-        storeName,
-        primaryColorHex: primaryColor,
-        secondaryColorHex: secondaryColor,
-        layout: selectedLayout,
-        logoUrl: logoDataUrl || undefined,
-      });
+        const storeRef = doc(db, 'userStores', user.uid);
+        
+        const newStoreData: Omit<UserStoreConfig, 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
+            id: user.uid,
+            userId: user.uid,
+            storeName,
+            layout: selectedLayout,
+            branding: {
+                primaryColorHex: primaryColor,
+                secondaryColorHex: secondaryColor,
+                logoUrl: logoDataUrl || undefined,
+            },
+            deployment: {
+                status: 'uninitialized',
+            },
+            lastSaved: serverTimestamp(),
+        };
 
-      if (result.success) {
+        const docSnap = await getDoc(storeRef);
+        if (!docSnap.exists()) {
+            newStoreData.createdAt = serverTimestamp();
+        }
+
+        await setDoc(storeRef, newStoreData, { merge: true });
+        
         toast({
           title: "Configuration Saved!",
           description: "Your store settings have been saved. Deployment is coming soon!",
         });
-        // Potentially redirect or update UI state here in the future
-      } else {
-        throw new Error(result.error || "An unknown error occurred while saving.");
-      }
+        // Optionally, redirect after saving
+        // router.push('/dashboard');
+
     } catch (error: any) {
+      let errorMessage = `Failed to save: ${error.message}`;
+      if (error.code === 'permission-denied') {
+          errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
+      }
       toast({
         title: "Save Failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
+      console.error("Firestore save error:", error);
     } finally {
       setIsSaving(false);
     }
