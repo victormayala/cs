@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -839,7 +838,7 @@ export default function ProductOptionsPage() {
               </Card>
             )}
 
-          {productOptions.type === 'variable' && (
+          {productOptions.source === 'woocommerce' && productOptions.type === 'variable' && (
             <Card className="shadow-md">
               <CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle><CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription></CardHeader>
               <CardContent>
@@ -970,7 +969,7 @@ export default function ProductOptionsPage() {
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
             handleSelectView={handleSelectView}
-            handleViewDetailChange={handleDefaultViewDetailChange}
+            handleViewDetailChange={handleViewDetailChange}
             handleDeleteView={handleDeleteView}
             handleAddNewView={handleAddNewView}
             handleAddBoundaryBox={handleAddBoundaryBox}
@@ -1033,3 +1032,5 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
+    
