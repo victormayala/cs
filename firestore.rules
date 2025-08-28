@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,38 +8,34 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Lock down the entire database by default
+    // Lock down all access by default
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Rules for user-specific data like native products
-    match /users/{userId}/{document=**} {
+    // Allow users to manage their own credentials
+    match /userWooCommerceCredentials/{userId} {
       allow read, write: if isOwner(userId);
     }
-    
-    // Rules for user-specific Shopify credentials
+
     match /userShopifyCredentials/{userId} {
       allow read, write: if isOwner(userId);
     }
 
-    // Rules for user-specific WooCommerce credentials
-    match /userWooCommerceCredentials/{userId} {
-      allow read, write: if isOwner(userId);
-    }
-    
-    // Rules for product customization options
-    match /userProductOptions/{userId}/products/{productId} {
-      // Logged-in users can manage their own product options
-      allow read, write: if isOwner(userId);
+    // Allow users to manage their own native products
+    match /users/{userId}/products/{productId} {
+        allow read, write: if isOwner(userId);
     }
 
-    // PUBLIC READ for embedded customizer:
-    // When the customizer is embedded on a live site, it uses a configUserId.
-    // We need to allow anyone to read the options for that specific user's product.
-    // Writes are still restricted to the owner.
-    match /userProductOptions/{configUserId}/products/{productId} {
-       allow get: if true;
+    // Product options can be read publicly if needed by an external plugin (using configUserId),
+    // OR they can be read and written to by the owner of the options.
+    match /userProductOptions/{userId}/products/{productId} {
+      // Allow owner to read and write their own product options
+      allow read, write: if isOwner(userId);
+
+      // Also allow public read access (e.g., for the WP plugin or embedded customizer)
+      // This uses 'get' instead of 'read' to make it an independent rule.
+      allow get: if true;
     }
   }
 }
