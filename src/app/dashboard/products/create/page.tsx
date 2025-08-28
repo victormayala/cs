@@ -11,8 +11,10 @@ import { Loader2, ArrowLeft, PackagePlus } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { useToast } from "@/hooks/use-toast";
-import { createProduct } from "@/app/actions/productActions";
 import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import type { NativeProduct } from "@/app/actions/productActions";
 
 export default function CreateProductPage() {
   const [productName, setProductName] = useState("");
@@ -36,22 +38,51 @@ export default function CreateProductPage() {
     }
 
     setIsCreating(true);
+    const productId = `cs_${crypto.randomUUID()}`;
+
     try {
-      const result = await createProduct({ name: productName, userId: user.uid });
-      if (result.success && result.productId) {
-        toast({
-          title: "Product Created!",
-          description: `"${productName}" has been successfully created.`,
-        });
-        router.push(`/dashboard/products/${result.productId}/options?source=customizer-studio`);
-      } else {
-        throw new Error(result.error || "An unknown error occurred.");
-      }
+      // Create the main product document
+      const productRef = doc(db, `users/${user.uid}/products`, productId);
+      const newProductData: Omit<NativeProduct, 'id'> = {
+        userId: user.uid,
+        name: productName,
+        description: "", // Can be edited later on the options page
+        createdAt: serverTimestamp(),
+        lastModified: serverTimestamp(),
+      };
+      await setDoc(productRef, newProductData);
+
+      // Create the corresponding options document
+      const optionsRef = doc(db, 'userProductOptions', user.uid, 'products', productId);
+      await setDoc(optionsRef, {
+          id: productId,
+          name: productName,
+          description: "",
+          price: 0,
+          type: 'simple',
+          defaultViews: [],
+          optionsByColor: {},
+          groupingAttributeName: null,
+          allowCustomization: true,
+          createdAt: serverTimestamp(),
+          lastSaved: serverTimestamp(),
+      });
+
+      toast({
+        title: "Product Created!",
+        description: `"${productName}" has been successfully created.`,
+      });
+      router.push(`/dashboard/products/${productId}/options?source=customizer-studio`);
+
     } catch (error: any) {
       console.error("Failed to create product:", error);
+      let errorMessage = error.message;
+      if (error.code === 'permission-denied' || error.message.includes('permission-denied')) {
+        errorMessage = "Permission denied. Please check your Firestore security rules to ensure you can write to 'users/{userId}/products' and 'userProductOptions/{userId}/products'.";
+      }
       toast({
         title: "Creation Failed",
-        description: error.message,
+        description: `Failed to create product in database: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {

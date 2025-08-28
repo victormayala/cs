@@ -1,11 +1,9 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
-import { getAuth } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { headers } from 'next/headers';
-import { app } from '@/lib/firebase';
+// This file is now primarily for exporting types, as all Firestore operations
+// that depend on user authentication have been moved to client-side components
+// to ensure they run with the user's auth context, resolving permission errors.
 
 // This is the data model for a native product stored in Firestore
 export interface NativeProduct {
@@ -20,66 +18,5 @@ export interface NativeProduct {
   lastModified: any; // Firestore server timestamp
 }
 
-interface CreateProductInput {
-    name: string;
-    userId: string;
-}
-
-interface CreateProductResponse {
-    success: boolean;
-    productId?: string;
-    error?: string;
-}
-
-export async function createProduct(input: CreateProductInput): Promise<CreateProductResponse> {
-  const { userId, name } = input;
-
-  if (!userId) {
-      return { success: false, error: "Authentication required. User ID not found." };
-  }
-  
-  if (!name || name.trim().length === 0) {
-    return { success: false, error: 'Product name is required.' };
-  }
-
-  if (!db) {
-      return { success: false, error: "Database service is not available on the server." };
-  }
-
-  const productId = `cs_${crypto.randomUUID()}`;
-  const productRef = doc(db, `users/${userId}/products`, productId);
-
-  const newProductData: Omit<NativeProduct, 'id'> = {
-    userId,
-    name: name,
-    description: "", // Can be edited later on the options page
-    createdAt: serverTimestamp(),
-    lastModified: serverTimestamp(),
-  };
-
-  try {
-    await setDoc(productRef, newProductData);
-    
-    // Also create a default options document so the options page works immediately
-    const optionsRef = doc(db, 'userProductOptions', userId, 'products', productId);
-    await setDoc(optionsRef, {
-        id: productId,
-        name: name,
-        description: "",
-        price: 0,
-        type: 'simple', // Native products are simple by default
-        defaultViews: [], // User will add these in the options screen
-        optionsByColor: {},
-        groupingAttributeName: null,
-        allowCustomization: true,
-        createdAt: serverTimestamp(),
-        lastSaved: serverTimestamp(),
-    });
-
-    return { success: true, productId: productId };
-  } catch (error: any) {
-    console.error(`Error creating product for user ${userId}:`, error);
-    return { success: false, error: `Failed to create product in database: ${error.message}` };
-  }
-}
-    
+// The createProduct function has been moved to the client-side component
+// src/app/dashboard/products/create/page.tsx to resolve authentication permission issues.
