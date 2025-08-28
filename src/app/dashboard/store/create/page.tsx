@@ -12,6 +12,13 @@ import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+const generatedPages = [
+  'Homepage', 'About', 'FAQ', 'Contact', 
+  'Product Listing (PLP)', 'Product Detail (PDP)', 
+  'Cart', 'Checkout', 'Order Confirmation', 
+  'User Account', 'Terms of Service', 'Privacy Policy'
+];
+
 export default function CreateStorePage() {
   return (
     <div className="flex flex-col min-h-screen bg-muted/30">
@@ -94,7 +101,7 @@ export default function CreateStorePage() {
                   The following pages will be automatically generated for your store:
                 </p>
                 <div className="flex flex-wrap gap-2 text-sm">
-                  {['Homepage', 'About', 'FAQ', 'Contact', 'Products', 'Cart', 'Checkout', 'Account'].map(page => (
+                  {generatedPages.map(page => (
                     <Badge key={page} variant="secondary">{page}</Badge>
                   ))}
                 </div>
