@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -439,7 +440,7 @@ export default function ProductOptionsPage() {
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
 
-  const handleDeleteDefaultView = (viewId: string) => { 
+  const handleDeleteView = (viewId: string) => {
     if (!productOptions) return;
     if (productOptions.defaultViews.length <= 1) {
       toast({ title: "Cannot Delete", description: "At least one view must remain.", variant: "default" });
