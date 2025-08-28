@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 import type { FieldValue } from 'firebase/firestore';
 import { headers } from 'next/headers';
 
@@ -13,6 +13,7 @@ import { headers } from 'next/headers';
 export interface UserStoreConfig {
   id: string; // Corresponds to the user's UID
   storeName: string;
+  layout: 'casual' | 'corporate' | 'marketing';
   
   branding: {
     logoUrl?: string;
@@ -37,6 +38,7 @@ interface SaveStoreConfigInput {
     storeName: string;
     primaryColorHex: string;
     secondaryColorHex: string;
+    layout: 'casual' | 'corporate' | 'marketing';
     logoUrl?: string;
 }
 
@@ -67,6 +69,7 @@ export async function saveUserStoreConfig(input: SaveStoreConfigInput): Promise<
 
     const newStoreData: Omit<UserStoreConfig, 'id' | 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
         storeName: input.storeName,
+        layout: input.layout,
         branding: {
             primaryColorHex: input.primaryColorHex,
             secondaryColorHex: input.secondaryColorHex,

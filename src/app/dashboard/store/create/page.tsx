@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveUserStoreConfig } from "@/app/actions/userStoreActions";
+import { cn } from "@/lib/utils";
 
 const generatedPages = [
   'Homepage', 'About', 'FAQ', 'Contact', 
@@ -23,6 +24,32 @@ const generatedPages = [
   'Cart', 'Checkout', 'Order Confirmation', 
   'User Account', 'Terms of Service', 'Privacy Policy'
 ];
+
+const layouts = [
+  {
+    name: 'casual',
+    title: 'Casual',
+    description: 'A fun, modern layout with rounded elements and a friendly feel.',
+    preview: '/images/layout-casual.png',
+    aiHint: 'casual website layout'
+  },
+  {
+    name: 'corporate',
+    title: 'Corporate',
+    description: 'A clean, professional, and structured layout for trust and clarity.',
+    preview: '/images/layout-corporate.png',
+    aiHint: 'corporate website layout'
+  },
+  {
+    name: 'marketing',
+    title: 'Marketing',
+    description: 'A conversion-focused layout with a strong hero and calls-to-action.',
+    preview: '/images/layout-marketing.png',
+    aiHint: 'marketing website layout'
+  }
+] as const;
+
+type LayoutName = typeof layouts[number]['name'];
 
 export default function CreateStorePage() {
   const router = useRouter();
@@ -32,6 +59,7 @@ export default function CreateStorePage() {
   const [storeName, setStoreName] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#0635C9");
   const [secondaryColor, setSecondaryColor] = useState("#1BE5BE");
+  const [selectedLayout, setSelectedLayout] = useState<LayoutName>('casual');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +79,7 @@ export default function CreateStorePage() {
         storeName,
         primaryColorHex: primaryColor,
         secondaryColorHex: secondaryColor,
+        layout: selectedLayout,
       });
 
       if (result.success) {
@@ -122,6 +151,38 @@ export default function CreateStorePage() {
                 <p className="text-xs text-muted-foreground">
                   This will be the public name of your store.
                 </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <Label className="flex items-center text-base">
+                  <LayoutTemplate className="mr-2 h-5 w-5 text-primary" />
+                  Select a Layout
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {layouts.map((layout) => (
+                    <div
+                      key={layout.name}
+                      onClick={() => setSelectedLayout(layout.name)}
+                      className={cn(
+                        "p-3 border-2 rounded-lg cursor-pointer transition-all",
+                        selectedLayout === layout.name
+                          ? 'border-primary ring-2 ring-primary ring-offset-2'
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <div className="relative aspect-video w-full rounded-md overflow-hidden bg-muted/50 mb-3">
+                        {/* Placeholder for layout preview image */}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm">{layout.title}</h4>
+                        {selectedLayout === layout.name && <CheckCircle className="h-5 w-5 text-primary" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{layout.description}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <Separator />
