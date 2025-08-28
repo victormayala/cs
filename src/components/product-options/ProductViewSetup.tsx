@@ -2,7 +2,6 @@
 "use client";
 
 import React from 'react';
-import NextImage from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -133,7 +132,7 @@ export default function ProductViewSetup({
           <p className="text-xs text-muted-foreground mb-3">Click &amp; drag areas. Use handles to resize. Select a view in the 'Views' tab below to change image.</p>
           <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none mb-4" onMouseDown={(e) => { if (e.target === imageWrapperRef.current) setSelectedBoundaryBoxId(null); }}>
             {currentView?.imageUrl ? (
-              <NextImage src={currentView.imageUrl} alt={currentView.name || 'Product View'} fill className="object-contain pointer-events-none" data-ai-hint={currentView.aiHint || "product view"} priority />
+              <img src={currentView.imageUrl} alt={currentView.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentView.aiHint || "product view"} />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><ImageIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2">No image for this view. Set URL below.</p></div>
             )}
@@ -221,4 +220,5 @@ export default function ProductViewSetup({
     </Card>
   );
 }
-      
+
+    
