@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -25,6 +25,8 @@ import type { WCCustomProduct } from '@/types/woocommerce';
 import type { ShopifyProduct } from '@/types/shopify';
 import {format} from 'date-fns';
 import type { NativeProduct } from '@/app/actions/productActions';
+import type { UserStoreConfig } from '@/app/actions/userStoreActions';
+
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +96,10 @@ function DashboardPageContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
+
+  // New state for user-built store
+  const [userStore, setUserStore] = useState<UserStoreConfig | null>(null);
+  const [isLoadingUserStore, setIsLoadingUserStore] = useState(true);
 
   // Effect to handle Shopify OAuth error callback
   useEffect(() => {
@@ -175,7 +181,7 @@ function DashboardPageContent() {
             name: p.name,
             status: 'active', // Native products are always considered active
             lastEdited: format(p.lastModified.toDate(), "PPP"),
-            imageUrl: `https://placehold.co/150x150/0635C9/FFFFFF.png?text=CS`,
+            imageUrl: `https://picsum.photos/seed/${p.id}/150`,
             aiHint: 'customizer studio product',
             source: 'customizer-studio' as const,
         }));
@@ -204,7 +210,7 @@ function DashboardPageContent() {
           .map(p => ({
             id: p.id.toString(), name: p.name, status: p.status,
             lastEdited: format(new Date(p.date_modified_gmt || p.date_modified || p.date_created_gmt || p.date_created), "PPP"),
-            imageUrl: p.images?.[0]?.src || `https://placehold.co/150x150.png`,
+            imageUrl: p.images?.[0]?.src || `https://picsum.photos/seed/${p.id}/150`,
             aiHint: p.images?.[0]?.alt?.split(" ").slice(0,2).join(" ") || "product image",
             source: 'woocommerce' as const,
           }));
@@ -227,7 +233,7 @@ function DashboardPageContent() {
                         .map(p => ({
                         id: p.id, name: p.title, status: p.status.toLowerCase(),
                         lastEdited: format(new Date(p.updatedAt), "PPP"),
-                        imageUrl: p.featuredImage?.url || `https://placehold.co/150x150.png`,
+                        imageUrl: p.featuredImage?.url || `https://picsum.photos/seed/${p.id}/150`,
                         aiHint: p.featuredImage?.altText?.split(" ").slice(0,2).join(" ") || "product image",
                         source: 'shopify' as const,
                         }));
@@ -366,6 +372,28 @@ function DashboardPageContent() {
       });
     }
   }, [user, toast]);
+
+  // Load User Store Config
+  useEffect(() => {
+    if (user?.uid && db) {
+      setIsLoadingUserStore(true);
+      const storeDocRef = doc(db, 'userStores', user.uid);
+      getDoc(storeDocRef)
+        .then(docSnap => {
+          if (docSnap.exists()) {
+            setUserStore({ id: docSnap.id, ...docSnap.data() } as UserStoreConfig);
+          } else {
+            setUserStore(null);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching user store config:", error);
+          toast({ title: "Store Info Error", description: "Could not fetch your custom store information.", variant: "destructive" });
+        })
+        .finally(() => setIsLoadingUserStore(false));
+    }
+  }, [user, toast]);
+
 
   const handleSaveWcCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -637,21 +665,40 @@ function DashboardPageContent() {
                           <CardDescription className="text-muted-foreground">Generate and deploy a complete storefront powered by Customizer Studio.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                          <div className="space-y-4">
-                            <ShadCnAlert variant="default" className="bg-primary/5 border-primary/20">
-                              <Store className="h-5 w-5 text-primary" />
-                              <ShadCnAlertTitle className="text-primary/90 font-medium">New Feature!</ShadCnAlertTitle>
-                              <ShadCnAlertDescription className="text-primary/80">
-                                Create a complete, customizable e-commerce website without needing another platform.
-                              </ShadCnAlertDescription>
-                            </ShadCnAlert>
-                            <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                              <Link href="/dashboard/store/create">
-                                <Store className="mr-2 h-4 w-4" />
-                                Build a New Store
-                              </Link>
-                            </Button>
-                          </div>
+                            {isLoadingUserStore ? (
+                                <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                            ) : userStore ? (
+                                <div className="space-y-4">
+                                <ShadCnAlert variant="default" className="bg-primary/5 border-primary/20">
+                                    <Store className="h-5 w-5 text-primary" />
+                                    <ShadCnAlertTitle className="text-primary/90 font-medium">Your Store is Active!</ShadCnAlertTitle>
+                                    <ShadCnAlertDescription className="text-primary/80">
+                                        Your store "{userStore.storeName}" is deployed and ready to visit.
+                                    </ShadCnAlertDescription>
+                                </ShadCnAlert>
+                                <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                                    <Link href={`/store/${user.uid}`} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    View Your Store
+                                    </Link>
+                                </Button>
+                                <Button asChild variant="outline" className="w-full">
+                                    <Link href="/dashboard/store/create">
+                                    <Settings className="mr-2 h-4 w-4" />
+                                    Re-configure Store
+                                    </Link>
+                                </Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                                    <Link href="/dashboard/store/create">
+                                    <Store className="mr-2 h-4 w-4" />
+                                    Build a New Store
+                                    </Link>
+                                </Button>
+                                </div>
+                            )}
                         </CardContent>
                       </Card>
 
@@ -768,5 +815,3 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
-
-    
