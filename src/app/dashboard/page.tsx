@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -546,6 +546,12 @@ function DashboardPageContent() {
                     </div>
                     {activeTab === 'products' && (
                        <div className="flex items-center gap-2">
+                        <Button asChild className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
+                           <Link href="/dashboard/products/create">
+                                <PlusCircle className="mr-2 h-5 w-5" />
+                                Create Product
+                            </Link>
+                        </Button>
                         <Button onClick={() => loadAllProducts(true, true)} className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoadingProducts || isLoadingAnyCredentials || !isAnyStoreConnected}>
                           {isLoadingProducts ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RefreshCcw className="mr-2 h-5 w-5" />}
                           Refresh Product Data
@@ -747,3 +753,5 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
+
+    
