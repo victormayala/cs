@@ -29,6 +29,12 @@ interface ColorGroupOptions {
   variantViewImages: Record<string, { imageUrl: string; aiHint?: string }>;
 }
 
+// New interface for native product attributes
+export interface ProductAttributeOptions {
+  colors: string[];
+  sizes: string[];
+}
+
 export interface ProductOptionsFirestoreData {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface ProductOptionsFirestoreData {
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
+  nativeAttributes?: ProductAttributeOptions; // New field for native products
   allowCustomization?: boolean;
   lastSaved?: any; // Firestore server timestamp
   createdAt?: any; // Firestore server timestamp

@@ -4,14 +4,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import NextImage from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Shirt, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +26,7 @@ import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
-import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions } from '@/app/actions/productOptionsActions';
 import type { NativeProduct } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -40,6 +39,7 @@ interface ProductOptionsData {
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
   groupingAttributeName: string | null;
+  nativeAttributes: ProductAttributeOptions; // Added for native products
   allowCustomization: boolean;
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
@@ -116,6 +116,9 @@ export default function ProductOptionsPage() {
   
   const [groupedVariations, setGroupedVariations] = useState<Record<string, WCVariation[]> | null>(null);
   const [editingImagesForColor, setEditingImagesForColor] = useState<string | null>(null);
+  
+  const [colorInputValue, setColorInputValue] = useState("");
+  const [sizeInputValue, setSizeInputValue] = useState("");
 
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
@@ -230,6 +233,7 @@ export default function ProductOptionsPage() {
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
         groupingAttributeName: firestoreOptions?.groupingAttributeName || null,
+        nativeAttributes: firestoreOptions?.nativeAttributes || { colors: [], sizes: [] },
         allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
 
@@ -372,6 +376,7 @@ export default function ProductOptionsPage() {
       defaultViews: productOptions.defaultViews,
       optionsByColor: productOptions.optionsByColor,
       groupingAttributeName: productOptions.groupingAttributeName,
+      nativeAttributes: productOptions.nativeAttributes,
       allowCustomization: productOptions.allowCustomization,
       lastSaved: serverTimestamp(),
     };
@@ -621,6 +626,34 @@ export default function ProductOptionsPage() {
     });
     setHasUnsavedChanges(true);
   };
+  
+  const handleAddAttribute = (type: 'colors' | 'sizes') => {
+    const value = (type === 'colors' ? colorInputValue : sizeInputValue).trim();
+    if (!value) return;
+
+    setProductOptions(prev => {
+      if (!prev) return null;
+      const updatedAttributes = { ...prev.nativeAttributes };
+      if (!updatedAttributes[type].includes(value)) {
+        updatedAttributes[type] = [...updatedAttributes[type], value];
+      }
+      return { ...prev, nativeAttributes: updatedAttributes };
+    });
+
+    if (type === 'colors') setColorInputValue("");
+    else setSizeInputValue("");
+    setHasUnsavedChanges(true);
+  };
+
+  const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
+    setProductOptions(prev => {
+      if (!prev) return null;
+      const updatedAttributes = { ...prev.nativeAttributes };
+      updatedAttributes[type] = updatedAttributes[type].filter(item => item !== value);
+      return { ...prev, nativeAttributes: updatedAttributes };
+    });
+    setHasUnsavedChanges(true);
+  };
 
 
   if (isLoading) {
@@ -760,6 +793,51 @@ export default function ProductOptionsPage() {
             </CardContent>
           </Card>
 
+            {source === 'customizer-studio' && (
+              <Card className="shadow-md">
+                <CardHeader>
+                  <CardTitle className="font-headline text-lg">Product Attributes</CardTitle>
+                  <CardDescription>Define the colors and sizes available for this native product.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label htmlFor="color-input" className="flex items-center mb-2">
+                        <Palette className="h-4 w-4 mr-2 text-primary" /> Colors
+                    </Label>
+                    <div className="flex gap-2">
+                        <Input id="color-input" placeholder="e.g., Red, Navy Blue" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/>
+                        <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {productOptions.nativeAttributes.colors.map(color => (
+                            <Badge key={color} variant="secondary" className="text-sm">
+                                {color}
+                                <button onClick={() => handleRemoveAttribute('colors', color)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                            </Badge>
+                        ))}
+                    </div>
+                  </div>
+                   <div>
+                    <Label htmlFor="size-input" className="flex items-center mb-2">
+                        <Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes
+                    </Label>
+                    <div className="flex gap-2">
+                        <Input id="size-input" placeholder="e.g., S, M, XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
+                        <Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {productOptions.nativeAttributes.sizes.map(size => (
+                            <Badge key={size} variant="secondary" className="text-sm">
+                                {size}
+                                <button onClick={() => handleRemoveAttribute('sizes', size)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                            </Badge>
+                        ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
           {productOptions.type === 'variable' && (
             <Card className="shadow-md">
               <CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle><CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription></CardHeader>
@@ -785,7 +863,6 @@ export default function ProductOptionsPage() {
                       
                       const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
                       const representativeImageAlt = variationsInGroup[0]?.image?.alt || productOptions.name;
-                      const representativeImageAiHint = variationsInGroup[0]?.image?.alt ? variationsInGroup[0].image.alt.split(" ").slice(0,2).join(" ") : "variation group";
                       
                       const secondaryAttributeDisplayName = getSecondaryAttributeNameForDisplay(variationsInGroup);
                       const secondaryOptions = getSecondaryAttributeOptionsForGroup(variationsInGroup);
@@ -802,7 +879,7 @@ export default function ProductOptionsPage() {
                                 className="mt-1 flex-shrink-0"
                             />
                             <div className="relative h-20 w-20 rounded-md overflow-hidden border bg-card flex-shrink-0">
-                                <NextImage src={representativeImage} alt={representativeImageAlt} fill className="object-contain" data-ai-hint={representativeImageAiHint}/>
+                                <img src={representativeImage} alt={representativeImageAlt} className="object-contain w-full h-full" />
                             </div>
                             <div className="flex-grow">
                               <h4 className="text-md font-semibold text-foreground mb-1">
@@ -859,12 +936,10 @@ export default function ProductOptionsPage() {
                                         />
                                         {productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.imageUrl && (
                                         <div className="relative h-16 w-16 mt-2 border rounded-sm overflow-hidden bg-muted/10">
-                                            <NextImage
+                                            <img
                                             src={productOptions.optionsByColor[groupKey].variantViewImages[defaultView.id].imageUrl}
                                             alt={`${groupKey} - ${defaultView.name}`}
-                                            fill
-                                            className="object-contain"
-                                            data-ai-hint={productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.aiHint || "variant view"}
+                                            className="object-contain w-full h-full"
                                             />
                                         </div>
                                         )}
@@ -883,7 +958,7 @@ export default function ProductOptionsPage() {
             </Card>
           )}
           {productOptions.type !== 'variable' && productOptions.source === 'woocommerce' && (
-            <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle></CardHeader><CardContent className="text-center py-8 text-muted-foreground"><Shirt className="mx-auto h-10 w-10 mb-2" />This is a simple product and does not have variations to configure here.</CardContent></Card>
+            <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle></CardHeader><CardContent className="text-center py-8 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" />This is a simple product and does not have variations to configure here.</CardContent></Card>
           )}
         </div>
 
@@ -895,7 +970,7 @@ export default function ProductOptionsPage() {
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
             handleSelectView={handleSelectView}
             handleViewDetailChange={handleDefaultViewDetailChange}
-            handleDeleteView={handleDeleteDefaultView}
+            handleDeleteView={handleDeleteView}
             handleAddNewView={handleAddNewView}
             handleAddBoundaryBox={handleAddBoundaryBox}
             handleRemoveBoundaryBox={handleRemoveBoundaryBox}
@@ -908,7 +983,7 @@ export default function ProductOptionsPage() {
             setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen}
             viewIdToDelete={viewIdToDelete}
             setViewIdToDelete={setViewIdToDelete} 
-            confirmDeleteView={confirmDeleteDefaultView}
+            confirmDeleteView={confirmDeleteView}
           />
 
           <Card className="shadow-md sticky top-8">
