@@ -52,7 +52,13 @@ export default function SignInPage() {
             friendlyMessage = error.message?.includes('Firebase') ? "An authentication error occurred. Please try again." : (error.message || friendlyMessage);
         }
       }
-      console.error("Sign in page local error:", error.message || error, "Code:", error.code);
+      
+      // Don't log expected user errors to the console
+      const expectedErrorCodes = ['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/too-many-requests'];
+      if (!expectedErrorCodes.includes(error.code)) {
+        console.error("Sign in page local error:", error.message || error, "Code:", error.code);
+      }
+      
       setLocalError(friendlyMessage);
     } finally {
       setLocalIsLoading(false);

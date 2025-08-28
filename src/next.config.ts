@@ -23,10 +23,21 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.shopify.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   async redirects() {
     return [
+      {
+        source: '/favicon.ico',
+        destination: '/',
+        permanent: true,
+      },
       {
         source: '/page',
         destination: '/',
@@ -34,7 +45,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/auth/callback',
+        destination: '/api/shopify/callback',
+      },
+    ];
+  },
+  // Minor change to potentially help with build issues
 };
 
 export default nextConfig;
-
