@@ -450,7 +450,7 @@ export default function ProductOptionsPage() {
     setIsDeleteViewDialogOpen(true);
   };
 
-  const confirmDeleteDefaultView = () => { 
+  const confirmDeleteView = () => { 
     if (!productOptions || !viewIdToDelete) return;
     const updatedViews = productOptions.defaultViews.filter(v => v.id !== viewIdToDelete);
     
