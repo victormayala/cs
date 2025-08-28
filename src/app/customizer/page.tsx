@@ -572,7 +572,7 @@ function CustomizerLayoutAndLogic() {
         viewData: productDetails?.views.map(view => ({
             viewId: view.id, viewName: view.name,
             images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ src: img.dataUrl, name: img.name, type: img.type, x: img.x, y: img.y, scale: img.scale, rotation: img.rotation })),
-            texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowOffsetY, shadowBlur: txt.shadowBlur, archAmount: txt.archAmount })),
+            texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowBlur, archAmount: txt.archAmount })),
             shapes: canvasShapes.filter(item => item.viewId === view.id).map(shp => ({ type: shp.shapeType, color: shp.color, strokeColor: shp.strokeColor, strokeWidth: shp.strokeWidth, x: shp.x, y: shp.y, scale: shp.scale, rotation: shp.rotation, width: shp.width, height: shp.height })),
         })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
         selectedOptions: selectedVariationOptions, baseProductPrice: baseProductPrice, totalViewSurcharge: totalViewSurcharge,
@@ -720,7 +720,7 @@ function CustomizerLayoutAndLogic() {
 export default function CustomizerPage() {
   return (
     <UploadProvider>
-      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> d`iv> }>
+      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> </div> }>
         <CustomizerLayoutAndLogic />
       </Suspense>
     </UploadProvider>
@@ -739,6 +739,8 @@ export default function CustomizerPage() {
 
 
 
+
+    
 
     
 
