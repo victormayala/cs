@@ -343,13 +343,15 @@ export default function CreateStorePage() {
                 )}
                 {isSaving ? "Saving & Deploying..." : "Save & Deploy Store"}
               </Button>
-               <Alert variant="default" className="bg-primary/5 border-primary/20">
-                <Zap className="h-4 w-4 text-primary" />
-                <AlertTitle className="text-primary/90 font-medium">Deployment In Progress</AlertTitle>
-                <AlertDescription className="text-primary/80">
-                  After saving, the deployment process will begin. This may take a few minutes. You will be redirected when it's complete.
-                </AlertDescription>
-              </Alert>
+               {isSaving && (
+                <Alert variant="default" className="bg-primary/5 border-primary/20">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <AlertTitle className="text-primary/90 font-medium">Deployment In Progress</AlertTitle>
+                  <AlertDescription className="text-primary/80">
+                    Your store is being built. This may take a few minutes. You will be redirected when it's complete.
+                  </AlertDescription>
+                </Alert>
+               )}
             </CardFooter>
           </Card>
         </form>
