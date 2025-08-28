@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
 import type { UserStoreConfig } from "@/app/actions/userStoreActions";
+import { deployStore } from "@/ai/flows/deploy-store";
 
 
 const generatedPages = [
@@ -99,11 +100,11 @@ export default function CreateStorePage() {
     }
 
     setIsSaving(true);
+    let storeConfig: UserStoreConfig | null = null;
     try {
         const storeRef = doc(db, 'userStores', user.uid);
         
-        const newStoreData: Omit<UserStoreConfig, 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
-            id: user.uid,
+        const newStoreData: Omit<UserStoreConfig, 'createdAt' | 'id'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
             userId: user.uid,
             storeName,
             layout: selectedLayout,
@@ -125,24 +126,38 @@ export default function CreateStorePage() {
 
         await setDoc(storeRef, newStoreData, { merge: true });
         
+        storeConfig = {
+            ...newStoreData,
+            id: user.uid,
+            createdAt: docSnap.data()?.createdAt || serverTimestamp(),
+        } as UserStoreConfig;
+
         toast({
           title: "Configuration Saved!",
-          description: "Your store settings have been saved. Deployment is coming soon!",
+          description: "Your store settings have been saved. Now starting deployment...",
         });
-        // Optionally, redirect after saving
-        // router.push('/dashboard');
+
+        // Trigger deployment flow
+        const deploymentResult = await deployStore(storeConfig);
+
+        toast({
+            title: "Deployment Initiated!",
+            description: `Store deployment process started. Mock URL: ${deploymentResult.deploymentUrl}`,
+        });
+
+        router.push(`/store/${user.uid}`);
 
     } catch (error: any) {
-      let errorMessage = `Failed to save: ${error.message}`;
+      let errorMessage = `Failed to save or deploy: ${error.message}`;
       if (error.code === 'permission-denied') {
           errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
       }
       toast({
-        title: "Save Failed",
+        title: "Operation Failed",
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Firestore save error:", error);
+      console.error("Save/Deploy error:", error);
     } finally {
       setIsSaving(false);
     }
@@ -306,19 +321,19 @@ export default function CreateStorePage() {
               </div>
             </CardContent>
             <CardFooter className="flex-col items-start gap-4">
-              <Button type="submit" size="lg" disabled={isSaving || !storeName}>
+               <Button type="submit" size="lg" disabled={isSaving || !storeName}>
                 {isSaving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                {isSaving ? "Saving..." : "Save Configuration"}
+                {isSaving ? "Saving & Deploying..." : "Save & Deploy Store"}
               </Button>
                <Alert variant="default" className="bg-primary/5 border-primary/20">
                 <Zap className="h-4 w-4 text-primary" />
-                <AlertTitle className="text-primary/90 font-medium">Deployment Coming Soon!</AlertTitle>
+                <AlertTitle className="text-primary/90 font-medium">Deployment In Progress</AlertTitle>
                 <AlertDescription className="text-primary/80">
-                  After saving your configuration, the next step will be to automatically build and deploy your store. This feature is on its way!
+                  After saving, the deployment process will begin. This may take a few minutes. You will be redirected when it's complete.
                 </AlertDescription>
               </Alert>
             </CardFooter>

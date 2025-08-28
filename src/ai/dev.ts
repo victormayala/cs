@@ -9,4 +9,5 @@ import '@/ai/flows/make-background-transparent.ts';
 import '@/ai/flows/generate-text-image.ts'; // Added back
 import '@/ai/flows/generate-shape-image.ts'; // Added back
 import '@/ai/flows/composite-images.ts'; // Added back
+import '@/ai/flows/deploy-store.ts';
     
