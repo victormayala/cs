@@ -29,6 +29,7 @@ import ProductViewSetup from '@/components/product-options/ProductViewSetup';
 import { Separator } from '@/components/ui/separator';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions } from '@/app/actions/productOptionsActions';
 import type { NativeProduct } from '@/app/actions/productActions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ProductOptionsData {
   id: string; 
@@ -224,6 +225,8 @@ export default function ProductOptionsPage() {
       setProductOptions({
         ...baseProduct,
         source,
+        price: firestoreOptions?.price ?? baseProduct.price,
+        type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
         groupingAttributeName: firestoreOptions?.groupingAttributeName || null,
@@ -701,15 +704,33 @@ export default function ProductOptionsPage() {
             <CardContent className="space-y-4">
               <div>
                   <Label htmlFor="productName">Product Name</Label>
-                  <Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => setProductOptions(prev => prev ? {...prev, name: e.target.value} : null)} />
+                  <Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, name: e.target.value} : null); setHasUnsavedChanges(true);}} />
               </div>
               <div>
                   <Label htmlFor="productDescription">Description</Label>
-                  <Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => setProductOptions(prev => prev ? {...prev, description: e.target.value} : null)} />
+                  <Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, description: e.target.value} : null); setHasUnsavedChanges(true);}} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label htmlFor="productPrice">Price ($)</Label><Input id="productPrice" type="number" value={productOptions.price} className="mt-1 bg-muted/50" readOnly /></div>
-                <div><Label htmlFor="productType">Type</Label><Input id="productType" value={productOptions.type.charAt(0).toUpperCase() + productOptions.type.slice(1)} className="mt-1 bg-muted/50" readOnly /></div>
+                <div>
+                  <Label htmlFor="productPrice">Price ($)</Label>
+                  <Input id="productPrice" type="number" value={productOptions.price} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, price: parseFloat(e.target.value) || 0} : null); setHasUnsavedChanges(true);}} />
+                </div>
+                <div>
+                  <Label htmlFor="productType">Type</Label>
+                  {source !== 'customizer-studio' ? (
+                      <Input id="productType" value={productOptions.type.charAt(0).toUpperCase() + productOptions.type.slice(1)} className="mt-1 bg-muted/50" readOnly />
+                  ) : (
+                    <Select value={productOptions.type} onValueChange={(value: 'simple' | 'variable') => {setProductOptions(prev => prev ? {...prev, type: value} : null); setHasUnsavedChanges(true);}}>
+                      <SelectTrigger id="productType" className="mt-1">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="simple">Simple</SelectItem>
+                        <SelectItem value="variable">Variable</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
