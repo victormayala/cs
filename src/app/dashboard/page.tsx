@@ -20,10 +20,11 @@ import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsAc
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
 import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
 import { db } from '@/lib/firebase'; 
-import { doc, setDoc, getDoc, serverTimestamp, deleteDoc } from 'firebase/firestore'; 
+import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
 import type { ShopifyProduct } from '@/types/shopify';
 import {format} from 'date-fns';
+import type { NativeProduct } from '@/app/actions/productActions';
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -52,7 +53,7 @@ interface DisplayProduct {
   lastEdited: string;
   imageUrl?: string;
   aiHint?: string;
-  source: 'woocommerce' | 'shopify';
+  source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
 type ActiveDashboardTab = 'products' | 'storeIntegration' | 'settings' | 'profile';
@@ -148,7 +149,7 @@ function DashboardPageContent() {
   }, [user, toast]);
 
   const loadAllProducts = useCallback(async (isManualRefresh?: boolean, ignoreHiddenList: boolean = false) => {
-    if (!user) {
+    if (!user || !user.uid) {
       setError("Please sign in to view products.");
       setIsLoadingProducts(false);
       return;
@@ -159,31 +160,47 @@ function DashboardPageContent() {
     const startTime = Date.now();
 
     const hasAnyCredentials = wcCredentialsExist || shopifyCredentialsExist;
-    if (!hasAnyCredentials) {
-      setError("Connect your WooCommerce or Shopify store via the 'Store Integration' tab to see your products.");
+    let allDisplayProducts: DisplayProduct[] = [];
+    let wcError, shopifyError, nativeError;
+
+    // Fetch Native Products (always try to fetch these)
+    try {
+        const nativeProductsRef = collection(db, `users/${user.uid}/products`);
+        const nativeProductsQuery = query(nativeProductsRef);
+        const querySnapshot = await getDocs(nativeProductsQuery);
+        const fetchedNativeProducts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as (NativeProduct & {id: string})[];
+        
+        const nativeDisplayProducts = fetchedNativeProducts.map(p => ({
+            id: p.id,
+            name: p.name,
+            status: 'active', // Native products are always considered active
+            lastEdited: format(p.lastModified.toDate(), "PPP"),
+            imageUrl: `https://placehold.co/150x150/0635C9/FFFFFF.png?text=CS`,
+            aiHint: 'customizer studio product',
+            source: 'customizer-studio' as const,
+        }));
+        allDisplayProducts.push(...nativeDisplayProducts);
+    } catch (e: any) {
+        console.error("Error fetching native products:", e);
+        nativeError = `Customizer Studio: ${e.message}`;
+    }
+
+
+    if (!hasAnyCredentials && allDisplayProducts.length === 0) {
+      setError("Connect your WooCommerce or Shopify store via the 'Store Integration' tab to see your external products.");
       setProducts([]);
       setIsLoadingProducts(false);
-      if (isManualRefresh) {
-        toast({
-          title: "No Store Connected",
-          description: "Please connect a store in 'Store Integration' to see products here.",
-          variant: "default",
-        });
-      }
       return;
     }
 
-    let allDisplayProducts: DisplayProduct[] = [];
     const hiddenProductIds = ignoreHiddenList ? [] : getLocallyHiddenProductIds();
-    let wcError, shopifyError;
-
+    
     // Fetch WooCommerce Products
     if (wcCredentialsExist) {
       const userCredentialsToUse: WooCommerceCredentials = { storeUrl: wcStoreUrl, consumerKey: wcConsumerKey, consumerSecret: wcConsumerSecret };
       const { products: fetchedWcProducts, error: fetchWcError } = await fetchWooCommerceProducts(userCredentialsToUse);
       if (fetchedWcProducts) {
         const wcDisplayProducts = fetchedWcProducts
-          .filter(p => !hiddenProductIds.includes(p.id.toString()))
           .map(p => ({
             id: p.id.toString(), name: p.name, status: p.status,
             lastEdited: format(new Date(p.date_modified_gmt || p.date_modified || p.date_created_gmt || p.date_created), "PPP"),
@@ -207,7 +224,6 @@ function DashboardPageContent() {
                     const { products: fetchedShopifyProducts, error: fetchShopifyError } = await fetchShopifyProducts(credentials.shop, credentials.accessToken);
                     if (fetchedShopifyProducts) {
                     const shopifyDisplayProducts = fetchedShopifyProducts
-                        .filter(p => !hiddenProductIds.includes(p.id))
                         .map(p => ({
                         id: p.id, name: p.title, status: p.status.toLowerCase(),
                         lastEdited: format(new Date(p.updatedAt), "PPP"),
@@ -227,15 +243,18 @@ function DashboardPageContent() {
         }
     }
     
-    setProducts(allDisplayProducts);
-    const combinedError = [wcError, shopifyError].filter(Boolean).join(' | ');
+    // Filter out hidden products from the final combined list
+    const finalProducts = allDisplayProducts.filter(p => !hiddenProductIds.includes(p.id));
+
+    setProducts(finalProducts);
+    const combinedError = [nativeError, wcError, shopifyError].filter(Boolean).join(' | ');
     setError(combinedError || null);
 
     const duration = Date.now() - startTime;
     if (isManualRefresh) {
       toast({
         title: "Products Refreshed",
-        description: `Fetched ${allDisplayProducts.length} products in ${duration}ms. ${ignoreHiddenList ? 'Hidden items temporarily shown.' : ''}`,
+        description: `Fetched ${finalProducts.length} products in ${duration}ms. ${ignoreHiddenList ? 'Hidden items temporarily shown.' : ''}`,
       });
       if (combinedError) {
          toast({ title: "Fetch Errors", description: combinedError, variant: "destructive"});
@@ -445,11 +464,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (activeTab === 'products' && user && !isLoadingWcCredentials && !isLoadingShopifyCredentials && products.length === 0 && !isLoadingProducts && !error) {
-      if (wcCredentialsExist || shopifyCredentialsExist) {
         loadAllProducts(false, false);
-      } else if (!isLoadingProducts) {
-        setError("Connect your WooCommerce or Shopify store via the 'Store Integration' tab to see your products.");
-      }
     }
   }, [activeTab, user, isLoadingWcCredentials, isLoadingShopifyCredentials, products.length, isLoadingProducts, error, loadAllProducts, wcCredentialsExist, shopifyCredentialsExist]);
 
@@ -552,7 +567,7 @@ function DashboardPageContent() {
                                 Create Product
                             </Link>
                         </Button>
-                        <Button onClick={() => loadAllProducts(true, true)} className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoadingProducts || isLoadingAnyCredentials || !isAnyStoreConnected}>
+                        <Button onClick={() => loadAllProducts(true, true)} className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoadingProducts || isLoadingAnyCredentials}>
                           {isLoadingProducts ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RefreshCcw className="mr-2 h-5 w-5" />}
                           Refresh Product Data
                         </Button>
@@ -565,7 +580,7 @@ function DashboardPageContent() {
                       <CardHeader>
                         <CardTitle className="font-headline text-xl text-card-foreground">Your Products</CardTitle>
                         <CardDescription className="text-muted-foreground">
-                          View and manage customizable products from your connected stores.
+                          View and manage customizable products from your connected stores and Customizer Studio.
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -573,8 +588,8 @@ function DashboardPageContent() {
                           <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Loading products...</p></div>
                         ) : error && !isStoreConnectionIssueError ? (
                            <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-orange-500" /><p className="mt-4 text-orange-600 font-semibold">Error Fetching Products</p><p className="text-sm text-muted-foreground mt-1 px-4">{error}</p></div>
-                        ) : !isAnyStoreConnected ? (
-                           <div className="text-center py-10"><PlugZap className="mx-auto h-12 w-12 text-orange-500" /><p className="mt-4 text-orange-600 font-semibold">No Store Connected</p><p className="text-sm text-muted-foreground mt-1 px-4">To list products, please connect your WooCommerce or Shopify store via the 'Store Integration' tab.</p><Button variant="link" onClick={() => setActiveTab('storeIntegration')} className="mt-3 text-orange-600 hover:text-orange-700">Connect a Store</Button></div>
+                        ) : !isAnyStoreConnected && products.length === 0 ? (
+                           <div className="text-center py-10"><PlugZap className="mx-auto h-12 w-12 text-orange-500" /><p className="mt-4 text-orange-600 font-semibold">No Store Connected</p><p className="text-sm text-muted-foreground mt-1 px-4">To list products from an external store, please connect your WooCommerce or Shopify store via the 'Store Integration' tab.</p><Button variant="link" onClick={() => setActiveTab('storeIntegration')} className="mt-3 text-orange-600 hover:text-orange-700">Connect a Store</Button></div>
                         ) : products.length > 0 ? (
                           <Table>
                             <TableHeader><TableRow><TableHead className="w-[80px]">Image</TableHead><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Source</TableHead><TableHead>Last Edited</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
@@ -584,7 +599,7 @@ function DashboardPageContent() {
                                   <TableCell><div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted/30"><NextImage src={product.imageUrl || `https://placehold.co/150x150.png`} alt={product.name} fill className="object-contain" data-ai-hint={product.aiHint || "product image"}/></div></TableCell>
                                   <TableCell className="font-medium">{product.name}</TableCell>
                                   <TableCell><Badge variant={product.status === 'publish' || product.status === 'active' ? 'default' : 'secondary'} className={product.status === 'publish' || product.status === 'active' ? 'bg-green-500/10 text-green-700 border-green-500/30' : ''}>{product.status.charAt(0).toUpperCase() + product.status.slice(1)}</Badge></TableCell>
-                                  <TableCell><Badge variant="outline">{product.source}</Badge></TableCell>
+                                  <TableCell><Badge variant="outline">{product.source === 'customizer-studio' ? 'Native' : product.source}</Badge></TableCell>
                                   <TableCell>{product.lastEdited}</TableCell>
                                   <TableCell className="text-right">
                                     <DropdownMenu>
@@ -607,7 +622,7 @@ function DashboardPageContent() {
                             </TableBody>
                           </Table>
                         ) : ( 
-                          <div className="text-center py-10"><PackageIcon className="mx-auto h-12 w-12 text-muted-foreground" /><p className="mt-4 text-muted-foreground">No products found in your connected stores.</p><p className="text-sm text-muted-foreground mt-1">Click "Refresh Product Data" to try fetching again.</p></div>
+                          <div className="text-center py-10"><PackageIcon className="mx-auto h-12 w-12 text-muted-foreground" /><p className="mt-4 text-muted-foreground">No products found.</p><p className="text-sm text-muted-foreground mt-1">Click "Create Product" to add a native product, or connect a store to sync external products.</p></div>
                         )}
                       </CardContent>
                     </Card>
@@ -754,4 +769,4 @@ export default function DashboardPage() {
   );
 }
 
-    
+      
