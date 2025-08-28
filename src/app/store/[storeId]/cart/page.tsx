@@ -1,19 +1,35 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { Loader2, ShoppingCart, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Loader2, ShoppingCart, AlertTriangle, ArrowRight, Trash2 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+
+// Represents a single item in the shopping cart
+interface CartItem {
+    id: string; // Unique ID for this cart item instance (e.g., crypto.randomUUID())
+    productId: string;
+    variationId: string | null;
+    quantity: number;
+    productName: string; // Storing for easy display
+    basePrice: number;
+    totalCustomizationPrice: number;
+    // For display purposes, we can store a preview image
+    previewImageUrl?: string; // Generated on the customizer page
+    customizationDetails: any; // The full design data object
+}
 
 function CartLoadingSkeleton() {
     return (
@@ -49,13 +65,31 @@ function CartLoadingSkeleton() {
 export default function CartPage() {
   const params = useParams();
   const storeId = params.storeId as string;
+  const { toast } = useToast();
 
   const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // TODO: Add state for cart items, e.g., const [cartItems, setCartItems] = useState([]);
+  const getCartStorageKey = useCallback(() => `cs_cart_${storeId}`, [storeId]);
 
+  // Load cart from localStorage
+  useEffect(() => {
+    if (!storeId) return;
+    try {
+        const storedCart = localStorage.getItem(getCartStorageKey());
+        if (storedCart) {
+            setCartItems(JSON.parse(storedCart));
+        }
+    } catch (e) {
+        console.error("Failed to parse cart from localStorage", e);
+        // Clear corrupted cart data
+        localStorage.removeItem(getCartStorageKey());
+    }
+  }, [storeId, getCartStorageKey]);
+
+  // Fetch store config
   useEffect(() => {
     if (!storeId) {
       setError('Store ID is missing from the URL.');
@@ -79,15 +113,25 @@ export default function CartPage() {
       }
     };
     fetchStoreConfig();
-    // TODO: Add logic here to listen for `postMessage` from the customizer and add to cartItems state.
   }, [storeId]);
+
+  const handleRemoveItem = (itemId: string) => {
+    setCartItems(prevItems => {
+        const newItems = prevItems.filter(item => item.id !== itemId);
+        localStorage.setItem(getCartStorageKey(), JSON.stringify(newItems));
+        toast({ title: "Item Removed", description: "The item has been removed from your cart." });
+        return newItems;
+    });
+  };
+
+  const subtotal = cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0);
+
 
   if (isLoading || !storeConfig) {
     return <CartLoadingSkeleton />;
   }
   
   if (error) {
-     // A minimal header/footer can be shown on error pages if desired
      return (
         <div className="flex flex-col min-h-screen bg-background">
             <header className="sticky top-0 z-50 w-full border-b bg-card h-16"></header>
@@ -116,21 +160,48 @@ export default function CartPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
               <Card>
-                <CardContent className="p-6">
-                  {/* Placeholder for when cart is empty */}
-                  <div className="text-center py-12">
-                    <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <h3 className="mt-4 text-lg font-medium">Your cart is empty</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Looks like you haven't added any custom items yet.
-                    </p>
-                    <Button asChild className="mt-6">
-                      <Link href={`/store/${storeId}/products`}>
-                        Start Shopping
-                      </Link>
-                    </Button>
-                  </div>
-                  {/* TODO: Map over cartItems here and display them */}
+                <CardContent className="p-0">
+                  {cartItems.length === 0 ? (
+                    <div className="text-center py-12 px-6">
+                        <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <h3 className="mt-4 text-lg font-medium">Your cart is empty</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                        Looks like you haven't added any custom items yet.
+                        </p>
+                        <Button asChild className="mt-6">
+                        <Link href={`/store/${storeId}/products`}>
+                            Start Shopping
+                        </Link>
+                        </Button>
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                        {cartItems.map(item => (
+                            <li key={item.id} className="flex gap-4 p-4">
+                                <div className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 flex-shrink-0">
+                                    <Image 
+                                        src={item.previewImageUrl || '/placeholder-image.png'} 
+                                        alt={item.productName} 
+                                        fill 
+                                        className="object-contain" 
+                                    />
+                                </div>
+                                <div className="flex-grow">
+                                    <h4 className="font-semibold text-foreground">{item.productName}</h4>
+                                    <p className="text-sm text-muted-foreground">Custom Design</p>
+                                    <p className="text-sm font-medium mt-1">${item.totalCustomizationPrice.toFixed(2)}</p>
+                                </div>
+                                <div className="flex flex-col items-end justify-between">
+                                    <p className="font-semibold">${(item.totalCustomizationPrice * item.quantity).toFixed(2)}</p>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Remove item</span>
+                                    </Button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -142,7 +213,7 @@ export default function CartPage() {
                 <CardContent className="space-y-4">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Subtotal</span>
-                    <span>$0.00</span>
+                    <span>${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
                     <span>Shipping</span>
@@ -151,12 +222,14 @@ export default function CartPage() {
                   <Separator />
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span>$0.00</span>
+                    <span>${subtotal.toFixed(2)}</span>
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" disabled>
-                    Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
+                  <Button className="w-full" asChild disabled={cartItems.length === 0}>
+                     <Link href={`/store/${storeId}/checkout`}>
+                        Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
                   </Button>
                 </CardFooter>
               </Card>
