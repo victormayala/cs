@@ -73,7 +73,7 @@ function DashboardPageContent() {
   const { user, isLoading: authIsLoading, signOut: authSignOut } = useAuth();
   const { toast } = useToast(); 
 
-  const [activeTab, setActiveTab] = useState<ActiveDashboardTab>('products');
+  const [activeTab, setActiveTab] = useState<ActiveDashboardTab>('storeIntegration');
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -657,9 +657,9 @@ function DashboardPageContent() {
                   )}
 
                   {activeTab === 'storeIntegration' && (
-                    <div className="grid lg:grid-cols-3 gap-8 items-start">
+                    <div className="space-y-8 max-w-2xl mx-auto">
                       {/* Custom Store Card */}
-                      <Card className="shadow-lg border-border bg-card lg:col-span-1">
+                      <Card className="shadow-lg border-border bg-card">
                         <CardHeader>
                           <CardTitle className="font-headline text-xl text-card-foreground">Build Your Own Store</CardTitle>
                           <CardDescription className="text-muted-foreground">Generate and deploy a complete storefront powered by Customizer Studio.</CardDescription>
@@ -702,67 +702,66 @@ function DashboardPageContent() {
                         </CardContent>
                       </Card>
 
-                      <div className="grid md:grid-cols-2 lg:grid-cols-1 lg:col-span-2 gap-8 items-start">
-                        {/* WooCommerce Card */}
-                        <Card className="shadow-lg border-border bg-card">
-                          <CardHeader>
-                            <CardTitle className="font-headline text-xl text-card-foreground flex items-center gap-2"><FaWordpress className="text-[#21759B]" /> WooCommerce Store</CardTitle>
-                            <CardDescription className="text-muted-foreground">Connect using API keys from your existing WooCommerce store.</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            {isLoadingWcCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
-                            ) : (
-                              <form onSubmit={handleSaveWcCredentials} className="space-y-6">
-                                <div className="space-y-2"><Label htmlFor="storeUrl" className="flex items-center"><LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" /> Store URL</Label><Input id="storeUrl" type="url" placeholder="https://yourstore.com" value={wcStoreUrl} onChange={(e) => setWcStoreUrl(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials} /></div>
-                                <div className="space-y-2"><Label htmlFor="consumerKey" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Key</Label><Input id="consumerKey" type="text" placeholder="ck_xxxxxxxxxx" value={wcConsumerKey} onChange={(e) => setWcConsumerKey(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
-                                <div className="space-y-2"><Label htmlFor="consumerSecret" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Secret</Label><Input id="consumerSecret" type="password" placeholder="cs_xxxxxxxxxx" value={wcConsumerSecret} onChange={(e) => setWcConsumerSecret(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                  <Button type="submit" className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcStoreUrl || !wcConsumerKey || !wcConsumerSecret}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Credentials</Button>
-                                  <Button type="button" variant="destructive" onClick={handleClearWcCredentials} className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcCredentialsExist}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Clear</Button>
-                                </div>
-                              </form>
-                            )}
-                          </CardContent>
-                        </Card>
-                        {/* Shopify Card */}
-                        <Card className="shadow-lg border-border bg-card">
-                          <CardHeader>
-                            <CardTitle className="font-headline text-xl text-card-foreground flex items-center gap-2"><FaShopify className="text-[#7AB55C]" /> Shopify Store</CardTitle>
-                            <CardDescription className="text-muted-foreground">Connect your store using the secure one-click OAuth flow.</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            {isLoadingShopifyCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
-                            ) : shopifyCredentialsExist ? (
-                              <div className="space-y-4">
-                                <ShadCnAlert variant="default" className="bg-green-500/10 border-green-500/30">
-                                  <FaShopify className="h-5 w-5 text-green-700" />
-                                  <ShadCnAlertTitle className="text-green-800 font-medium">Shopify Store Connected</ShadCnAlertTitle>
-                                  <ShadCnAlertDescription className="text-green-700">
-                                    Your store <strong>{connectedShopifyStore}</strong> is successfully connected.
-                                  </ShadCnAlertDescription>
-                                </ShadCnAlert>
-                                <Button type="button" variant="destructive" onClick={handleClearShopifyCredentials} className="w-full" disabled={isSavingShopifyCredentials}>
-                                  {isSavingShopifyCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                  Disconnect Shopify Store
-                                </Button>
+                      {/* WooCommerce Card */}
+                      <Card className="shadow-lg border-border bg-card">
+                        <CardHeader>
+                          <CardTitle className="font-headline text-xl text-card-foreground flex items-center gap-2"><FaWordpress className="text-[#21759B]" /> WooCommerce Store</CardTitle>
+                          <CardDescription className="text-muted-foreground">Connect using API keys from your existing WooCommerce store.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {isLoadingWcCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+                          ) : (
+                            <form onSubmit={handleSaveWcCredentials} className="space-y-6">
+                              <div className="space-y-2"><Label htmlFor="storeUrl" className="flex items-center"><LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" /> Store URL</Label><Input id="storeUrl" type="url" placeholder="https://yourstore.com" value={wcStoreUrl} onChange={(e) => setWcStoreUrl(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials} /></div>
+                              <div className="space-y-2"><Label htmlFor="consumerKey" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Key</Label><Input id="consumerKey" type="text" placeholder="ck_xxxxxxxxxx" value={wcConsumerKey} onChange={(e) => setWcConsumerKey(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
+                              <div className="space-y-2"><Label htmlFor="consumerSecret" className="flex items-center"><KeyRound className="mr-2 h-4 w-4 text-muted-foreground" /> Consumer Secret</Label><Input id="consumerSecret" type="password" placeholder="cs_xxxxxxxxxx" value={wcConsumerSecret} onChange={(e) => setWcConsumerSecret(e.target.value)} required className="bg-input/50" disabled={isSavingWcCredentials}/></div>
+                              <div className="flex flex-col sm:flex-row gap-2">
+                                <Button type="submit" className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcStoreUrl || !wcConsumerKey || !wcConsumerSecret}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Credentials</Button>
+                                <Button type="button" variant="destructive" onClick={handleClearWcCredentials} className="w-full sm:w-auto" disabled={isSavingWcCredentials || !wcCredentialsExist}>{isSavingWcCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />} Clear</Button>
                               </div>
-                            ) : (
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="shopifyStoreName" className="flex items-center"><FaShopify className="mr-2 h-4 w-4 text-muted-foreground" /> Your Shopify Store Name</Label>
-                                  <Input id="shopifyStoreName" type="text" placeholder="your-store-name" value={shopifyStoreName} onChange={(e) => setShopifyStoreName(e.target.value)} required className="bg-input/50" />
-                                  <p className="text-xs text-muted-foreground">Just the name, not the full ".myshopify.com" URL.</p>
-                                </div>
-                                <Button onClick={handleConnectShopify} className="w-full bg-[#588a38] hover:bg-[#4d7830] text-white" disabled={isSavingShopifyCredentials || !shopifyStoreName}>
-                                  <FaShopify className="mr-2 h-5 w-5" /> Connect to Shopify
-                                </Button>
+                            </form>
+                          )}
+                        </CardContent>
+                      </Card>
+                      {/* Shopify Card */}
+                      <Card className="shadow-lg border-border bg-card">
+                        <CardHeader>
+                          <CardTitle className="font-headline text-xl text-card-foreground flex items-center gap-2"><FaShopify className="text-[#7AB55C]" /> Shopify Store</CardTitle>
+                          <CardDescription className="text-muted-foreground">Connect your store using the secure one-click OAuth flow.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {isLoadingShopifyCredentials ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+                          ) : shopifyCredentialsExist ? (
+                            <div className="space-y-4">
+                              <ShadCnAlert variant="default" className="bg-green-500/10 border-green-500/30">
+                                <FaShopify className="h-5 w-5 text-green-700" />
+                                <ShadCnAlertTitle className="text-green-800 font-medium">Shopify Store Connected</ShadCnAlertTitle>
+                                <ShadCnAlertDescription className="text-green-700">
+                                  Your store <strong>{connectedShopifyStore}</strong> is successfully connected.
+                                </ShadCnAlertDescription>
+                              </ShadCnAlert>
+                              <Button type="button" variant="destructive" onClick={handleClearShopifyCredentials} className="w-full" disabled={isSavingShopifyCredentials}>
+                                {isSavingShopifyCredentials ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                                Disconnect Shopify Store
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="shopifyStoreName" className="flex items-center"><FaShopify className="mr-2 h-4 w-4 text-muted-foreground" /> Your Shopify Store Name</Label>
+                                <Input id="shopifyStoreName" type="text" placeholder="your-store-name" value={shopifyStoreName} onChange={(e) => setShopifyStoreName(e.target.value)} required className="bg-input/50" />
+                                <p className="text-xs text-muted-foreground">Just the name, not the full ".myshopify.com" URL.</p>
                               </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
+                              <Button onClick={handleConnectShopify} className="w-full bg-[#588a38] hover:bg-[#4d7830] text-white" disabled={isSavingShopifyCredentials || !shopifyStoreName}>
+                                <FaShopify className="mr-2 h-5 w-5" /> Connect to Shopify
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     </div>
                   )}
+
 
                   {activeTab === 'settings' && (
                     <Card className="shadow-lg border-border bg-card"><CardHeader><CardTitle className="font-headline text-xl text-card-foreground">Settings</CardTitle><CardDescription className="text-muted-foreground">Application settings and preferences.</CardDescription></CardHeader><CardContent><p className="text-muted-foreground">Settings content will go here. (Coming Soon)</p></CardContent></Card>
