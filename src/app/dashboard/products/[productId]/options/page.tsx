@@ -223,14 +223,18 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const initialDefaultViews: ProductView[] = [
-        { id: crypto.randomUUID(), name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
-        { id: crypto.randomUUID(), name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
-        { id: crypto.randomUUID(), name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
-        { id: crypto.randomUUID(), name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
       ];
-      
-      const finalDefaultViews = firestoreOptions?.defaultViews?.length ? firestoreOptions.defaultViews.map((v: any) => ({ ...v, price: v.price ?? 0 })) : initialDefaultViews;
+
+      const existingViews = firestoreOptions?.defaultViews || [];
+      const finalDefaultViews = baseDefaultViews.map(baseView => {
+        const existing = existingViews.find(ev => ev.name === baseView.name);
+        return existing ? {...existing, price: existing.price ?? 0} : { ...baseView, id: crypto.randomUUID() };
+      }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
       setProductOptions({
         ...baseProduct,
@@ -944,7 +948,7 @@ export default function ProductOptionsPage() {
 
         <div className="md:col-span-1 space-y-6">
            <ProductViewSetup
-            productOptions={{defaultViews: productOptions.defaultViews}} 
+            productOptions={productOptions} 
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
