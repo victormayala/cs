@@ -9,7 +9,8 @@ import RightPanel from '@/components/customizer/RightPanel';
 import { UploadProvider, useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import type { ProductOptionsFirestoreData } from '@/app/dashboard/products/[productId]/options/page';
+import type { ProductOptionsFirestoreData } from '@/app/actions/productOptionsActions';
+import type { NativeProduct } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -86,7 +87,7 @@ export interface ProductForCustomizer {
   meta?: {
     proxyUsed?: boolean;
     configUserIdUsed?: string | null;
-    source: 'woocommerce' | 'shopify';
+    source: 'woocommerce' | 'shopify' | 'customizer-studio';
   };
 }
 
@@ -164,13 +165,17 @@ function CustomizerLayoutAndLogic() {
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
   const sourceFromUrl = useMemo(() => {
     const sourceParam = searchParams.get('source');
-    if (sourceParam === 'shopify' || sourceParam === 'woocommerce') {
-      return sourceParam as 'shopify' | 'woocommerce';
+    if (sourceParam === 'shopify' || sourceParam === 'woocommerce' || sourceParam === 'customizer-studio') {
+      return sourceParam as 'shopify' | 'woocommerce' | 'customizer-studio';
     }
+    // Fallback logic if source is missing, which can happen in some navigation scenarios.
     if (productIdFromUrl && productIdFromUrl.startsWith('gid://shopify/Product/')) {
       return 'shopify';
     }
-    return 'woocommerce';
+    if (productIdFromUrl && productIdFromUrl.startsWith('cs_')) {
+      return 'customizer-studio';
+    }
+    return 'woocommerce'; // Default if no other clues are present.
   }, [searchParams, productIdFromUrl]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
@@ -182,7 +187,6 @@ function CustomizerLayoutAndLogic() {
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<string>(toolItems[0]?.id || "layers");
   const [showGrid, setShowGrid] = useState(false);
@@ -254,7 +258,7 @@ function CustomizerLayoutAndLogic() {
   }, []);
 
 
-  const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
+  const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify' | 'customizer-studio', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
     setIsLoading(true);
     setError(null);
     setProductVariations(null); setConfigurableAttributes(null);
@@ -301,7 +305,7 @@ function CustomizerLayoutAndLogic() {
             setError(`Shopify Error: ${e.message}. Displaying default.`);
             setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
         }
-    } else { // WooCommerce
+    } else if (source === 'woocommerce') {
         let userWCCredentialsToUse: WooCommerceCredentials | undefined;
         if (user?.uid && !wpApiBaseUrlToUse && (!configUserIdToUse || !isEmbedded)) {
             const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
@@ -326,6 +330,25 @@ function CustomizerLayoutAndLogic() {
             const { variations, error: variationsError } = await fetchWooCommerceProductVariations(wcProductId, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
             if (variationsError) toast({ title: "Variations Load Error", description: variationsError, variant: "destructive" });
             else fetchedVariations = variations;
+        }
+    } else { // 'customizer-studio'
+        if (!userIdForFirestoreOptions) { setError("User not available for native product."); setIsLoading(false); return; }
+        try {
+            const productDocRef = doc(db, `users/${userIdForFirestoreOptions}/products`, productIdToLoad);
+            const productDocSnap = await getDoc(productDocRef);
+            if (!productDocSnap.exists()) {
+              throw new Error(`Failed to fetch product ${productIdToLoad}. Status: 404.`);
+            }
+            const nativeProduct = productDocSnap.data() as NativeProduct;
+            baseProductDetails = {
+                id: productIdToLoad,
+                name: nativeProduct.name,
+                type: 'simple', // Will be overridden by options if available
+                basePrice: 0, // Will be overridden by options
+            };
+        } catch (e: any) {
+            setError(`${e.message}. Displaying default.`);
+            setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
         }
     }
 
@@ -357,6 +380,11 @@ function CustomizerLayoutAndLogic() {
             boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes, price: 0,
         }];
         if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
+    }
+
+    if (source === 'customizer-studio' && firestoreOptions) {
+        baseProductDetails.type = firestoreOptions.type;
+        baseProductDetails.basePrice = firestoreOptions.price;
     }
 
     setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
@@ -600,7 +628,7 @@ function CustomizerLayoutAndLogic() {
           viewId: view.id,
           viewName: view.name,
           images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ src: img.dataUrl, name: img.name, type: img.type, x: img.x, y: img.y, scale: img.scale, rotation: img.rotation })),
-          texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowOffsetY, shadowBlur: txt.shadowBlur, archAmount: txt.archAmount })),
+          texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowBlur, archAmount: txt.archAmount })),
           shapes: canvasShapes.filter(item => item.viewId === view.id).map(shp => ({ type: shp.shapeType, color: shp.color, strokeColor: shp.strokeColor, strokeWidth: shp.strokeWidth, x: shp.x, y: shp.y, scale: shp.scale, rotation: shp.rotation, width: shp.width, height: shp.height })),
         })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
         selectedOptions: selectedVariationOptions,
@@ -650,6 +678,7 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(false);
   };
   
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -778,3 +807,5 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
