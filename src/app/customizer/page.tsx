@@ -18,7 +18,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -82,7 +82,7 @@ export interface ProductForCustomizer {
   name: string;
   basePrice: number;
   views: ProductView[];
-  type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
+  type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
   allowCustomization?: boolean;
   meta?: {
     proxyUsed?: boolean;
@@ -722,6 +722,10 @@ function CustomizerLayoutAndLogic() {
   const currentProductAiHint = activeViewData?.aiHint || defaultFallbackProduct.views[0].aiHint;
   const currentBoundaryBoxes = activeViewData?.boundaryBoxes || defaultFallbackProduct.views[0].boundaryBoxes;
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
+  
+  const pdpLink = productDetails?.meta?.source === 'customizer-studio' 
+    ? `/store/${configUserIdFromUrl}/products/${productIdFromUrl}`
+    : `/dashboard`; // Fallback for woo/shopify for now, as we don't know the store URL.
 
   if (error && !productDetails) { 
     return (
@@ -770,17 +774,31 @@ function CustomizerLayoutAndLogic() {
             activeViewId={activeViewId} 
             setActiveViewId={setActiveViewId} 
             className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
-            configurableAttributes={productDetails?.source === 'woocommerce' ? configurableAttributes : null}
-            selectedVariationOptions={productDetails?.source === 'woocommerce' ? selectedVariationOptions : {}}
+            configurableAttributes={productDetails?.type === 'variable' ? configurableAttributes : null}
+            selectedVariationOptions={productDetails?.type === 'variable' ? selectedVariationOptions : {}}
             onVariantOptionSelect={handleVariantOptionSelect} 
             productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
           />
         </div>
 
         <footer className="fixed bottom-0 left-0 right-0 h-16 border-t bg-card shadow-md px-4 py-2 flex items-center justify-between gap-4 z-40">
-            <div className="text-md font-medium text-muted-foreground truncate max-w-xs sm:max-w-sm md:max-w-md" title={currentProductName}> {currentProductName} </div>
+            <div className="flex items-center gap-2">
+                <Button variant="outline" asChild className="hover:bg-accent/20">
+                    <Link href={pdpLink}>
+                       <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Product
+                    </Link>
+                </Button>
+                <div className="text-md font-medium text-muted-foreground truncate hidden md:block" title={currentProductName}> {currentProductName} </div>
+            </div>
             <div className="flex items-center gap-3">
-                <div className="text-lg font-semibold text-foreground">Total: ${totalCustomizationPrice.toFixed(2)}</div>
+                <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/store/${configUserIdFromUrl}/cart`}>
+                    <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
+                    <span className="hidden sm:inline">View Cart</span>
+                  </Link>
+                </Button>
                 <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
                     {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
                     {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : "Add to Cart")}
@@ -807,5 +825,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-    
