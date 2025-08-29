@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { db } from "@/lib/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import type { NativeProduct } from "@/app/actions/productActions";
 
-export default function CreateProductPage() {
+function CreateProductPageContent() {
   const [productName, setProductName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const router = useRouter();
@@ -150,5 +150,19 @@ export default function CreateProductPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+
+export default function CreateProductPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="ml-3">Loading Page...</p>
+      </div>
+    }>
+      <CreateProductPageContent />
+    </Suspense>
   );
 }
