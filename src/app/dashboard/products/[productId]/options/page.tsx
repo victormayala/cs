@@ -631,18 +631,12 @@ export default function ProductOptionsPage() {
         return;
       }
   
-      // Create a new color object
       const newColor = { name, hex: colorHexValue };
+      const newColors = [...productOptions.nativeAttributes.colors, newColor];
+      const newAttributes = { ...productOptions.nativeAttributes, colors: newColors };
+      
+      setProductOptions({ ...productOptions, nativeAttributes: newAttributes });
   
-      // Update state in an immutable way
-      setProductOptions(prev => {
-        if (!prev) return null;
-        const newColors = [...prev.nativeAttributes.colors, newColor];
-        const newAttributes = { ...prev.nativeAttributes, colors: newColors };
-        return { ...prev, nativeAttributes: newAttributes };
-      });
-  
-      // Reset input fields
       setColorInputValue("");
       setColorHexValue("#000000");
   
@@ -657,15 +651,11 @@ export default function ProductOptionsPage() {
         return;
       }
   
-      // Update state immutably
-      setProductOptions(prev => {
-        if (!prev) return null;
-        const newSizes = [...prev.nativeAttributes.sizes, size];
-        const newAttributes = { ...prev.nativeAttributes, sizes: newSizes };
-        return { ...prev, nativeAttributes: newAttributes };
-      });
+      const newSizes = [...productOptions.nativeAttributes.sizes, size];
+      const newAttributes = { ...productOptions.nativeAttributes, sizes: newSizes };
+      
+      setProductOptions({ ...productOptions, nativeAttributes: newAttributes });
   
-      // Reset input field
       setSizeInputValue("");
     }
   
