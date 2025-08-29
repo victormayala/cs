@@ -10,10 +10,11 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
-import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
+import type { ProductAttributeOptions } from '@/app/actions/productOptionsActions';
 
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
@@ -22,7 +23,28 @@ interface ProductDetail extends PublicProduct {
         name: string;
         imageUrl: string;
     }[];
+    attributes?: ProductAttributeOptions;
 }
+
+const commonColorHexMap: Record<string, string> = {
+    red: '#ef4444',
+    green: '#22c55e',
+    blue: '#3b82f6',
+    black: '#000000',
+    white: '#ffffff',
+    yellow: '#eab308',
+    purple: '#8b5cf6',
+    orange: '#f97316',
+    pink: '#ec4899',
+    brown: '#78350f',
+    gray: '#6b7280',
+    grey: '#6b7280',
+    silver: '#d1d5db',
+    gold: '#facc15',
+    navy: '#0f172a',
+    charcoal: '#374151',
+};
+
 
 function PDPSkeleton() {
   return (
@@ -47,6 +69,12 @@ function PDPSkeleton() {
                         <Skeleton className="h-5 w-full" />
                         <Skeleton className="h-5 w-full" />
                         <Skeleton className="h-5 w-5/6" />
+                        <div className="space-y-4 pt-4">
+                           <Skeleton className="h-6 w-1/4" />
+                           <div className="flex gap-2"><Skeleton className="h-8 w-16" /><Skeleton className="h-8 w-16" /></div>
+                           <Skeleton className="h-6 w-1/4" />
+                           <div className="flex gap-2"><Skeleton className="h-8 w-12" /><Skeleton className="h-8 w-12" /></div>
+                        </div>
                         <Skeleton className="h-12 w-1/2 mt-4" />
                     </div>
                 </div>
@@ -69,6 +97,9 @@ export default function ProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
+
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   
   useEffect(() => {
     if (!storeId || !productId) {
@@ -103,8 +134,17 @@ export default function ProductDetailPage() {
             if (!productData.product) {
                 throw new Error("Product not found.");
             }
-            setProduct(productData.product);
-            setActiveImage(productData.product.views[0]?.imageUrl || productData.product.imageUrl);
+            const fetchedProduct = productData.product as ProductDetail;
+            setProduct(fetchedProduct);
+            setActiveImage(fetchedProduct.views[0]?.imageUrl || fetchedProduct.imageUrl);
+
+            // Set default selections for attributes
+            if (fetchedProduct.attributes?.colors?.length > 0) {
+              setSelectedColor(fetchedProduct.attributes.colors[0]);
+            }
+            if (fetchedProduct.attributes?.sizes?.length > 0) {
+              setSelectedSize(fetchedProduct.attributes.sizes[0]);
+            }
 
         } catch (err: any) {
             setError(err.message);
@@ -197,10 +237,58 @@ export default function ProductDetailPage() {
                          <p className="text-2xl font-semibold mt-2 mb-4" style={{ color: `hsl(var(--primary))` }}>
                             From ${product.price.toFixed(2)}
                          </p>
-                         <div className="text-muted-foreground space-y-4">
+                         <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none">
                             <p>{product.description}</p>
                          </div>
-                         <div className="mt-8">
+                         
+                         {product.attributes && (
+                            <div className="mt-6 space-y-6">
+                                {product.attributes.colors && product.attributes.colors.length > 0 && (
+                                    <div>
+                                        <h3 className="text-sm font-medium text-foreground mb-2">Color: <span className="font-normal text-muted-foreground">{selectedColor}</span></h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {product.attributes.colors.map(color => (
+                                                <Button 
+                                                    key={color} 
+                                                    variant="outline" 
+                                                    size="icon" 
+                                                    className={cn(
+                                                        "h-8 w-8 rounded-full border-2", 
+                                                        selectedColor === color ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-gray-200'
+                                                    )}
+                                                    onClick={() => setSelectedColor(color)}
+                                                    style={{ backgroundColor: commonColorHexMap[color.toLowerCase()] || '#f1f5f9' }}
+                                                    title={color}
+                                                >
+                                                    {commonColorHexMap[color.toLowerCase()] ? '' : color.charAt(0)}
+                                                    <span className="sr-only">{color}</span>
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {product.attributes.sizes && product.attributes.sizes.length > 0 && (
+                                     <div>
+                                        <h3 className="text-sm font-medium text-foreground mb-2">Size: <span className="font-normal text-muted-foreground">{selectedSize}</span></h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {product.attributes.sizes.map(size => (
+                                                <Button
+                                                    key={size}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setSelectedSize(size)}
+                                                    className={cn("h-9", selectedSize === size && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+                                                >
+                                                    {size}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                         )}
+
+                         <div className="mt-auto pt-8">
                             <Button asChild size="lg" className="w-full md:w-auto">
                                 <Link href={customizerLink}>
                                     Customize This Product <ArrowRight className="ml-2 h-5 w-5" />
