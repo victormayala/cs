@@ -1,8 +1,9 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct } from '@/app/actions/productActions';
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
       const productData = productDoc.data() as NativeProduct;
       const productId = productDoc.id;
 
-      let primaryImageUrl = '/placeholder-image.png'; // A default placeholder
+      let primaryImageUrl = `https://placehold.co/400x400.png?text=${encodeURIComponent(productData.name)}`; // A default placeholder
       let price = 0;
 
       try {
@@ -49,9 +50,10 @@ export async function GET(request: Request) {
 
         if (optionsSnap.exists()) {
           const optionsData = optionsSnap.data();
-          // Use the image from the first default view as the primary image
-          if (optionsData.defaultViews && optionsData.defaultViews.length > 0 && optionsData.defaultViews[0].imageUrl) {
-            primaryImageUrl = optionsData.defaultViews[0].imageUrl;
+          // Use the image from the first default view as the primary image, with validation
+          const firstViewImage = optionsData.defaultViews?.[0]?.imageUrl;
+          if (firstViewImage && typeof firstViewImage === 'string' && firstViewImage.trim() !== '' && !firstViewImage.includes('placehold.co')) {
+            primaryImageUrl = firstViewImage;
           }
           price = optionsData.price || 0;
         }
