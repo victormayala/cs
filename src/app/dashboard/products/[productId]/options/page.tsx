@@ -613,41 +613,62 @@ export default function ProductOptionsPage() {
   };
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
+    if (!productOptions) return;
+  
+    // Validate inputs first
     if (type === 'colors') {
       const name = colorInputValue.trim();
-      const hex = colorHexValue.trim();
-      if (!name) return; // Exit if name is empty
-      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+      if (!name) {
+        toast({ title: "Color name is required.", variant: "destructive" });
+        return;
+      }
+      if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
         toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
         return;
       }
-      
+      if (productOptions.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        toast({ title: "Color already exists.", variant: "destructive" });
+        return;
+      }
+  
+      // Create a new color object
+      const newColor = { name, hex: colorHexValue };
+  
+      // Update state in an immutable way
       setProductOptions(prev => {
         if (!prev) return null;
-        const newColors = [...(prev.nativeAttributes.colors || [])];
-        if (!newColors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-          newColors.push({ name, hex });
-        }
-        return { ...prev, nativeAttributes: { ...prev.nativeAttributes, colors: newColors } };
+        const newColors = [...prev.nativeAttributes.colors, newColor];
+        const newAttributes = { ...prev.nativeAttributes, colors: newColors };
+        return { ...prev, nativeAttributes: newAttributes };
       });
-
+  
+      // Reset input fields
       setColorInputValue("");
       setColorHexValue("#000000");
-
+  
     } else { // sizes
       const size = sizeInputValue.trim();
-      if (!size) return;
-      
+      if (!size) {
+        toast({ title: "Size name is required.", variant: "destructive" });
+        return;
+      }
+      if (productOptions.nativeAttributes.sizes.includes(size)) {
+        toast({ title: "Size already exists.", variant: "destructive" });
+        return;
+      }
+  
+      // Update state immutably
       setProductOptions(prev => {
         if (!prev) return null;
-        const newSizes = [...(prev.nativeAttributes.sizes || [])];
-        if (!newSizes.includes(size)) {
-          newSizes.push(size);
-        }
-        return { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } };
+        const newSizes = [...prev.nativeAttributes.sizes, size];
+        const newAttributes = { ...prev.nativeAttributes, sizes: newSizes };
+        return { ...prev, nativeAttributes: newAttributes };
       });
+  
+      // Reset input field
       setSizeInputValue("");
     }
+  
     setHasUnsavedChanges(true);
   };
 

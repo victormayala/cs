@@ -52,4 +52,3 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox, ProductView, ColorGroupOptions };
-
