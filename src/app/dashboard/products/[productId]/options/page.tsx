@@ -438,6 +438,21 @@ export default function ProductOptionsPage() {
     setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
+  
+  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => { 
+    if (!productOptions) return;
+    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => {
+      if (v.id === viewId) {
+        if (field === 'price') {
+          const newPrice = typeof value === 'number' ? value : parseFloat(value.toString());
+          return { ...v, price: isNaN(newPrice) ? (v.price ?? 0) : Math.max(0, newPrice) };
+        }
+        return { ...v, [field]: value };
+      }
+      return v;
+    })} : null);
+    setHasUnsavedChanges(true);
+  };
 
   const handleDeleteView = (viewId: string) => {
     if (!productOptions) return;
@@ -466,21 +481,6 @@ export default function ProductOptionsPage() {
     }
     setIsDeleteViewDialogOpen(false); setViewIdToDelete(null);
     toast({title: "View Deleted"}); setHasUnsavedChanges(true);
-  };
-
-  const handleDefaultViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => { 
-    if (!productOptions) return;
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => {
-      if (v.id === viewId) {
-        if (field === 'price') {
-          const newPrice = typeof value === 'number' ? value : parseFloat(value.toString());
-          return { ...v, price: isNaN(newPrice) ? (v.price ?? 0) : Math.max(0, newPrice) };
-        }
-        return { ...v, [field]: value };
-      }
-      return v;
-    })} : null);
-    setHasUnsavedChanges(true);
   };
 
   const handleAddBoundaryBox = () => { 
@@ -838,7 +838,7 @@ export default function ProductOptionsPage() {
               </Card>
             )}
 
-          {productOptions.source === 'woocommerce' && productOptions.type === 'variable' && (
+          {productOptions.source === 'woocommerce' && (
             <Card className="shadow-md">
               <CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle><CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription></CardHeader>
               <CardContent>
@@ -953,7 +953,7 @@ export default function ProductOptionsPage() {
                     })}
                   </div>
                   </>
-                ) : <div className="text-center py-6"><LayersIcon className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">No variations found or grouping failed for this product.</p></div>}
+                ) : <div className="text-center py-6"><LayersIcon className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">This product has no variations, or they could not be grouped automatically.</p></div>}
               </CardContent>
             </Card>
           )}
@@ -1032,5 +1032,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-
-    
