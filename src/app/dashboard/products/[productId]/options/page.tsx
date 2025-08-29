@@ -39,7 +39,7 @@ interface ProductOptionsData {
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
   groupingAttributeName: string | null;
-  nativeAttributes: ProductAttributeOptions; // Added for native products
+  nativeAttributes: ProductAttributeOptions;
   allowCustomization: boolean;
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
@@ -658,7 +658,7 @@ export default function ProductOptionsPage() {
     );
   }
 
-  const currentView = productOptions.views.find(v => v.id === activeViewIdForSetup);
+  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   
   const renderWooCommerceVariations = () => {
     if (isLoadingVariations || (isRefreshing && isLoading)) return <div className="flex items-center justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading variations...</p></div>;
