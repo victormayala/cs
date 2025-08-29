@@ -44,7 +44,7 @@ export interface ProductOptionsFirestoreData {
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
-  nativeAttributes?: ProductAttributeOptions; // New field for native products
+  nativeAttributes?: ProductAttributeOptions; // Made optional for backwards compatibility
   allowCustomization?: boolean;
   lastSaved?: any; // Firestore server timestamp
   createdAt?: any; // Firestore server timestamp

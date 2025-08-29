@@ -232,7 +232,7 @@ export default function ProductOptionsPage() {
         type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
-        groupingAttributeName: firestoreOptions?.groupingAttributeName || null,
+        groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
         nativeAttributes: firestoreOptions?.nativeAttributes || { colors: [], sizes: [] },
         allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
@@ -543,61 +543,30 @@ export default function ProductOptionsPage() {
   };
 
   const handleSelectAllVariationsInGroup = (groupKey: string, checked: boolean) => {
-    if (!productOptions || !groupedVariations || !groupedVariations[groupKey]) return;
-    const groupVariationIds = groupedVariations[groupKey].map(v => v.id.toString());
-    
+    if (!productOptions) return;
+  
     setProductOptions(prev => {
       if (!prev) return null;
       const updatedOptionsByColor = { ...prev.optionsByColor };
-      if (!updatedOptionsByColor[groupKey]) { 
-        updatedOptionsByColor[groupKey] = { selectedVariationIds: [], variantViewImages: {} };
-      }
-
-      let newSelectedIds;
+  
       if (checked) {
-        newSelectedIds = Array.from(new Set([...updatedOptionsByColor[groupKey].selectedVariationIds, ...groupVariationIds]));
+        // For native products, there's no list of variation IDs. We can use a placeholder.
+        const mockVariationIds = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size}`) || [];
+        updatedOptionsByColor[groupKey] = {
+          selectedVariationIds: mockVariationIds,
+          variantViewImages: updatedOptionsByColor[groupKey]?.variantViewImages || {},
+        };
       } else {
-        newSelectedIds = updatedOptionsByColor[groupKey].selectedVariationIds.filter(id => !groupVariationIds.includes(id));
+        // If unchecked, clear the selected IDs but keep the images.
+        if (updatedOptionsByColor[groupKey]) {
+          updatedOptionsByColor[groupKey].selectedVariationIds = [];
+        }
       }
-      updatedOptionsByColor[groupKey].selectedVariationIds = newSelectedIds;
       return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
   };
-
-  const getSecondaryAttributeOptionsForGroup = (variationsInGroup: WCVariation[]): string[] => {
-    if (!productOptions?.groupingAttributeName) return [];
-    
-    let sizeLikeAttributeName: string | null = null;
-    if (variationsInGroup.length > 0) {
-        const firstVarAttrs = variationsInGroup[0].attributes;
-        const sizeAttr = firstVarAttrs.find(attr => (attr.name.toLowerCase() === 'size' || attr.name.toLowerCase() === 'talla') && attr.name !== productOptions.groupingAttributeName);
-        if (sizeAttr) {
-            sizeLikeAttributeName = sizeAttr.name;
-        } else {
-            const otherAttr = firstVarAttrs.find(attr => attr.name !== productOptions!.groupingAttributeName);
-            if (otherAttr) sizeLikeAttributeName = otherAttr.name;
-        }
-    }
-    if (!sizeLikeAttributeName) return [];
-    
-    const options = new Set<string>();
-    variationsInGroup.forEach(variation => {
-      const attr = variation.attributes.find(a => a.name === sizeLikeAttributeName);
-      if (attr) options.add(attr.option);
-    });
-    return Array.from(options).sort();
-  };
   
-  const getSecondaryAttributeNameForDisplay = (variationsInGroup: WCVariation[]): string | null => {
-    if (!productOptions?.groupingAttributeName || variationsInGroup.length === 0) return null;
-    const firstVarAttrs = variationsInGroup[0].attributes;
-    const sizeAttr = firstVarAttrs.find(attr => (attr.name.toLowerCase() === 'size' || attr.name.toLowerCase() === 'talla') && attr.name !== productOptions.groupingAttributeName);
-    if (sizeAttr) return sizeAttr.name;
-    const otherAttr = firstVarAttrs.find(attr => attr.name !== productOptions!.groupingAttributeName);
-    return otherAttr ? otherAttr.name : null;
-  };
-
   const handleVariantViewImageChange = (
     colorKey: string,
     viewId: string,
@@ -689,19 +658,126 @@ export default function ProductOptionsPage() {
     );
   }
 
-
-  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+  const currentView = productOptions.views.find(v => v.id === activeViewIdForSetup);
   
-  const allVariationsSelectedOverall = productOptions.type === 'variable' && variations.length > 0 && 
-    Object.keys(groupedVariations || {}).length > 0 && 
-    Object.entries(groupedVariations || {}).every(([groupKey, variationsInGroup]) => {
-      const groupOpts = productOptions.optionsByColor[groupKey];
-      return groupOpts && variationsInGroup.every(v => groupOpts.selectedVariationIds.includes(v.id.toString()));
+  const renderWooCommerceVariations = () => {
+    if (isLoadingVariations || (isRefreshing && isLoading)) return <div className="flex items-center justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading variations...</p></div>;
+    if (variationsError) return <div className="text-center py-6"><AlertTriangle className="mx-auto h-10 w-10 text-destructive" /><p className="mt-3 text-destructive font-semibold">Error loading variations</p><p className="text-sm text-muted-foreground mt-1">{variationsError}</p></div>;
+    if (!groupedVariations || Object.keys(groupedVariations).length === 0) return <div className="text-center py-6"><LayersIcon className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">This product has no variations, or they could not be grouped automatically.</p></div>;
+    
+    const allVariationsSelectedOverall = variations.length > 0 && 
+        Object.entries(groupedVariations).every(([groupKey, variationsInGroup]) => {
+        const groupOpts = productOptions.optionsByColor[groupKey];
+        return groupOpts && variationsInGroup.every(v => groupOpts.selectedVariationIds.includes(v.id.toString()));
     });
 
-  const someVariationsSelectedOverall = productOptions.type === 'variable' && variations.length > 0 &&
-    Object.values(productOptions.optionsByColor).some(group => group.selectedVariationIds.length > 0) && !allVariationsSelectedOverall;
+    const someVariationsSelectedOverall = Object.values(productOptions.optionsByColor).some(group => group.selectedVariationIds.length > 0) && !allVariationsSelectedOverall;
 
+    return (<>
+        <div className="mb-4 flex items-center space-x-2 p-2 border-b">
+            <Checkbox id="selectAllVariationGroups"
+            checked={allVariationsSelectedOverall}
+            onCheckedChange={(cs) => {
+                const isChecked = cs === 'indeterminate' ? true : cs as boolean;
+                Object.keys(groupedVariations).forEach(groupKey => handleSelectAllVariationsInGroup(groupKey, isChecked));
+            }}
+            data-state={someVariationsSelectedOverall ? 'indeterminate' : (allVariationsSelectedOverall ? 'checked' : 'unchecked')} />
+            <Label htmlFor="selectAllVariationGroups" className="text-sm font-medium">{allVariationsSelectedOverall ? "Deselect All Color Groups" : "Select All Color Groups"}</Label>
+        </div>
+        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+        {Object.entries(groupedVariations).map(([groupKey, variationsInGroup]) => {
+            const groupOptions = productOptions.optionsByColor[groupKey] || { selectedVariationIds: [], variantViewImages: {} };
+            const allInGroupSelected = variationsInGroup.every(v => groupOptions.selectedVariationIds.includes(v.id.toString()));
+            
+            const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
+            const stockStatusSummary = variationsInGroup.some(v => v.stock_status === 'outofstock') ? 'Some Out of Stock' : (variationsInGroup.every(v => v.stock_status === 'instock') ? 'All In Stock' : 'Mixed Stock');
+            
+            return (
+            <div key={groupKey} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", allInGroupSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
+                <div className="flex items-start sm:items-center gap-4">
+                <Checkbox id={`selectGroup-${groupKey.replace(/\s+/g, '-')}`} checked={allInGroupSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(groupKey, cs as boolean)} className="mt-1 flex-shrink-0" />
+                <div className="relative h-20 w-20 rounded-md overflow-hidden border bg-card flex-shrink-0">
+                    <img src={representativeImage} alt={groupKey} className="object-contain w-full h-full" />
+                </div>
+                <div className="flex-grow">
+                    <h4 className="text-md font-semibold text-foreground mb-1">{productOptions.groupingAttributeName}: <span className="text-primary">{groupKey}</span></h4>
+                    <p className="text-xs text-muted-foreground">Stock: {stockStatusSummary}</p>
+                    <p className="text-xs text-muted-foreground">Variations (SKUs) in group: {variationsInGroup.length}</p>
+                </div>
+                </div>
+                <div>
+                <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === groupKey ? null : groupKey)} className="w-full sm:w-auto hover:bg-accent/20">
+                    <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === groupKey ? "Done Editing" : `Manage Images for ${groupKey}`}
+                </Button>
+                {editingImagesForColor === groupKey && (
+                    <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
+                    {productOptions.defaultViews.map(defaultView => (
+                    <div key={defaultView.id} className="p-2 border-b last:border-b-0">
+                        <Label htmlFor={`variant-view-url-${groupKey}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
+                        <Input id={`variant-view-url-${groupKey}-${defaultView.id}`} value={productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(groupKey, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
+                    </div>))}
+                    </div>
+                )}
+                </div>
+            </div>);
+        })}
+        </div>
+    </>);
+  };
+
+  const renderNativeVariations = () => {
+    const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
+    if (colors.length === 0) return <div className="text-center py-6"><Palette className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">Add colors in 'Product Attributes' to create variations.</p></div>;
+
+    const allColorsSelected = colors.every(color => productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0);
+    const someColorsSelected = colors.some(color => productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0) && !allColorsSelected;
+
+    return (<>
+        <div className="mb-4 flex items-center space-x-2 p-2 border-b">
+            <Checkbox id="selectAllNativeColors"
+            checked={allColorsSelected}
+            onCheckedChange={(cs) => {
+                const isChecked = cs === 'indeterminate' ? true : cs as boolean;
+                colors.forEach(color => handleSelectAllVariationsInGroup(color, isChecked));
+            }}
+            data-state={someColorsSelected ? 'indeterminate' : 'checked'} />
+            <Label htmlFor="selectAllNativeColors" className="text-sm font-medium">{allColorsSelected ? "Deselect All Colors" : "Select All Colors"}</Label>
+        </div>
+        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+        {colors.map(color => {
+            const isSelected = productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0;
+            return (
+            <div key={color} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", isSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
+                <div className="flex items-start sm:items-center gap-4">
+                    <Checkbox id={`selectGroup-${color}`} checked={isSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(color, cs as boolean)} className="mt-1 flex-shrink-0" />
+                    <div className="flex-grow">
+                        <h4 className="text-md font-semibold text-foreground mb-1">Color: <span className="text-primary">{color}</span></h4>
+                        {sizes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                            {sizes.map(size => <Badge key={size} variant="secondary" className="text-xs">{size}</Badge>)}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div>
+                    <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color ? null : color)} className="w-full sm:w-auto hover:bg-accent/20">
+                        <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color ? "Done" : `Manage Images for ${color}`}
+                    </Button>
+                    {editingImagesForColor === color && (
+                        <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
+                        {productOptions.defaultViews.map(defaultView => (
+                        <div key={defaultView.id} className="p-2 border-b last:border-b-0">
+                            <Label htmlFor={`variant-view-url-${color}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
+                            <Input id={`variant-view-url-${color}-${defaultView.id}`} value={productOptions.optionsByColor[color]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(color, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
+                        </div>))}
+                        </div>
+                    )}
+                </div>
+            </div>);
+        })}
+        </div>
+    </>);
+  };
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
@@ -793,7 +869,7 @@ export default function ProductOptionsPage() {
             </CardContent>
           </Card>
 
-            {source === 'customizer-studio' && (
+          {source === 'customizer-studio' && (
               <Card className="shadow-md">
                 <CardHeader>
                   <CardTitle className="font-headline text-lg">Product Attributes</CardTitle>
@@ -838,128 +914,18 @@ export default function ProductOptionsPage() {
               </Card>
             )}
 
-          {productOptions.source === 'woocommerce' && (
-            <Card className="shadow-md">
-              <CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle><CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription></CardHeader>
-              <CardContent>
-                {isLoadingVariations || (isRefreshing && isLoading) ? <div className="flex items-center justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading variations...</p></div>
-                : variationsError ? <div className="text-center py-6"><AlertTriangle className="mx-auto h-10 w-10 text-destructive" /><p className="mt-3 text-destructive font-semibold">Error loading variations</p><p className="text-sm text-muted-foreground mt-1">{variationsError}</p></div>
-                : groupedVariations && Object.keys(groupedVariations).length > 0 && productOptions.groupingAttributeName ? (<>
-                    <div className="mb-4 flex items-center space-x-2 p-2 border-b">
-                      <Checkbox id="selectAllVariationGroups" 
-                        checked={allVariationsSelectedOverall} 
-                        onCheckedChange={(cs) => {
-                           const isChecked = cs === 'indeterminate' ? true : cs as boolean;
-                           Object.keys(groupedVariations).forEach(groupKey => handleSelectAllVariationsInGroup(groupKey, isChecked));
-                        }}
-                        data-state={someVariationsSelectedOverall && !allVariationsSelectedOverall ? 'indeterminate' : (allVariationsSelectedOverall ? 'checked' : 'unchecked')} />
-                      <Label htmlFor="selectAllVariationGroups" className="text-sm font-medium">{allVariationsSelectedOverall ? "Deselect All Color Groups" : "Select All Color Groups"}</Label>
-                    </div>
-                    <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-                    {Object.entries(groupedVariations).map(([groupKey, variationsInGroup]) => {
-                      const groupOptions = productOptions.optionsByColor[groupKey] || { selectedVariationIds: [], variantViewImages: {} };
-                      const allInGroupSelected = variationsInGroup.every(v => groupOptions.selectedVariationIds.includes(v.id.toString()));
-                      const someInGroupSelected = variationsInGroup.some(v => groupOptions.selectedVariationIds.includes(v.id.toString())) && !allInGroupSelected;
-                      
-                      const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
-                      const representativeImageAlt = variationsInGroup[0]?.image?.alt || productOptions.name;
-                      
-                      const secondaryAttributeDisplayName = getSecondaryAttributeNameForDisplay(variationsInGroup);
-                      const secondaryOptions = getSecondaryAttributeOptionsForGroup(variationsInGroup);
-                      const stockStatusSummary = variationsInGroup.some(v => v.stock_status === 'outofstock') ? 'Some Out of Stock' : (variationsInGroup.every(v => v.stock_status === 'instock') ? 'All In Stock' : 'Mixed Stock');
-                      
-                      return (
-                        <div key={groupKey} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", allInGroupSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
-                          <div className="flex items-start sm:items-center gap-4">
-                            <Checkbox 
-                                id={`selectGroup-${groupKey.replace(/\s+/g, '-')}`} 
-                                checked={allInGroupSelected} 
-                                onCheckedChange={(cs) => handleSelectAllVariationsInGroup(groupKey, cs === 'indeterminate' ? true : cs as boolean)} 
-                                data-state={someInGroupSelected ? 'indeterminate' : (allInGroupSelected ? 'checked' : 'unchecked')}
-                                className="mt-1 flex-shrink-0"
-                            />
-                            <div className="relative h-20 w-20 rounded-md overflow-hidden border bg-card flex-shrink-0">
-                                <img src={representativeImage} alt={representativeImageAlt} className="object-contain w-full h-full" />
-                            </div>
-                            <div className="flex-grow">
-                              <h4 className="text-md font-semibold text-foreground mb-1">
-                                {productOptions.groupingAttributeName}: <span className="text-primary">{groupKey}</span>
-                              </h4>
-                              {secondaryAttributeDisplayName && secondaryOptions.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-xs font-medium text-muted-foreground flex items-center">
-                                    <Tag className="mr-1.5 h-3 w-3" /> {secondaryAttributeDisplayName}:
-                                  </p>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {secondaryOptions.map(opt => <Badge key={opt} variant="secondary" className="text-xs">{opt}</Badge>)}
-                                  </div>
-                                </div>
-                              )}
-                              <p className="text-xs text-muted-foreground">Stock: {stockStatusSummary}</p>
-                              <p className="text-xs text-muted-foreground">Variations (SKUs) in group: {variationsInGroup.length}</p>
-                            </div>
-                          </div>
-                          <div>
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => setEditingImagesForColor(editingImagesForColor === groupKey ? null : groupKey)}
-                                className="w-full sm:w-auto hover:bg-accent/20"
-                            >
-                                <Edit3 className="mr-2 h-4 w-4" />
-                                {editingImagesForColor === groupKey ? "Done Editing" : "Manage View Images for"} {groupKey}
-                            </Button>
-                            {editingImagesForColor === groupKey && (
-                                <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
-                                    <h5 className="text-sm font-medium text-foreground mb-2">Configure images for <span className="text-primary">{groupKey}</span>:</h5>
-                                    {productOptions.defaultViews.map(defaultView => (
-                                    <div key={defaultView.id} className="p-2 border-b last:border-b-0">
-                                        <Label htmlFor={`variant-view-url-${groupKey}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">
-                                        {defaultView.name} Image URL
-                                        </Label>
-                                        <Input
-                                            id={`variant-view-url-${groupKey}-${defaultView.id}`}
-                                            value={productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.imageUrl || ''}
-                                            onChange={(e) => handleVariantViewImageChange(groupKey, defaultView.id, 'imageUrl', e.target.value)}
-                                            className="h-8 text-xs mt-1 bg-background"
-                                            placeholder={`Optional override for ${defaultView.name}`}
-                                        />
-                                        <Label htmlFor={`variant-view-ai-${groupKey}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground mt-2 block">
-                                        {defaultView.name} AI Hint <span className="text-muted-foreground/70">(for Unsplash search)</span>
-                                        </Label>
-                                        <Input
-                                            id={`variant-view-ai-${groupKey}-${defaultView.id}`}
-                                            value={productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.aiHint || ''}
-                                            onChange={(e) => handleVariantViewImageChange(groupKey, defaultView.id, 'aiHint', e.target.value)}
-                                            className="h-8 text-xs mt-1 bg-background"
-                                            placeholder="e.g., t-shirt back"
-                                        />
-                                        {productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.imageUrl && (
-                                        <div className="relative h-16 w-16 mt-2 border rounded-sm overflow-hidden bg-muted/10">
-                                            <img
-                                            src={productOptions.optionsByColor[groupKey].variantViewImages[defaultView.id].imageUrl}
-                                            alt={`${groupKey} - ${defaultView.name}`}
-                                            className="object-contain w-full h-full"
-                                            />
-                                        </div>
-                                        )}
-                                    </div>
-                                    ))}
-                                </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  </>
-                ) : <div className="text-center py-6"><LayersIcon className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">This product has no variations, or they could not be grouped automatically.</p></div>}
-              </CardContent>
-            </Card>
-          )}
-          {productOptions.type !== 'variable' && productOptions.source === 'woocommerce' && (
-            <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Variations</CardTitle></CardHeader><CardContent className="text-center py-8 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" />This is a simple product and does not have variations to configure here.</CardContent></Card>
-          )}
+            {productOptions.type === 'variable' && (
+              <Card className="shadow-md">
+                <CardHeader>
+                  <CardTitle className="font-headline text-lg">Product Variations</CardTitle>
+                  <CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {productOptions.source === 'woocommerce' && renderWooCommerceVariations()}
+                    {productOptions.source === 'customizer-studio' && renderNativeVariations()}
+                </CardContent>
+              </Card>
+            )}
         </div>
 
         <div className="md:col-span-1 space-y-6">
