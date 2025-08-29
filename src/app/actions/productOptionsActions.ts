@@ -31,7 +31,7 @@ interface ColorGroupOptions {
 
 // New interface for native product attributes
 export interface ProductAttributeOptions {
-  colors: string[];
+  colors: { name: string; hex: string }[];
   sizes: string[];
 }
 
@@ -52,3 +52,4 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox, ProductView, ColorGroupOptions };
+

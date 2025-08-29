@@ -118,6 +118,7 @@ export default function ProductOptionsPage() {
   const [editingImagesForColor, setEditingImagesForColor] = useState<string | null>(null);
   
   const [colorInputValue, setColorInputValue] = useState("");
+  const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
 
 
@@ -236,6 +237,10 @@ export default function ProductOptionsPage() {
         return existing ? {...existing, price: existing.price ?? 0} : { ...baseView, id: crypto.randomUUID() };
       }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
+      const nativeAttributes = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
+      if (!nativeAttributes.colors) nativeAttributes.colors = [];
+      if (!nativeAttributes.sizes) nativeAttributes.sizes = [];
+
       setProductOptions({
         ...baseProduct,
         source,
@@ -244,7 +249,7 @@ export default function ProductOptionsPage() {
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
         groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
-        nativeAttributes: firestoreOptions?.nativeAttributes || { colors: [], sizes: [] },
+        nativeAttributes: nativeAttributes,
         allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
 
@@ -608,20 +613,41 @@ export default function ProductOptionsPage() {
   };
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
-    const value = (type === 'colors' ? colorInputValue : sizeInputValue).trim();
-    if (!value) return;
-
-    setProductOptions(prev => {
-      if (!prev) return null;
-      const updatedAttributes = { ...prev.nativeAttributes };
-      if (!updatedAttributes[type].includes(value)) {
-        updatedAttributes[type] = [...updatedAttributes[type], value];
+    if (type === 'colors') {
+      const name = colorInputValue.trim();
+      const hex = colorHexValue.trim();
+      if (!name) return; // Exit if name is empty
+      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
+        return;
       }
-      return { ...prev, nativeAttributes: updatedAttributes };
-    });
+      
+      setProductOptions(prev => {
+        if (!prev) return null;
+        const newColors = [...(prev.nativeAttributes.colors || [])];
+        if (!newColors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+          newColors.push({ name, hex });
+        }
+        return { ...prev, nativeAttributes: { ...prev.nativeAttributes, colors: newColors } };
+      });
 
-    if (type === 'colors') setColorInputValue("");
-    else setSizeInputValue("");
+      setColorInputValue("");
+      setColorHexValue("#000000");
+
+    } else { // sizes
+      const size = sizeInputValue.trim();
+      if (!size) return;
+      
+      setProductOptions(prev => {
+        if (!prev) return null;
+        const newSizes = [...(prev.nativeAttributes.sizes || [])];
+        if (!newSizes.includes(size)) {
+          newSizes.push(size);
+        }
+        return { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } };
+      });
+      setSizeInputValue("");
+    }
     setHasUnsavedChanges(true);
   };
 
@@ -629,12 +655,14 @@ export default function ProductOptionsPage() {
     setProductOptions(prev => {
       if (!prev) return null;
       const updatedAttributes = { ...prev.nativeAttributes };
-      updatedAttributes[type] = updatedAttributes[type].filter(item => item !== value);
-      
+
       if (type === 'colors') {
+        updatedAttributes.colors = updatedAttributes.colors.filter(item => item.name !== value);
         const updatedOptionsByColor = { ...prev.optionsByColor };
         delete updatedOptionsByColor[value];
         return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
+      } else {
+        updatedAttributes.sizes = updatedAttributes.sizes.filter(item => item !== value);
       }
       
       return { ...prev, nativeAttributes: updatedAttributes };
@@ -747,8 +775,8 @@ export default function ProductOptionsPage() {
     const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
     if (colors.length === 0) return <div className="text-center py-6"><Palette className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">Add colors in 'Product Attributes' to create variations.</p></div>;
 
-    const allColorsSelected = colors.every(color => productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0);
-    const someColorsSelected = colors.some(color => productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0) && !allColorsSelected;
+    const allColorsSelected = colors.every(color => productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0);
+    const someColorsSelected = colors.some(color => productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0) && !allColorsSelected;
 
     return (<>
         <div className="mb-4 flex items-center space-x-2 p-2 border-b">
@@ -756,37 +784,40 @@ export default function ProductOptionsPage() {
             checked={allColorsSelected}
             onCheckedChange={(cs) => {
                 const isChecked = cs === 'indeterminate' ? true : cs as boolean;
-                colors.forEach(color => handleSelectAllVariationsInGroup(color, isChecked));
+                colors.forEach(color => handleSelectAllVariationsInGroup(color.name, isChecked));
             }}
             data-state={someColorsSelected ? 'indeterminate' : 'checked'} />
             <Label htmlFor="selectAllNativeColors" className="text-sm font-medium">{allColorsSelected ? "Deselect All Colors" : "Select All Colors"}</Label>
         </div>
         <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
         {colors.map(color => {
-            const isSelected = productOptions.optionsByColor[color]?.selectedVariationIds?.length > 0;
+            const isSelected = productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0;
             return (
-            <div key={color} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", isSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
+            <div key={color.name + '-' + color.hex} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", isSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
                 <div className="flex items-start sm:items-center gap-4">
-                    <Checkbox id={`selectGroup-${color}`} checked={isSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(color, cs as boolean)} className="mt-1 flex-shrink-0" />
+                    <Checkbox id={`selectGroup-${color.name}`} checked={isSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(color.name, cs as boolean)} className="mt-1 flex-shrink-0" />
                     <div className="flex-grow">
-                        <h4 className="text-md font-semibold text-foreground mb-1">Color: <span className="text-primary">{color}</span></h4>
+                        <div className="flex items-center gap-2">
+                           <div className="w-5 h-5 rounded-full border" style={{ backgroundColor: color.hex }}></div>
+                           <h4 className="text-md font-semibold text-foreground">Color: <span className="text-primary">{color.name}</span></h4>
+                        </div>
                         {sizes.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <div className="flex flex-wrap gap-1 mt-2">
                             {sizes.map(size => <Badge key={size} variant="secondary" className="text-xs">{size}</Badge>)}
                             </div>
                         )}
                     </div>
                 </div>
                 <div>
-                    <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color ? null : color)} className="w-full sm:w-auto hover:bg-accent/20">
-                        <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color ? "Done" : `Manage Images for ${color}`}
+                    <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color.name ? null : color.name)} className="w-full sm:w-auto hover:bg-accent/20">
+                        <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color.name ? "Done" : `Manage Images for ${color.name}`}
                     </Button>
-                    {editingImagesForColor === color && (
+                    {editingImagesForColor === color.name && (
                         <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
                         {productOptions.defaultViews.map(defaultView => (
                         <div key={defaultView.id} className="p-2 border-b last:border-b-0">
-                            <Label htmlFor={`variant-view-url-${color}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
-                            <Input id={`variant-view-url-${color}-${defaultView.id}`} value={productOptions.optionsByColor[color]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(color, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
+                            <Label htmlFor={`variant-view-url-${color.name}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
+                            <Input id={`variant-view-url-${color.name}-${defaultView.id}`} value={productOptions.optionsByColor[color.name]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(color.name, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
                         </div>))}
                         </div>
                     )}
@@ -895,18 +926,20 @@ export default function ProductOptionsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
-                    <Label htmlFor="color-input" className="flex items-center mb-2">
+                    <Label className="flex items-center mb-2">
                         <Palette className="h-4 w-4 mr-2 text-primary" /> Colors
                     </Label>
-                    <div className="flex gap-2">
-                        <Input id="color-input" placeholder="e.g., Red, Navy Blue" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/>
+                    <div className="flex items-center gap-2">
+                        <Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/>
+                        <Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" />
                         <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2">
                         {productOptions.nativeAttributes.colors.map(color => (
-                            <Badge key={color} variant="secondary" className="text-sm">
-                                {color}
-                                <button onClick={() => handleRemoveAttribute('colors', color)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                            <Badge key={color.name + '-' + color.hex} variant="secondary" className="text-sm">
+                                <div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>
+                                {color.name}
+                                <button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
                             </Badge>
                         ))}
                     </div>

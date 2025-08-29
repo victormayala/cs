@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,26 +26,6 @@ interface ProductDetail extends PublicProduct {
     }[];
     attributes?: ProductAttributeOptions;
 }
-
-const commonColorHexMap: Record<string, string> = {
-    red: '#ef4444',
-    green: '#22c55e',
-    blue: '#3b82f6',
-    black: '#000000',
-    white: '#ffffff',
-    yellow: '#eab308',
-    purple: '#8b5cf6',
-    orange: '#f97316',
-    pink: '#ec4899',
-    brown: '#78350f',
-    gray: '#6b7280',
-    grey: '#6b7280',
-    silver: '#d1d5db',
-    gold: '#facc15',
-    navy: '#0f172a',
-    charcoal: '#374151',
-};
-
 
 function PDPSkeleton() {
   return (
@@ -140,7 +121,7 @@ export default function ProductDetailPage() {
 
             // Set default selections for attributes
             if (fetchedProduct.attributes?.colors?.length > 0) {
-              setSelectedColor(fetchedProduct.attributes.colors[0]);
+              setSelectedColor(fetchedProduct.attributes.colors[0].name);
             }
             if (fetchedProduct.attributes?.sizes?.length > 0) {
               setSelectedSize(fetchedProduct.attributes.sizes[0]);
@@ -249,19 +230,18 @@ export default function ProductDetailPage() {
                                         <div className="flex flex-wrap gap-2">
                                             {product.attributes.colors.map(color => (
                                                 <Button 
-                                                    key={color} 
+                                                    key={color.name} 
                                                     variant="outline" 
                                                     size="icon" 
                                                     className={cn(
                                                         "h-8 w-8 rounded-full border-2", 
-                                                        selectedColor === color ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-gray-200'
+                                                        selectedColor === color.name ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-gray-200'
                                                     )}
-                                                    onClick={() => setSelectedColor(color)}
-                                                    style={{ backgroundColor: commonColorHexMap[color.toLowerCase()] || '#f1f5f9' }}
-                                                    title={color}
+                                                    onClick={() => setSelectedColor(color.name)}
+                                                    style={{ backgroundColor: color.hex }}
+                                                    title={color.name}
                                                 >
-                                                    {commonColorHexMap[color.toLowerCase()] ? '' : color.charAt(0)}
-                                                    <span className="sr-only">{color}</span>
+                                                   <span className="sr-only">{color.name}</span>
                                                 </Button>
                                             ))}
                                         </div>
