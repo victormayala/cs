@@ -222,7 +222,14 @@ export default function ProductOptionsPage() {
       const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
-      const initialDefaultViews: ProductView[] = [{ id: crypto.randomUUID(), name: "Front", imageUrl: baseProduct.imageUrl, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" "), boundaryBoxes: [], price: 0 }];
+      const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
+      const initialDefaultViews: ProductView[] = [
+        { id: crypto.randomUUID(), name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
+        { id: crypto.randomUUID(), name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
+        { id: crypto.randomUUID(), name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
+        { id: crypto.randomUUID(), name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+      ];
+      
       const finalDefaultViews = firestoreOptions?.defaultViews?.length ? firestoreOptions.defaultViews.map((v: any) => ({ ...v, price: v.price ?? 0 })) : initialDefaultViews;
       
       setProductOptions({
@@ -553,7 +560,7 @@ export default function ProductOptionsPage() {
         // For native products, there's no list of variation IDs. We can use a placeholder.
         const mockVariationIds = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size}`) || [];
         updatedOptionsByColor[groupKey] = {
-          selectedVariationIds: mockVariationIds,
+          selectedVariationIds: mockVariationIds.length > 0 ? mockVariationIds : [groupKey], // Use groupKey as ID if no sizes
           variantViewImages: updatedOptionsByColor[groupKey]?.variantViewImages || {},
         };
       } else {
@@ -619,6 +626,13 @@ export default function ProductOptionsPage() {
       if (!prev) return null;
       const updatedAttributes = { ...prev.nativeAttributes };
       updatedAttributes[type] = updatedAttributes[type].filter(item => item !== value);
+      
+      if (type === 'colors') {
+        const updatedOptionsByColor = { ...prev.optionsByColor };
+        delete updatedOptionsByColor[value];
+        return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
+      }
+      
       return { ...prev, nativeAttributes: updatedAttributes };
     });
     setHasUnsavedChanges(true);
@@ -930,7 +944,7 @@ export default function ProductOptionsPage() {
 
         <div className="md:col-span-1 space-y-6">
            <ProductViewSetup
-            productOptions={{views: productOptions.defaultViews}} 
+            productOptions={{defaultViews: productOptions.defaultViews}} 
             activeViewId={activeViewIdForSetup}
             selectedBoundaryBoxId={selectedBoundaryBoxId}
             setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
@@ -979,7 +993,8 @@ export default function ProductOptionsPage() {
                 <div className="text-sm text-muted-foreground">
                   Total Variation SKUs enabled for customizer: <span className="font-semibold text-foreground">
                     {Object.values(productOptions.optionsByColor).reduce((acc, group) => acc + group.selectedVariationIds.length, 0)}
-                    </span> of {variations.length}
+                    </span>
+                    {productOptions.source === 'woocommerce' && ` of ${variations.length}`}
                 </div>
               )}
               {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
