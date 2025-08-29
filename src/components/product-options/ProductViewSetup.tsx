@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 interface BoundaryBox {
   id: string;
@@ -40,7 +41,7 @@ interface ProductView {
 }
 
 interface ProductViewSetupData {
-  views: ProductView[]; 
+  defaultViews: ProductView[]; 
 }
 
 interface ActiveDragState {
@@ -118,7 +119,7 @@ export default function ProductViewSetup({
     );
   }
 
-  const currentView = productOptions.views.find(v => v.id === activeViewId);
+  const currentView = productOptions.defaultViews.find(v => v.id === activeViewId);
 
   return (
     <Card className="shadow-md">
@@ -132,7 +133,7 @@ export default function ProductViewSetup({
           <p className="text-xs text-muted-foreground mb-3">Click &amp; drag areas. Use handles to resize. Select a view in the 'Views' tab below to change image.</p>
           <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none mb-4" onMouseDown={(e) => { if (e.target === imageWrapperRef.current) setSelectedBoundaryBoxId(null); }}>
             {currentView?.imageUrl ? (
-              <img src={currentView.imageUrl} alt={currentView.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentView.aiHint || "product view"} />
+              <Image src={currentView.imageUrl} alt={currentView.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentView.aiHint || "product view"} priority />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><ImageIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2">No image for this view. Set URL below.</p></div>
             )}
@@ -154,12 +155,12 @@ export default function ProductViewSetup({
           <TabsContent value="views" className="mt-4">
             <div className="mb-4"><h4 className="text-sm font-medium text-muted-foreground mb-2">Select a Default View:</h4>
               <div className="flex flex-wrap gap-2 justify-center">
-                {productOptions.views.map(view => (<Button key={view.id} variant={activeViewId === view.id ? "default" : "outline"} onClick={() => handleSelectView(view.id)} size="sm" className="flex-grow sm:flex-grow-0">{view.name}</Button>))}
+                {productOptions.defaultViews.map(view => (<Button key={view.id} variant={activeViewId === view.id ? "default" : "outline"} onClick={() => handleSelectView(view.id)} size="sm" className="flex-grow sm:flex-grow-0">{view.name}</Button>))}
               </div>
             </div><Separator className="my-4"/>
             <div>
-              <div className="flex justify-between items-center mb-3"><h4 className="text-sm font-medium text-muted-foreground">{currentView ? `Editing View: ` : "Manage Default Views"}{currentView && <span className="text-primary font-semibold">{currentView.name}</span>}</h4>{productOptions.views.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewView} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground"><PlusCircle className="mr-1.5 h-4 w-4" />Add New Default View</Button>)}</div>
-              {productOptions.views.length >= MAX_PRODUCT_VIEWS && !currentView && (<p className="text-xs text-muted-foreground mb-4 text-center">Maximum {MAX_PRODUCT_VIEWS} views reached.</p>)}
+              <div className="flex justify-between items-center mb-3"><h4 className="text-sm font-medium text-muted-foreground">{currentView ? `Editing View: ` : "Manage Default Views"}{currentView && <span className="text-primary font-semibold">{currentView.name}</span>}</h4>{productOptions.defaultViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewView} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground"><PlusCircle className="mr-1.5 h-4 w-4" />Add New Default View</Button>)}</div>
+              {productOptions.defaultViews.length >= MAX_PRODUCT_VIEWS && !currentView && (<p className="text-xs text-muted-foreground mb-4 text-center">Maximum {MAX_PRODUCT_VIEWS} views reached.</p>)}
               {currentView && (<div className="space-y-3 p-3 border rounded-md bg-muted/20">
                   <div><Label htmlFor={`viewName-${currentView.id}`} className="text-xs mb-1 block">View Name</Label><Input id={`viewName-${currentView.id}`} value={currentView.name} onChange={(e) => handleViewDetailChange(currentView.id, 'name', e.target.value)} className="mt-1 h-8 bg-background"/></div>
                   <div><Label htmlFor={`viewImageUrl-${currentView.id}`} className="text-xs mb-1 block">Image URL</Label><Input id={`viewImageUrl-${currentView.id}`} value={currentView.imageUrl} onChange={(e) => handleViewDetailChange(currentView.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8 bg-background"/></div>
@@ -180,10 +181,10 @@ export default function ProductViewSetup({
                         />
                     </div>
                   </div>
-                  {productOptions.views.length > 1 && (<Button variant="destructive" onClick={() => handleDeleteView(currentView!.id)} size="sm" className="w-full mt-2"><Trash2 className="mr-2 h-4 w-4" />Delete This Default View</Button>)}
+                  {productOptions.defaultViews.length > 1 && (<Button variant="destructive" onClick={() => handleDeleteView(currentView!.id)} size="sm" className="w-full mt-2"><Trash2 className="mr-2 h-4 w-4" />Delete This Default View</Button>)}
               </div>)}
-              {!currentView && productOptions.views.length > 0 && (<p className="text-sm text-muted-foreground text-center py-2">Select a default view to edit or add new.</p>)}
-              {!currentView && productOptions.views.length === 0 && (<p className="text-sm text-muted-foreground text-center py-2">No default views. Click "Add New Default View".</p>)}
+              {!currentView && productOptions.defaultViews.length > 0 && (<p className="text-sm text-muted-foreground text-center py-2">Select a default view to edit or add new.</p>)}
+              {!currentView && productOptions.defaultViews.length === 0 && (<p className="text-sm text-muted-foreground text-center py-2">No default views. Click "Add New Default View".</p>)}
             </div>
           </TabsContent>
           <TabsContent value="areas" className="mt-4">
@@ -220,5 +221,3 @@ export default function ProductViewSetup({
     </Card>
   );
 }
-
-    
