@@ -15,7 +15,7 @@ import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
