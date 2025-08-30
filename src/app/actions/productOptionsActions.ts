@@ -48,17 +48,26 @@ export interface NativeProductVariation {
   price: number;
 }
 
+export interface ShippingAttributes {
+  weight: number; // in lbs
+  length: number; // in inches
+  width: number;  // in inches
+  height: number; // in inches
+}
+
 export interface ProductOptionsFirestoreData {
   id: string;
   name: string;
   description: string;
   price: number;
+  salePrice?: number; // Optional sale price
   type: 'simple' | 'variable' | 'grouped' | 'external';
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes?: ProductAttributeOptions; // Made optional for backwards compatibility
   nativeVariations?: NativeProductVariation[];
+  shipping?: ShippingAttributes; // Optional shipping attributes
   allowCustomization?: boolean;
   lastSaved?: any; // Firestore server timestamp
   createdAt?: any; // Firestore server timestamp

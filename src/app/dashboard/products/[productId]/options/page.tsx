@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +26,7 @@ import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
-import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,7 +41,9 @@ interface ProductOptionsData {
   sku?: string;
   category?: string;
   customizationTechniques?: CustomizationTechnique[];
-  price: number; 
+  price: number;
+  salePrice?: number;
+  shipping?: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
@@ -146,7 +148,7 @@ export default function ProductOptionsPage() {
     setVariationsError(null);
     
     try {
-      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; };
+      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; salePrice?: number; shipping?: ShippingAttributes };
       
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
@@ -186,7 +188,8 @@ export default function ProductOptionsPage() {
           baseProduct = {
             id: product.id.toString(), name: product.name,
             description: product.description?.replace(/<[^>]+>/g, '') || product.short_description?.replace(/<[^>]+>/g, '') || 'No description.',
-            price: parseFloat(product.price) || 0,
+            price: parseFloat(product.regular_price) || 0,
+            salePrice: product.sale_price ? parseFloat(product.sale_price) : undefined,
             type: product.type,
             imageUrl: product.images?.[0]?.src || 'https://placehold.co/600x600.png',
             imageAlt: product.images?.[0]?.alt || product.name,
@@ -261,6 +264,8 @@ export default function ProductOptionsPage() {
         ...baseProduct,
         source,
         price: firestoreOptions?.price ?? baseProduct.price,
+        salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
+        shipping: firestoreOptions?.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
         type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
@@ -405,6 +410,8 @@ export default function ProductOptionsPage() {
       name: productOptions.name,
       description: productOptions.description,
       price: productOptions.price,
+      salePrice: productOptions.salePrice,
+      shipping: productOptions.shipping,
       type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
       defaultViews: productOptions.defaultViews,
       optionsByColor: productOptions.optionsByColor,
@@ -1059,7 +1066,7 @@ export default function ProductOptionsPage() {
                   <Label htmlFor="productDescription">Description</Label>
                   <Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, description: e.target.value} : null); setHasUnsavedChanges(true);}} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="productPrice">Base Price ($)</Label>
                   <Input 
@@ -1072,6 +1079,19 @@ export default function ProductOptionsPage() {
                     title={isPriceDisabled ? "Price is managed by variations." : "Set the base price for a simple product."}
                   />
                   {isPriceDisabled && <p className="text-xs text-muted-foreground mt-1">Disabled for variable products.</p>}
+                </div>
+                 <div>
+                  <Label htmlFor="salePrice">Sale Price ($)</Label>
+                  <Input 
+                    id="salePrice" 
+                    type="number" 
+                    value={productOptions.salePrice ?? ''}
+                    placeholder="Optional"
+                    className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")}
+                    readOnly={source !== 'customizer-studio' || isPriceDisabled}
+                    onChange={(e) => {setProductOptions(prev => prev ? {...prev, salePrice: parseFloat(e.target.value) || undefined} : null); setHasUnsavedChanges(true);}}
+                    title={isPriceDisabled ? "Sale price is managed by variations." : "Set the sale price for a simple product."}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="productType">Type</Label>
@@ -1107,6 +1127,33 @@ export default function ProductOptionsPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle>
+              <CardDescription>Enter the shipping details for this product. These are used for native store calculations.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <Label htmlFor="shippingWeight">Weight (lbs)</Label>
+                    <Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingLength">Length (in)</Label>
+                    <Input id="shippingLength" type="number" step="0.01" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingWidth">Width (in)</Label>
+                    <Input id="shippingWidth" type="number" step="0.01" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingHeight">Height (in)</Label>
+                    <Input id="shippingHeight" type="number" step="0.01" value={productOptions.shipping?.height || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, height: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                  </div>
+              </div>
             </CardContent>
           </Card>
 
