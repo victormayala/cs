@@ -119,6 +119,7 @@ export default function ProductOptionsPage() {
   const [groupedVariations, setGroupedVariations] = useState<Record<string, WCVariation[]> | null>(null);
   const [editingImagesForColor, setEditingImagesForColor] = useState<string | null>(null);
   
+  // Decoupled state for attribute inputs
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
@@ -228,17 +229,17 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+      const baseDefaultViews: Omit<ProductView, 'id' | 'price'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
         const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID() };
+        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID(), price: 0 };
       }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
       const nativeAttributes = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
@@ -611,52 +612,54 @@ export default function ProductOptionsPage() {
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
     if (!productOptions) return;
-  
+
     if (type === 'colors') {
-      const name = colorInputValue.trim();
-      if (!name) {
-        toast({ title: "Color name is required.", variant: "destructive" });
-        return;
-      }
-      if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
-        toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
-        return;
-      }
-      if (productOptions.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-        toast({ title: "Color already exists.", variant: "destructive" });
-        return;
-      }
-  
-      const newColor = { name, hex: colorHexValue };
-      const newColors = [...productOptions.nativeAttributes.colors, newColor];
-      const newAttributes = { ...productOptions.nativeAttributes, colors: newColors };
-      
-      setProductOptions({ ...productOptions, nativeAttributes: newAttributes });
-  
-      setColorInputValue("");
-      setColorHexValue("#000000");
-  
+        const name = colorInputValue.trim();
+        if (!name) {
+            toast({ title: "Color name is required.", variant: "destructive" });
+            return;
+        }
+        if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
+            toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
+            return;
+        }
+        if (productOptions.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+            toast({ title: "Color already exists.", variant: "destructive" });
+            return;
+        }
+
+        const newColor = { name, hex: colorHexValue };
+        const newColors = [...productOptions.nativeAttributes.colors, newColor];
+        setProductOptions({
+            ...productOptions,
+            nativeAttributes: { ...productOptions.nativeAttributes, colors: newColors },
+        });
+
+        setColorInputValue("");
+        setColorHexValue("#000000");
+
     } else { // sizes
-      const size = sizeInputValue.trim();
-      if (!size) {
-        toast({ title: "Size name is required.", variant: "destructive" });
-        return;
-      }
-      if (productOptions.nativeAttributes.sizes.includes(size)) {
-        toast({ title: "Size already exists.", variant: "destructive" });
-        return;
-      }
-  
-      const newSizes = [...productOptions.nativeAttributes.sizes, size];
-      const newAttributes = { ...productOptions.nativeAttributes, sizes: newSizes };
-      
-      setProductOptions({ ...productOptions, nativeAttributes: newAttributes });
-  
-      setSizeInputValue("");
+        const size = sizeInputValue.trim();
+        if (!size) {
+            toast({ title: "Size name is required.", variant: "destructive" });
+            return;
+        }
+        if (productOptions.nativeAttributes.sizes.includes(size)) {
+            toast({ title: "Size already exists.", variant: "destructive" });
+            return;
+        }
+
+        const newSizes = [...productOptions.nativeAttributes.sizes, size];
+        setProductOptions({
+            ...productOptions,
+            nativeAttributes: { ...productOptions.nativeAttributes, sizes: newSizes },
+        });
+
+        setSizeInputValue("");
     }
-  
     setHasUnsavedChanges(true);
-  };
+};
+
 
   const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
     setProductOptions(prev => {
@@ -1050,40 +1053,42 @@ export default function ProductOptionsPage() {
                   <CardDescription>Define the colors and sizes available for this native product.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div>
-                    <Label className="flex items-center mb-2">
-                        <Palette className="h-4 w-4 mr-2 text-primary" /> Colors
-                    </Label>
-                    <div className="flex items-center gap-2">
-                        <Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/>
-                        <Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" />
-                        <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <Label className="flex items-center mb-2">
+                          <Palette className="h-4 w-4 mr-2 text-primary" /> Colors
+                      </Label>
+                      <div className="flex items-center gap-2">
+                          <Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/>
+                          <Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" />
+                          <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                          {productOptions.nativeAttributes.colors.map(color => (
+                              <Badge key={color.name + '-' + color.hex} variant="secondary" className="text-sm">
+                                  <div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>
+                                  {color.name}
+                                  <button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                              </Badge>
+                          ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {productOptions.nativeAttributes.colors.map(color => (
-                            <Badge key={color.name + '-' + color.hex} variant="secondary" className="text-sm">
-                                <div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>
-                                {color.name}
-                                <button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
-                            </Badge>
-                        ))}
-                    </div>
-                  </div>
-                   <div>
-                    <Label htmlFor="size-input" className="flex items-center mb-2">
-                        <Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes
-                    </Label>
-                    <div className="flex gap-2">
-                        <Input id="size-input" placeholder="e.g., S, M, XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
-                        <Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {productOptions.nativeAttributes.sizes.map(size => (
-                            <Badge key={size} variant="secondary" className="text-sm">
-                                {size}
-                                <button onClick={() => handleRemoveAttribute('sizes', size)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
-                            </Badge>
-                        ))}
+                    <div>
+                      <Label htmlFor="size-input" className="flex items-center mb-2">
+                          <Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes
+                      </Label>
+                      <div className="flex gap-2">
+                          <Input id="size-input" placeholder="e.g., S, M, XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
+                          <Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                          {productOptions.nativeAttributes.sizes.map(size => (
+                              <Badge key={size} variant="secondary" className="text-sm">
+                                  {size}
+                                  <button onClick={() => handleRemoveAttribute('sizes', size)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                              </Badge>
+                          ))}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1128,9 +1133,6 @@ export default function ProductOptionsPage() {
             viewIdToDelete={viewIdToDelete}
             setViewIdToDelete={setViewIdToDelete} 
             confirmDeleteView={confirmDeleteView}
-            setBulkPrice={setBulkPrice}
-            handleBulkPriceApply={handleBulkPriceApply}
-            bulkPrice={bulkPrice}
           />
 
           <Card className="shadow-md sticky top-8">
