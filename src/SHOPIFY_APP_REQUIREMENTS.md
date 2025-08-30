@@ -20,7 +20,7 @@ Before diving into the implementation, it's crucial to understand how the Shopif
 
 Every user account in Customizer Studio has a unique **User ID**. In the context of this integration, we refer to it as the `configUserId`. This ID is the **single most important piece of data** for the integration.
 
-- **What it does**: The `configUserId` acts as a key that links a Shopify store to a specific set of product configurations (views, design areas, color-variant images, etc.) saved within the Customizer Studio database.
+- **What it does**: The `configUserId` acts as a key that links a Shopify store to a specific set of product configurations (views, design areas, color-variant images, etc.) and global settings (like volume discounts or shipping options for generated stores) saved within the Customizer Studio database.
 - **How it's used**: The Shopify merchant will copy their User ID from their Customizer Studio profile and paste it into a setting field within your app's admin interface. Your app then uses this ID to configure the app block.
 
 ### The Data Lookup Process (The "Magic")
@@ -49,7 +49,7 @@ This entire process ensures that the correct, up-to-date product information is 
     *   **App URL**: `https://customizer-studio.fly.dev/`
     *   **Allowed redirection URL(s)**: `https://customizer-studio.fly.dev/api/auth/callback`
 3.  **API Scopes**: Request the following access scopes.
-    *   `read_products`, `write_products`: To get product details for the customizer and potentially create new ones.
+    *   `read_products`, `write_products`: To get product details for the customizer and potentially create new customized products.
     *   `read_themes`, `write_themes`: **Required for automated installation.** These scopes allow the app to programmatically add the Customizer Studio app block to the merchant's theme, providing a seamless onboarding experience.
 4.  **API Credentials**: Note the **Client ID (API key)** and **Client secret**. These will be used as environment variables in your Customizer Studio deployment (`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET_KEY`).
 
@@ -210,3 +210,4 @@ By using `name="properties[_customizationData]"`, Shopify automatically treats t
 
 -   **In the Cart**: The customization data will be attached to the product when the customer adds it to their cart. You may need to edit your theme's cart template to display this information to the customer for confirmation.
 -   **In the Order**: The data is saved with the order and will be visible in the Shopify Admin on the order details page. This provides the fulfillment team with all the necessary information to create the custom product. The data will be a JSON string and will need to be parsed to be read easily.
+
