@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
-import type { NativeProduct } from '@/app/actions/productActions';
+import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import type { ProductOptionsFirestoreData, ProductAttributeOptions } from '@/app/actions/productOptionsActions';
 
 // A more detailed version for the PDP
@@ -19,6 +19,7 @@ interface PublicProductDetail extends PublicProduct {
     brand?: string;
     sku?: string;
     category?: string;
+    customizationTechnique?: CustomizationTechnique;
 }
 
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
@@ -74,6 +75,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       brand: productData.brand,
       sku: productData.sku,
       category: productData.category,
+      customizationTechnique: productData.customizationTechnique,
     };
 
     return NextResponse.json({ product: publicProductDetail });

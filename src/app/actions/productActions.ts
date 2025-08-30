@@ -5,6 +5,8 @@
 // that depend on user authentication have been moved to client-side components
 // to ensure they run with the user's auth context, resolving permission errors.
 
+export type CustomizationTechnique = 'Embroidery' | 'DTF' | 'DTG' | 'Sublimation' | 'Screen Printing';
+
 // This is the data model for a native product stored in Firestore
 export interface NativeProduct {
   id: string; // The document ID
@@ -14,6 +16,7 @@ export interface NativeProduct {
   brand?: string;
   sku?: string;
   category?: string;
+  customizationTechnique?: CustomizationTechnique;
   // We won't store full options here, just the base product info.
   // The customization options will be stored in the 'userProductOptions' collection,
   // same as for Shopify/WooCommerce products, using the product's ID as the key.

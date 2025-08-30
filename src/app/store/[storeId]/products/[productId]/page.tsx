@@ -11,12 +11,13 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
-import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import type { ProductAttributeOptions } from '@/app/actions/productOptionsActions';
 import { Separator } from '@/components/ui/separator';
+import { CustomizationTechnique } from '@/app/actions/productActions';
 
 
 // PDP needs more details than the PLP card, especially all views.
@@ -30,6 +31,7 @@ interface ProductDetail extends PublicProduct {
     brand?: string;
     sku?: string;
     category?: string;
+    customizationTechnique?: CustomizationTechnique;
 }
 
 function PDPSkeleton() {
@@ -229,11 +231,12 @@ export default function ProductDetailPage() {
                             From ${product.price.toFixed(2)}
                          </p>
 
-                         {(product.brand || product.sku || product.category) && (
+                         {(product.brand || product.sku || product.category || product.customizationTechnique) && (
                             <div className="text-sm text-muted-foreground space-y-1 mb-4 border-t pt-4">
                                 {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
                                 {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
                                 {product.category && <p><strong>Category:</strong> {product.category}</p>}
+                                {product.customizationTechnique && <p><strong>Technique:</strong> {product.customizationTechnique}</p>}
                             </div>
                          )}
                          

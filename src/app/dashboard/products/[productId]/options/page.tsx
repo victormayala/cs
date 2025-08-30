@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,9 +27,12 @@ import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, Alert
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage } from '@/app/actions/productOptionsActions';
-import type { NativeProduct } from '@/app/actions/productActions';
+import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
+const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 interface ProductOptionsData {
   id: string; 
@@ -38,6 +41,7 @@ interface ProductOptionsData {
   brand?: string;
   sku?: string;
   category?: string;
+  customizationTechnique?: CustomizationTechnique;
   price: number; 
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
@@ -143,7 +147,7 @@ export default function ProductOptionsPage() {
     setVariationsError(null);
     
     try {
-      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; };
+      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechnique?: CustomizationTechnique; };
       
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
@@ -229,6 +233,7 @@ export default function ProductOptionsPage() {
           brand: nativeProduct.brand,
           sku: nativeProduct.sku,
           category: nativeProduct.category,
+          customizationTechnique: nativeProduct.customizationTechnique,
         };
       }
 
@@ -236,17 +241,17 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id' | 'price'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
+      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
         const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID(), price: 0 };
+        return existing ? {...existing, price: existing.price ?? 0 } : { ...baseView, id: crypto.randomUUID(), price: 0 };
       }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
       const nativeAttributes = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
@@ -427,6 +432,7 @@ export default function ProductOptionsPage() {
             brand: productOptions.brand,
             sku: productOptions.sku,
             category: productOptions.category,
+            customizationTechnique: productOptions.customizationTechnique,
             lastModified: serverTimestamp() 
         }, { merge: true });
       }
@@ -629,52 +635,45 @@ export default function ProductOptionsPage() {
   };
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
-    setProductOptions(prev => {
-      if (!prev) return prev;
-  
-      let updatedAttributes: ProductAttributeOptions;
-  
-      if (type === 'colors') {
-        const name = colorInputValue.trim();
-        if (!name) {
-          toast({ title: "Color name is required.", variant: "destructive" });
-          return prev;
-        }
-        if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
-            toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
-            return prev;
-        }
-        if (prev.nativeAttributes?.colors?.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-          toast({ title: "Color already exists.", variant: "destructive" });
-          return prev;
-        }
-        
-        const newColor = { name, hex: colorHexValue };
-        const newColors = [...(prev.nativeAttributes.colors || []), newColor];
-        updatedAttributes = { ...prev.nativeAttributes, colors: newColors };
-        
-        setColorInputValue("");
-        setColorHexValue("#000000");
-  
-      } else { // sizes
-        const size = sizeInputValue.trim();
-        if (!size) {
-          toast({ title: "Size name is required.", variant: "destructive" });
-          return prev;
-        }
-        if (prev.nativeAttributes?.sizes?.includes(size)) {
-          toast({ title: "Size already exists.", variant: "destructive" });
-          return prev;
-        }
-        
-        const newSizes = [...(prev.nativeAttributes.sizes || []), size];
-        updatedAttributes = { ...prev.nativeAttributes, sizes: newSizes };
-        setSizeInputValue("");
+    if (type === 'colors') {
+      const name = colorInputValue.trim();
+      if (!name) {
+        toast({ title: "Color name is required.", variant: "destructive" });
+        return;
+      }
+      if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
+          toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
+          return;
+      }
+      if (productOptions?.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        toast({ title: "Color already exists.", variant: "destructive" });
+        return;
       }
       
-      setHasUnsavedChanges(true);
-      return { ...prev, nativeAttributes: updatedAttributes };
-    });
+      const newColor = { name, hex: colorHexValue };
+      const newColors = [...(productOptions?.nativeAttributes.colors || []), newColor];
+      setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, colors: newColors } } : null);
+      
+      setColorInputValue("");
+      setColorHexValue("#000000");
+
+    } else { // sizes
+      const size = sizeInputValue.trim();
+      if (!size) {
+        toast({ title: "Size name is required.", variant: "destructive" });
+        return;
+      }
+      if (productOptions?.nativeAttributes.sizes.includes(size)) {
+        toast({ title: "Size already exists.", variant: "destructive" });
+        return;
+      }
+      
+      const newSizes = [...(productOptions?.nativeAttributes.sizes || []), size];
+      setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } } : null);
+      setSizeInputValue("");
+    }
+    
+    setHasUnsavedChanges(true);
   };
 
   const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
@@ -1065,6 +1064,26 @@ export default function ProductOptionsPage() {
                   )}
                 </div>
               </div>
+               {source === 'customizer-studio' && (
+                <div>
+                  <Label className="flex items-center"><Gem className="mr-2 h-4 w-4 text-primary" /> Customization Technique</Label>
+                  <RadioGroup
+                    value={productOptions.customizationTechnique}
+                    onValueChange={(value: CustomizationTechnique) => {
+                      setProductOptions(prev => prev ? { ...prev, customizationTechnique: value } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2"
+                  >
+                    {CUSTOMIZATION_TECHNIQUES.map(technique => (
+                      <div key={technique} className="flex items-center space-x-2">
+                        <RadioGroupItem value={technique} id={`tech-${technique}`} />
+                        <Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              )}
             </CardContent>
           </Card>
 
