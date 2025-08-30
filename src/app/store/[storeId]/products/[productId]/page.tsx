@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -98,6 +99,7 @@ export default function ProductDetailPage() {
   
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedTechnique, setSelectedTechnique] = useState<CustomizationTechnique | null>(null);
 
   const displayedImages = useMemo(() => {
     if (!product) return [];
@@ -165,6 +167,9 @@ export default function ProductDetailPage() {
             }
             if (fetchedProduct.attributes?.sizes?.length > 0) {
               setSelectedSize(fetchedProduct.attributes.sizes[0]);
+            }
+            if (fetchedProduct.customizationTechniques?.length > 0) {
+              setSelectedTechnique(fetchedProduct.customizationTechniques[0]);
             }
 
         } catch (err: any) {
@@ -283,67 +288,72 @@ export default function ProductDetailPage() {
                                 {product.category && <p><strong>Category:</strong> {product.category}</p>}
                             </div>
                          )}
-
-                        {product.customizationTechniques && product.customizationTechniques.length > 0 && (
-                            <div className="space-y-2 mb-4">
-                                <h3 className="text-sm font-medium text-foreground">Available Techniques:</h3>
-                                <div className="flex flex-wrap gap-2">
-                                {product.customizationTechniques.map(technique => (
-                                    <Badge key={technique} variant="secondary" className="text-xs">{technique}</Badge>
-                                ))}
-                                </div>
-                            </div>
-                         )}
                          
                          <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none hidden md:block">
                             {/* Hidden on mobile, shown in two-col layout below */}
                          </div>
                          
-                         {product.attributes && (
-                            <div className="mt-6 space-y-6">
-                                {product.attributes.colors && product.attributes.colors.length > 0 && (
-                                    <div>
-                                        <h3 className="text-sm font-medium text-foreground mb-2">Color: <span className="font-normal text-muted-foreground">{selectedColor}</span></h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {product.attributes.colors.map(color => (
-                                                <Button 
-                                                    key={color.name + '-' + color.hex} 
-                                                    variant="outline" 
-                                                    size="icon" 
-                                                    className={cn(
-                                                        "h-8 w-8 rounded-full border-2", 
-                                                        selectedColor === color.name ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-gray-200'
-                                                    )}
-                                                    onClick={() => setSelectedColor(color.name)}
-                                                    style={{ backgroundColor: color.hex }}
-                                                    title={color.name}
-                                                >
-                                                   <span className="sr-only">{color.name}</span>
-                                                </Button>
-                                            ))}
-                                        </div>
+                         <div className="mt-6 space-y-6">
+                            {product.attributes && product.attributes.colors && product.attributes.colors.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-medium text-foreground mb-2">Color: <span className="font-normal text-muted-foreground">{selectedColor}</span></h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {product.attributes.colors.map(color => (
+                                            <Button 
+                                                key={color.name + '-' + color.hex} 
+                                                variant="outline" 
+                                                size="icon" 
+                                                className={cn(
+                                                    "h-8 w-8 rounded-full border-2", 
+                                                    selectedColor === color.name ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-gray-200'
+                                                )}
+                                                onClick={() => setSelectedColor(color.name)}
+                                                style={{ backgroundColor: color.hex }}
+                                                title={color.name}
+                                            >
+                                               <span className="sr-only">{color.name}</span>
+                                            </Button>
+                                        ))}
                                     </div>
-                                )}
-                                {product.attributes.sizes && product.attributes.sizes.length > 0 && (
-                                     <div>
-                                        <h3 className="text-sm font-medium text-foreground mb-2">Size: <span className="font-normal text-muted-foreground">{selectedSize}</span></h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {product.attributes.sizes.map(size => (
-                                                <Button
-                                                    key={size}
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setSelectedSize(size)}
-                                                    className={cn("h-9", selectedSize === size && 'bg-primary text-primary-foreground hover:bg-primary/90')}
-                                                >
-                                                    {size}
-                                                </Button>
-                                            ))}
-                                        </div>
+                                </div>
+                            )}
+                            {product.attributes && product.attributes.sizes && product.attributes.sizes.length > 0 && (
+                                 <div>
+                                    <h3 className="text-sm font-medium text-foreground mb-2">Size: <span className="font-normal text-muted-foreground">{selectedSize}</span></h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {product.attributes.sizes.map(size => (
+                                            <Button
+                                                key={size}
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSelectedSize(size)}
+                                                className={cn("h-9", selectedSize === size && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+                                            >
+                                                {size}
+                                            </Button>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
-                         )}
+                                </div>
+                            )}
+                             {product.customizationTechniques && product.customizationTechniques.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-medium text-foreground mb-2">Available Techniques:</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                    {product.customizationTechniques.map(technique => (
+                                        <Button
+                                            key={technique}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSelectedTechnique(technique)}
+                                            className={cn("h-9", selectedTechnique === technique && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+                                        >
+                                            {technique}
+                                        </Button>
+                                    ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                          <div className="mt-auto pt-8">
                             <Button asChild size="lg" className="w-full md:w-auto">
@@ -403,3 +413,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+
