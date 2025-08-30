@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
-import type { ProductOptionsFirestoreData, ProductAttributeOptions } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage } from '@/app/actions/productOptionsActions';
 
 // A more detailed version for the PDP
 interface PublicProductDetail extends PublicProduct {
@@ -16,6 +16,7 @@ interface PublicProductDetail extends PublicProduct {
         imageUrl: string;
     }[];
     attributes?: ProductAttributeOptions;
+    variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
     category?: string;
@@ -63,6 +64,18 @@ export async function GET(request: Request, { params }: { params: { productId: s
     // Determine the primary image URL for the main product display
     const primaryImageUrl = views[0]?.imageUrl || defaultPlaceholderImage;
 
+    // Extract variation images
+    const variationImages: Record<string, VariationImage[]> = {};
+    if (optionsData?.optionsByColor) {
+      for (const color in optionsData.optionsByColor) {
+        const colorGroup = optionsData.optionsByColor[color];
+        if (colorGroup.variantImages && colorGroup.variantImages.length > 0) {
+          // Filter out empty image objects
+          variationImages[color] = colorGroup.variantImages.filter(img => img && img.imageUrl);
+        }
+      }
+    }
+
     const publicProductDetail: PublicProductDetail = {
       id: productId,
       name: productData.name,
@@ -72,6 +85,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,
       attributes: optionsData?.nativeAttributes,
+      variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
       category: productData.category,

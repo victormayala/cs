@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,19 +15,22 @@ import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, G
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-import type { ProductAttributeOptions } from '@/app/actions/productOptionsActions';
+import type { ProductAttributeOptions, VariationImage } from '@/app/actions/productOptionsActions';
 import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
 
+interface ProductView {
+    id: string;
+    name: string;
+    imageUrl: string;
+    aiHint?: string;
+}
 
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
-    views: {
-        id: string;
-        name: string;
-        imageUrl: string;
-    }[];
+    views: ProductView[];
     attributes?: ProductAttributeOptions;
+    variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
     category?: string;
@@ -89,10 +92,33 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeImage, setActiveImage] = useState<string | null>(null);
-
+  
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+
+  const displayedImages = useMemo(() => {
+    if (!product) return [];
+    if (selectedColor && product.variationImages && product.variationImages[selectedColor]?.length > 0) {
+        // Create a structure compatible with ProductView for display
+        return product.variationImages[selectedColor].map((img, index) => ({
+            id: `${selectedColor}-img-${index}`,
+            name: `${selectedColor} View ${index + 1}`,
+            imageUrl: img.imageUrl,
+            aiHint: img.aiHint,
+        }));
+    }
+    // Fallback to default views
+    return product.views;
+  }, [product, selectedColor]);
+  
+  const [activeImage, setActiveImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Update active image when displayedImages change
+    if (displayedImages.length > 0) {
+        setActiveImage(displayedImages[0].imageUrl);
+    }
+  }, [displayedImages]);
   
   useEffect(() => {
     if (!storeId || !productId) {
@@ -129,8 +155,7 @@ export default function ProductDetailPage() {
             }
             const fetchedProduct = productData.product as ProductDetail;
             setProduct(fetchedProduct);
-            setActiveImage(fetchedProduct.views[0]?.imageUrl || fetchedProduct.imageUrl);
-
+            
             // Set default selections for attributes
             if (fetchedProduct.attributes?.colors?.length > 0) {
               setSelectedColor(fetchedProduct.attributes.colors[0].name);
@@ -198,12 +223,13 @@ export default function ProductDetailPage() {
                                     fill
                                     className="object-contain"
                                     sizes="(max-width: 768px) 100vw, 50vw"
+                                    priority
                                 />
                                 )}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            {product.views.map(view => (
+                            {displayedImages.map(view => (
                                 <button
                                     key={view.id}
                                     className={cn(
