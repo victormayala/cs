@@ -20,6 +20,7 @@ interface ProductView {
   name: string;
   imageUrl: string;
   aiHint?: string;
+  price?: number; // Price for customizing this specific view
   boundaryBoxes: BoundaryBox[];
 }
 
@@ -34,6 +35,12 @@ export interface ProductAttributeOptions {
   sizes: string[];
 }
 
+export interface NativeProductVariation {
+  id: string; // e.g., "color-Red-size-M"
+  attributes: Record<string, string>; // e.g., { "Color": "Red", "Size": "M" }
+  price: number;
+}
+
 export interface ProductOptionsFirestoreData {
   id: string;
   name: string;
@@ -44,6 +51,7 @@ export interface ProductOptionsFirestoreData {
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes?: ProductAttributeOptions; // Made optional for backwards compatibility
+  nativeVariations?: NativeProductVariation[];
   allowCustomization?: boolean;
   lastSaved?: any; // Firestore server timestamp
   createdAt?: any; // Firestore server timestamp

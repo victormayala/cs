@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -26,9 +26,10 @@ import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
-import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation } from '@/app/actions/productOptionsActions';
 import type { NativeProduct } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface ProductOptionsData {
   id: string; 
@@ -40,6 +41,7 @@ interface ProductOptionsData {
   optionsByColor: Record<string, ColorGroupOptions>; 
   groupingAttributeName: string | null;
   nativeAttributes: ProductAttributeOptions;
+  nativeVariations: NativeProductVariation[];
   allowCustomization: boolean;
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
@@ -120,6 +122,8 @@ export default function ProductOptionsPage() {
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
+
+  const [bulkPrice, setBulkPrice] = useState<string>('');
 
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
@@ -225,10 +229,10 @@ export default function ProductOptionsPage() {
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
       const baseDefaultViews: Omit<ProductView, 'id'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
@@ -250,6 +254,7 @@ export default function ProductOptionsPage() {
         optionsByColor: firestoreOptions?.optionsByColor || {},
         groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
         nativeAttributes: nativeAttributes,
+        nativeVariations: firestoreOptions?.nativeVariations || [],
         allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
 
@@ -393,6 +398,7 @@ export default function ProductOptionsPage() {
       optionsByColor: productOptions.optionsByColor,
       groupingAttributeName: productOptions.groupingAttributeName,
       nativeAttributes: productOptions.nativeAttributes,
+      nativeVariations: productOptions.nativeVariations,
       allowCustomization: productOptions.allowCustomization,
       lastSaved: serverTimestamp(),
     };
@@ -449,13 +455,13 @@ export default function ProductOptionsPage() {
     const newView: ProductView = {
       id: crypto.randomUUID(), name: `View ${productOptions.defaultViews.length + 1}`,
       imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', aiHint: 'product view',
-      boundaryBoxes: [],
+      boundaryBoxes: [], price: 0
     };
     setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
   
-  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint'>, value: string) => { 
+  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => {
     if (!productOptions) return;
     setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === viewId ? { ...v, [field]: value } : v) } : null);
     setHasUnsavedChanges(true);
@@ -829,6 +835,124 @@ export default function ProductOptionsPage() {
     </>);
   };
 
+  const generatedVariations: NativeProductVariation[] = [];
+    if (productOptions.type === 'variable' && productOptions.source === 'customizer-studio') {
+        const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
+        if (colors.length > 0 && sizes.length > 0) {
+            colors.forEach(color => {
+                sizes.forEach(size => {
+                    const id = `color-${color.name}-size-${size}`.toLowerCase().replace(/\s+/g, '-');
+                    const existing = productOptions.nativeVariations?.find(v => v.id === id);
+                    generatedVariations.push({
+                        id: id,
+                        attributes: { "Color": color.name, "Size": size },
+                        price: existing?.price ?? productOptions.price,
+                    });
+                });
+            });
+        } else if (colors.length > 0) {
+            colors.forEach(color => {
+                 const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
+                 const existing = productOptions.nativeVariations?.find(v => v.id === id);
+                 generatedVariations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price });
+            });
+        }
+    }
+  
+  const handleVariationPriceChange = (id: string, newPrice: string) => {
+    const price = parseFloat(newPrice);
+    if (isNaN(price)) return;
+    
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updatedVariations = prev.nativeVariations.map(v => 
+            v.id === id ? { ...v, price } : v
+        );
+        const allIds = generatedVariations.map(v => v.id);
+        const newVariations = updatedVariations.filter(v => allIds.includes(v.id));
+
+        // Add any newly generated variations that weren't in the state yet
+        generatedVariations.forEach(genVar => {
+            if (!newVariations.some(v => v.id === genVar.id)) {
+                newVariations.push(genVar);
+            }
+        });
+
+        return { ...prev, nativeVariations: newVariations };
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const handleBulkPriceApply = () => {
+    const price = parseFloat(bulkPrice);
+    if (isNaN(price)) {
+      toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
+      return;
+    }
+    setProductOptions(prev => {
+      if (!prev) return null;
+      const updatedVariations = generatedVariations.map(v => ({...v, price: price}));
+      return { ...prev, nativeVariations: updatedVariations };
+    });
+    setHasUnsavedChanges(true);
+    toast({ title: "Prices Updated", description: `All variations set to $${price.toFixed(2)}`});
+  }
+
+  const renderNativeVariationPricing = () => {
+      return (
+        <Card className="shadow-md">
+            <CardHeader>
+                <CardTitle className="font-headline text-lg">Variation Pricing</CardTitle>
+                <CardDescription>Set individual prices for each product variant.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {generatedVariations.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size in 'Product Attributes' to create variations.</p></div>
+                ) : (
+                  <>
+                    <div className="flex gap-2 mb-4">
+                      <Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" />
+                      <Button onClick={handleBulkPriceApply} variant="secondary" size="sm">Apply to All</Button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto border rounded-md">
+                      <Table>
+                          <TableHeader className="sticky top-0 bg-muted/50 z-10">
+                              <TableRow>
+                                  {Object.keys(generatedVariations[0].attributes).map(attrName => (
+                                      <TableHead key={attrName}>{attrName}</TableHead>
+                                  ))}
+                                  <TableHead className="text-right">Price</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {generatedVariations.map(variation => (
+                                  <TableRow key={variation.id}>
+                                      {Object.values(variation.attributes).map((val, i) => (
+                                          <TableCell key={i}>{val}</TableCell>
+                                      ))}
+                                      <TableCell className="text-right">
+                                          <div className="relative flex items-center justify-end">
+                                             <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                             <Input 
+                                                type="number" 
+                                                value={variation.price.toFixed(2)}
+                                                onChange={e => handleVariationPriceChange(variation.id, e.target.value)}
+                                                className="h-8 w-28 pl-7 text-right"
+                                             />
+                                          </div>
+                                      </TableCell>
+                                  </TableRow>
+                              ))}
+                          </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                )}
+            </CardContent>
+        </Card>
+      )
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
       <div className="mb-6 flex justify-between items-center">
@@ -871,7 +995,7 @@ export default function ProductOptionsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="productPrice">Price ($)</Label>
+                  <Label htmlFor="productPrice">Base Price ($)</Label>
                   <Input id="productPrice" type="number" value={productOptions.price} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, price: parseFloat(e.target.value) || 0} : null); setHasUnsavedChanges(true);}} />
                 </div>
                 <div>
@@ -966,7 +1090,9 @@ export default function ProductOptionsPage() {
               </Card>
             )}
 
-            {productOptions.type === 'variable' && (
+            {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && renderNativeVariationPricing()}
+
+            {productOptions.type === 'variable' && productOptions.source !== 'customizer-studio' && (
               <Card className="shadow-md">
                 <CardHeader>
                   <CardTitle className="font-headline text-lg">Product Variations</CardTitle>
@@ -1002,6 +1128,9 @@ export default function ProductOptionsPage() {
             viewIdToDelete={viewIdToDelete}
             setViewIdToDelete={setViewIdToDelete} 
             confirmDeleteView={confirmDeleteView}
+            setBulkPrice={setBulkPrice}
+            handleBulkPriceApply={handleBulkPriceApply}
+            bulkPrice={bulkPrice}
           />
 
           <Card className="shadow-md sticky top-8">

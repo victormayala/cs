@@ -9,7 +9,7 @@ import RightPanel from '@/components/customizer/RightPanel';
 import { UploadProvider, useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import type { ProductOptionsFirestoreData } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, NativeProductVariation } from '@/app/actions/productOptionsActions';
 import type { NativeProduct } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
@@ -61,6 +61,7 @@ export interface ProductView {
   name: string;
   imageUrl: string;
   aiHint?: string;
+  price?: number;
   boundaryBoxes: BoundaryBox[];
 }
 
@@ -83,6 +84,8 @@ export interface ProductForCustomizer {
   views: ProductView[];
   type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
   allowCustomization?: boolean;
+  nativeVariations?: NativeProductVariation[];
+  nativeAttributes?: { name: string, options: string[] }[];
   meta?: {
     proxyUsed?: boolean;
     configUserIdUsed?: string | null;
@@ -105,6 +108,7 @@ const defaultFallbackProduct: ProductForCustomizer = {
       name: 'Front View',
       imageUrl: 'https://placehold.co/700x700.png',
       aiHint: 'product mockup',
+      price: 0,
       boundaryBoxes: [
         { id: 'fallback_area_1', name: 'Default Area', x: 25, y: 25, width: 50, height: 50 },
       ],
@@ -376,6 +380,7 @@ function CustomizerLayoutAndLogic() {
             imageUrl: defaultImageUrl,
             aiHint: defaultFallbackProduct.views[0].aiHint,
             boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes,
+            price: 0,
         }];
         if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
     }
@@ -392,7 +397,31 @@ function CustomizerLayoutAndLogic() {
     finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
     setViewBaseImages(baseImagesMapFinal);
     
-    setProductDetails({ ...baseProductDetails, views: finalDefaultViews, allowCustomization: true, meta: metaForProduct });
+    const productWithViews = {
+      ...baseProductDetails,
+      views: finalDefaultViews,
+      allowCustomization: true,
+      nativeVariations: firestoreOptions?.nativeVariations,
+      meta: metaForProduct
+    };
+
+    if (source === 'customizer-studio' && firestoreOptions?.nativeAttributes) {
+        const nativeAttrs: ConfigurableAttribute[] = [];
+        if (firestoreOptions.nativeAttributes.colors.length > 0) {
+            nativeAttrs.push({ name: 'Color', options: firestoreOptions.nativeAttributes.colors.map(c => c.name) });
+        }
+        if (firestoreOptions.nativeAttributes.sizes.length > 0) {
+            nativeAttrs.push({ name: 'Size', options: firestoreOptions.nativeAttributes.sizes });
+        }
+        setConfigurableAttributes(nativeAttrs);
+        if(nativeAttrs.length > 0) {
+            const initialSelectedOptions: Record<string, string> = {};
+            nativeAttrs.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
+            setSelectedVariationOptions(initialSelectedOptions);
+        }
+    }
+    
+    setProductDetails(productWithViews);
     setActiveViewId(finalDefaultViews[0]?.id || null);
 
     if (source === 'woocommerce' && fetchedVariations) {
@@ -449,68 +478,85 @@ function CustomizerLayoutAndLogic() {
 
  useEffect(() => {
     setProductDetails(prevProductDetails => {
-      if (!prevProductDetails || !viewBaseImages || prevProductDetails.type !== 'variable') return prevProductDetails;
-      if (!productVariations && Object.keys(selectedVariationOptions).length > 0) return prevProductDetails;
+        if (!prevProductDetails || prevProductDetails.type !== 'variable') return prevProductDetails;
 
-      const matchingVariation = productVariations ? productVariations.find(variation => {
-        if (Object.keys(selectedVariationOptions).length === 0 && configurableAttributes && configurableAttributes.length > 0) return false;
-        return variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option);
-      }) : null;
+        let matchingVariationPrice: number | null = null;
+        let primaryVariationImageSrc: string | null = null;
+        let primaryVariationImageAiHint: string | undefined = undefined;
 
-      let primaryVariationImageSrc: string | null = null;
-      let primaryVariationImageAiHint: string | undefined = undefined;
-      if (matchingVariation?.image?.src) {
-        primaryVariationImageSrc = matchingVariation.image.src;
-        primaryVariationImageAiHint = matchingVariation.image.alt?.split(" ").slice(0, 2).join(" ") || undefined;
-      }
-
-      let currentColorKey: string | null = null;
-      if (loadedGroupingAttributeName && selectedVariationOptions[loadedGroupingAttributeName]) {
-        currentColorKey = selectedVariationOptions[loadedGroupingAttributeName];
-      }
-      const currentVariantViewImages = currentColorKey && loadedOptionsByColor ? loadedOptionsByColor[currentColorKey]?.variantViewImages : null;
-
-      let viewsContentActuallyChanged = false;
-      const updatedViews = prevProductDetails.views.map(view => {
-        let finalImageUrl: string | undefined = undefined;
-        let finalAiHint: string | undefined = undefined;
-        const baseImageInfo = viewBaseImages[view.id];
-        const baseImageUrl = baseImageInfo?.url || defaultFallbackProduct.views[0].imageUrl;
-        const baseAiHint = baseImageInfo?.aiHint || defaultFallbackProduct.views[0].aiHint;
-
-        if (currentVariantViewImages && currentVariantViewImages[view.id]?.imageUrl) {
-          finalImageUrl = currentVariantViewImages[view.id].imageUrl;
-          finalAiHint = currentVariantViewImages[view.id].aiHint || baseAiHint;
-        } else if (primaryVariationImageSrc && view.id === activeViewId) { 
-          finalImageUrl = primaryVariationImageSrc;
-          finalAiHint = primaryVariationImageAiHint || baseAiHint;
-        } else {
-          finalImageUrl = baseImageUrl;
-          finalAiHint = baseAiHint;
+        if (prevProductDetails.source === 'woocommerce' && productVariations) {
+            const matchingVariation = productVariations.find(variation => 
+                variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
+            );
+            if (matchingVariation) {
+                matchingVariationPrice = parseFloat(matchingVariation.price || '0');
+                if (matchingVariation.image?.src) {
+                    primaryVariationImageSrc = matchingVariation.image.src;
+                    primaryVariationImageAiHint = matchingVariation.image.alt?.split(" ").slice(0, 2).join(" ") || undefined;
+                }
+            }
+        } else if (prevProductDetails.source === 'customizer-studio' && prevProductDetails.nativeVariations) {
+            const matchingVariation = prevProductDetails.nativeVariations.find(v => 
+                Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
+            );
+            if (matchingVariation) {
+                matchingVariationPrice = matchingVariation.price;
+            }
         }
 
-        if (view.imageUrl !== finalImageUrl || view.aiHint !== finalAiHint) {
-          viewsContentActuallyChanged = true;
+        let currentColorKey: string | null = null;
+        if (loadedGroupingAttributeName && selectedVariationOptions[loadedGroupingAttributeName]) {
+            currentColorKey = selectedVariationOptions[loadedGroupingAttributeName];
         }
-        return { ...view, imageUrl: finalImageUrl!, aiHint: finalAiHint };
-      });
+        const currentVariantViewImages = currentColorKey && loadedOptionsByColor ? loadedOptionsByColor[currentColorKey]?.variantViewImages : null;
 
-      const basePriceChanged = prevProductDetails.basePrice !== (matchingVariation ? parseFloat(matchingVariation.price || '0') : prevProductDetails.basePrice);
+        const updatedViews = prevProductDetails.views.map(view => {
+            const baseImageInfo = viewBaseImages[view.id];
+            const baseImageUrl = baseImageInfo?.url || defaultFallbackProduct.views[0].imageUrl;
+            const baseAiHint = baseImageInfo?.aiHint || defaultFallbackProduct.views[0].aiHint;
 
-      if (!viewsContentActuallyChanged && !basePriceChanged) {
-        return prevProductDetails; 
-      }
-      return { ...prevProductDetails, views: updatedViews, basePrice: matchingVariation ? parseFloat(matchingVariation.price || '0') : prevProductDetails.basePrice };
+            let finalImageUrl = baseImageUrl;
+            let finalAiHint = baseAiHint;
+
+            if (currentVariantViewImages && currentVariantViewImages[view.id]?.imageUrl) {
+                finalImageUrl = currentVariantViewImages[view.id].imageUrl;
+                finalAiHint = currentVariantViewImages[view.id].aiHint || baseAiHint;
+            } else if (primaryVariationImageSrc && view.id === activeViewId) {
+                finalImageUrl = primaryVariationImageSrc;
+                finalAiHint = primaryVariationImageAiHint || baseAiHint;
+            }
+
+            return { ...view, imageUrl: finalImageUrl!, aiHint: finalAiHint };
+        });
+
+        const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : prevProductDetails.basePrice;
+
+        return { ...prevProductDetails, views: updatedViews, basePrice: newBasePrice };
     });
-  }, [
+}, [
     selectedVariationOptions, productVariations, activeViewId, viewBaseImages,
     loadedOptionsByColor, loadedGroupingAttributeName, configurableAttributes
-  ]);
+]);
+
 
   useEffect(() => {
+    const usedViewIdsWithElements = new Set<string>();
+    canvasImages.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
+    canvasTexts.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
+    canvasShapes.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
+    const viewsToPrice = new Set<string>(usedViewIdsWithElements);
+    
+    let viewSurcharges = 0;
+    if (productDetails?.views) {
+      viewsToPrice.forEach(viewId => {
+        const view = productDetails.views.find(v => v.id === viewId);
+        viewSurcharges += view?.price ?? 0;
+      });
+    }
+
     const basePrice = productDetails?.basePrice ?? 0;
-    setTotalCustomizationPrice(basePrice);
-  }, [productDetails?.basePrice]);
+    setTotalCustomizationPrice(basePrice + viewSurcharges);
+  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, activeViewId]);
 
   const getToolPanelTitle = (toolId: string): string => {
     const tool = toolItems.find(item => item.id === toolId);
@@ -758,8 +804,8 @@ function CustomizerLayoutAndLogic() {
             activeViewId={activeViewId} 
             setActiveViewId={setActiveViewId} 
             className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
-            configurableAttributes={productDetails?.type === 'variable' ? configurableAttributes : null}
-            selectedVariationOptions={productDetails?.type === 'variable' ? selectedVariationOptions : {}}
+            configurableAttributes={configurableAttributes}
+            selectedVariationOptions={selectedVariationOptions}
             onVariantOptionSelect={handleVariantOptionSelect} 
             productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
           />
