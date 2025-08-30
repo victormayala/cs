@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,8 +19,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
-import type { UserStoreConfig } from "@/app/actions/userStoreActions";
+import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { deployStore } from "@/ai/flows/deploy-store";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const generatedPages = [
@@ -67,6 +68,37 @@ function CreateStorePageContent() {
   const [selectedLayout, setSelectedLayout] = useState<LayoutName>('casual');
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
+
+  // Volume Discounts State
+  const [discountsEnabled, setDiscountsEnabled] = useState(false);
+  const [discountTiers, setDiscountTiers] = useState<VolumeDiscountTier[]>([
+    { quantity: 10, percentage: 5 },
+    { quantity: 25, percentage: 10 },
+  ]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchExistingConfig = async () => {
+      setIsLoadingExisting(true);
+      const storeRef = doc(db, 'userStores', user.uid);
+      const docSnap = await getDoc(storeRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as UserStoreConfig;
+        setStoreName(data.storeName || "");
+        setSelectedLayout(data.layout || 'casual');
+        setPrimaryColor(data.branding?.primaryColorHex || "#468189");
+        setSecondaryColor(data.branding?.secondaryColorHex || "#8A56AC");
+        setLogoDataUrl(data.branding?.logoUrl || null);
+        setDiscountsEnabled(data.volumeDiscounts?.enabled || false);
+        if (data.volumeDiscounts?.tiers && data.volumeDiscounts.tiers.length > 0) {
+          setDiscountTiers(data.volumeDiscounts.tiers);
+        }
+      }
+      setIsLoadingExisting(false);
+    };
+    fetchExistingConfig();
+  }, [user]);
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -87,6 +119,25 @@ function CreateStorePageContent() {
     };
     reader.readAsDataURL(file);
   };
+  
+  const handleDiscountTierChange = (index: number, field: 'quantity' | 'percentage', value: string) => {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) && value !== '') return;
+    
+    const newTiers = [...discountTiers];
+    newTiers[index] = { ...newTiers[index], [field]: isNaN(numValue) ? 0 : numValue };
+    setDiscountTiers(newTiers);
+  };
+
+  const addDiscountTier = () => {
+    const lastTier = discountTiers[discountTiers.length - 1] || { quantity: 0, percentage: 0 };
+    setDiscountTiers([...discountTiers, { quantity: lastTier.quantity + 10, percentage: lastTier.percentage + 2 }]);
+  };
+  
+  const removeDiscountTier = (index: number) => {
+    setDiscountTiers(discountTiers.filter((_, i) => i !== index));
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +163,10 @@ function CreateStorePageContent() {
           primaryColorHex: primaryColor,
           secondaryColorHex: secondaryColor,
           logoUrl: logoDataUrl || undefined,
+        },
+        volumeDiscounts: {
+          enabled: discountsEnabled,
+          tiers: discountTiers.filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
         },
         deployment: {
           status: 'pending', // Start as pending
@@ -176,6 +231,15 @@ function CreateStorePageContent() {
       setIsSaving(false);
     }
   };
+
+  if (isLoadingExisting) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="ml-3">Loading Store Settings...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-muted/30">
@@ -334,7 +398,78 @@ function CreateStorePageContent() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex-col items-start gap-4">
+          </Card>
+          
+          {/* Volume Discounts Card */}
+          <Card className="shadow-lg border-border bg-card">
+              <CardHeader>
+                <CardTitle className="font-headline text-xl text-card-foreground">
+                  Volume Discounts
+                </CardTitle>
+                <CardDescription>
+                  Offer percentage-based discounts for bulk orders.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="enable-discounts" 
+                        checked={discountsEnabled} 
+                        onCheckedChange={(checked) => setDiscountsEnabled(checked as boolean)}
+                      />
+                      <Label htmlFor="enable-discounts" className="font-medium">
+                        Enable volume discounts for this store
+                      </Label>
+                  </div>
+
+                  {discountsEnabled && (
+                    <div className="space-y-3 pt-2 pl-6 border-l">
+                      <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-2 items-center text-xs text-muted-foreground">
+                        <span>Min. Quantity</span>
+                        <span>Discount</span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                      {discountTiers.map((tier, index) => (
+                        <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-2 items-center">
+                          <Input
+                            type="number"
+                            placeholder="e.g., 10"
+                            value={tier.quantity}
+                            onChange={(e) => handleDiscountTierChange(index, 'quantity', e.target.value)}
+                            min="1"
+                          />
+                          <Input
+                            type="number"
+                            placeholder="e.g., 5"
+                            value={tier.percentage}
+                            onChange={(e) => handleDiscountTierChange(index, 'percentage', e.target.value)}
+                            min="0"
+                            max="100"
+                          />
+                           <Percent className="h-4 w-4 text-muted-foreground" />
+                           <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => removeDiscountTier(index)}
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            >
+                             <Trash2 className="h-4 w-4" />
+                           </Button>
+                        </div>
+                      ))}
+                       <Button type="button" variant="outline" onClick={addDiscountTier}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Tier
+                      </Button>
+                    </div>
+                  )}
+              </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-border bg-card">
+            <CardFooter className="flex-col items-start gap-4 p-6">
                <Button type="submit" size="lg" disabled={isSaving || !storeName}>
                 {isSaving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

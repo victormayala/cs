@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -10,12 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Separator } from '@/components/ui/separator';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
-import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { Loader2, ShoppingCart, AlertTriangle, ArrowRight, Trash2 } from 'lucide-react';
+import type { UserStoreConfig, VolumeDiscountTier } from '@/app/actions/userStoreActions';
+import { Loader2, ShoppingCart, AlertTriangle, ArrowRight, Trash2, Tag } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 
 // Represents a single item in the shopping cart
 interface CartItem {
@@ -73,6 +74,12 @@ export default function CartPage() {
 
   const getCartStorageKey = useCallback(() => `cs_cart_${storeId}`, [storeId]);
 
+  // Function to save cart to localStorage
+  const saveCart = useCallback((items: CartItem[]) => {
+      localStorage.setItem(getCartStorageKey(), JSON.stringify(items));
+      setCartItems(items);
+  }, [getCartStorageKey]);
+
   // Load cart from localStorage
   useEffect(() => {
     if (!storeId) return;
@@ -90,9 +97,6 @@ export default function CartPage() {
   // This effect listens for postMessage from the customizer iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Basic security check: ensure the message is from a trusted origin if possible
-      // In a real scenario, you might want to check event.origin against your app's domain.
-      
       const designData = event.data?.customizerStudioDesignData;
       if (designData) {
         const cartKey = getCartStorageKey();
@@ -109,11 +113,8 @@ export default function CartPage() {
             customizationDetails: designData.customizationDetails,
           };
           const updatedCart = [...currentCart, newCartItem];
-          localStorage.setItem(cartKey, JSON.stringify(updatedCart));
-          setCartItems(updatedCart);
+          saveCart(updatedCart);
           toast({ title: "Item Added to Cart!", description: `${newCartItem.productName} is now in your cart.` });
-          // Optional: Redirect to cart page after adding
-          // router.push(`/store/${storeId}/cart`);
         } catch (e) {
             console.error("Error updating cart from postMessage:", e);
             toast({ title: "Cart Error", description: "Could not add item to cart.", variant: "destructive" });
@@ -125,7 +126,7 @@ export default function CartPage() {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [storeId, toast, router, getCartStorageKey]);
+  }, [storeId, toast, router, getCartStorageKey, saveCart]);
 
   // Fetch store config
   useEffect(() => {
@@ -153,16 +154,43 @@ export default function CartPage() {
     fetchStoreConfig();
   }, [storeId]);
 
-  const handleRemoveItem = (itemId: string) => {
-    setCartItems(prevItems => {
-        const newItems = prevItems.filter(item => item.id !== itemId);
-        localStorage.setItem(getCartStorageKey(), JSON.stringify(newItems));
-        toast({ title: "Item Removed", description: "The item has been removed from your cart." });
-        return newItems;
-    });
+  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+    const quantity = Math.max(1, newQuantity); // Ensure quantity is at least 1
+    const updatedItems = cartItems.map(item => 
+        item.id === itemId ? { ...item, quantity } : item
+    );
+    saveCart(updatedItems);
   };
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0);
+
+  const handleRemoveItem = (itemId: string) => {
+    const newItems = cartItems.filter(item => item.id !== itemId);
+    saveCart(newItems);
+    toast({ title: "Item Removed", description: "The item has been removed from your cart." });
+  };
+  
+  const totalQuantity = useMemo(() => cartItems.reduce((acc, item) => acc + item.quantity, 0), [cartItems]);
+  const subtotal = useMemo(() => cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0), [cartItems]);
+
+  const { discountAmount, discountPercentage } = useMemo(() => {
+    if (!storeConfig?.volumeDiscounts?.enabled || storeConfig.volumeDiscounts.tiers.length === 0) {
+      return { discountAmount: 0, discountPercentage: 0 };
+    }
+    
+    const applicableTier = storeConfig.volumeDiscounts.tiers
+      .filter(tier => totalQuantity >= tier.quantity)
+      .sort((a, b) => b.quantity - a.quantity)[0];
+      
+    if (applicableTier) {
+      const discount = subtotal * (applicableTier.percentage / 100);
+      return { discountAmount: discount, discountPercentage: applicableTier.percentage };
+    }
+    
+    return { discountAmount: 0, discountPercentage: 0 };
+  }, [totalQuantity, subtotal, storeConfig]);
+
+  const total = subtotal - discountAmount;
+
 
   if (isLoading || !storeConfig) {
     return <CartLoadingSkeleton />;
@@ -230,10 +258,19 @@ export default function CartPage() {
                                 </div>
                                 <div className="flex flex-col items-end justify-between">
                                     <p className="font-semibold">${(item.totalCustomizationPrice * item.quantity).toFixed(2)}</p>
+                                    <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        value={item.quantity}
+                                        onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
+                                        className="h-8 w-16 text-center"
+                                        min="1"
+                                    />
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Remove item</span>
                                     </Button>
+                                    </div>
                                 </div>
                             </li>
                         ))}
@@ -252,6 +289,15 @@ export default function CartPage() {
                     <span>Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
+                   {discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>
+                        <Tag className="inline-block h-4 w-4 mr-1" />
+                        Volume Discount ({discountPercentage}%)
+                      </span>
+                      <span>-${discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-muted-foreground">
                     <span>Shipping</span>
                     <span>Calculated at next step</span>
@@ -259,7 +305,7 @@ export default function CartPage() {
                   <Separator />
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>${total.toFixed(2)}</span>
                   </div>
                 </CardContent>
                 <CardFooter>

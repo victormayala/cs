@@ -1,3 +1,4 @@
+
 'use server';
 
 // This server action file is now deprecated for saving store config, as the operation has been
@@ -6,6 +7,14 @@
 // and can be used for other server-side store logic in the future.
 
 import type { FieldValue } from 'firebase/firestore';
+
+/**
+ * Represents a single tier for volume discounts.
+ */
+export interface VolumeDiscountTier {
+  quantity: number;
+  percentage: number;
+}
 
 /**
  * Represents the configuration for a user-generated e-commerce store.
@@ -30,6 +39,12 @@ export interface UserStoreConfig {
     lastDeployedAt?: FieldValue;
   };
   
+  // Volume discount settings
+  volumeDiscounts?: {
+    enabled: boolean;
+    tiers: VolumeDiscountTier[];
+  };
+
   // Timestamps
   createdAt: FieldValue;
   lastSaved: FieldValue;
