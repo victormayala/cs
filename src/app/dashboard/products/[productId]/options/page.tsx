@@ -35,6 +35,9 @@ interface ProductOptionsData {
   id: string; 
   name: string; 
   description: string; 
+  brand?: string;
+  sku?: string;
+  category?: string;
   price: number; 
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
@@ -140,7 +143,7 @@ export default function ProductOptionsPage() {
     setVariationsError(null);
     
     try {
-      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; };
+      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; };
       
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
@@ -223,6 +226,9 @@ export default function ProductOptionsPage() {
           type: 'simple',
           imageUrl: 'https://placehold.co/600x600.png', // Placeholder, to be configured in options
           imageAlt: nativeProduct.name,
+          brand: nativeProduct.brand,
+          sku: nativeProduct.sku,
+          category: nativeProduct.category,
         };
       }
 
@@ -230,11 +236,11 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+      const baseDefaultViews: Omit<ProductView, 'id' | 'price'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
@@ -415,7 +421,14 @@ export default function ProductOptionsPage() {
 
       if (source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
-        await setDoc(productBaseRef, { name: productOptions.name, description: productOptions.description, lastModified: serverTimestamp() }, { merge: true });
+        await setDoc(productBaseRef, { 
+            name: productOptions.name, 
+            description: productOptions.description,
+            brand: productOptions.brand,
+            sku: productOptions.sku,
+            category: productOptions.category,
+            lastModified: serverTimestamp() 
+        }, { merge: true });
       }
       
       toast({ title: "Saved", description: "Custom views, areas, and variation selections saved to your account." });
@@ -463,7 +476,7 @@ export default function ProductOptionsPage() {
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
   
-  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => {
+  const handleViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id' | 'boundaryBoxes'>, value: string | number) => {
     if (!productOptions) return;
     setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === viewId ? { ...v, [field]: value } : v) } : null);
     setHasUnsavedChanges(true);
@@ -616,55 +629,53 @@ export default function ProductOptionsPage() {
   };
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
-    if (!productOptions) return;
-
-    if (type === 'colors') {
+    setProductOptions(prev => {
+      if (!prev) return prev;
+  
+      let updatedAttributes: ProductAttributeOptions;
+  
+      if (type === 'colors') {
         const name = colorInputValue.trim();
         if (!name) {
-            toast({ title: "Color name is required.", variant: "destructive" });
-            return;
+          toast({ title: "Color name is required.", variant: "destructive" });
+          return prev;
         }
         if (!/^#[0-9a-fA-F]{6}$/.test(colorHexValue)) {
             toast({ title: "Invalid Hex Code", description: "Please enter a valid 6-digit hex code, e.g., #FF0000.", variant: "destructive" });
-            return;
+            return prev;
         }
-        if (productOptions.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-            toast({ title: "Color already exists.", variant: "destructive" });
-            return;
+        if (prev.nativeAttributes?.colors?.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+          toast({ title: "Color already exists.", variant: "destructive" });
+          return prev;
         }
-
+        
         const newColor = { name, hex: colorHexValue };
-        const newColors = [...productOptions.nativeAttributes.colors, newColor];
-        setProductOptions({
-            ...productOptions,
-            nativeAttributes: { ...productOptions.nativeAttributes, colors: newColors },
-        });
-
+        const newColors = [...(prev.nativeAttributes.colors || []), newColor];
+        updatedAttributes = { ...prev.nativeAttributes, colors: newColors };
+        
         setColorInputValue("");
         setColorHexValue("#000000");
-
-    } else { // sizes
+  
+      } else { // sizes
         const size = sizeInputValue.trim();
         if (!size) {
-            toast({ title: "Size name is required.", variant: "destructive" });
-            return;
+          toast({ title: "Size name is required.", variant: "destructive" });
+          return prev;
         }
-        if (productOptions.nativeAttributes.sizes.includes(size)) {
-            toast({ title: "Size already exists.", variant: "destructive" });
-            return;
+        if (prev.nativeAttributes?.sizes?.includes(size)) {
+          toast({ title: "Size already exists.", variant: "destructive" });
+          return prev;
         }
-
-        const newSizes = [...productOptions.nativeAttributes.sizes, size];
-        setProductOptions({
-            ...productOptions,
-            nativeAttributes: { ...productOptions.nativeAttributes, sizes: newSizes },
-        });
-
+        
+        const newSizes = [...(prev.nativeAttributes.sizes || []), size];
+        updatedAttributes = { ...prev.nativeAttributes, sizes: newSizes };
         setSizeInputValue("");
-    }
-    setHasUnsavedChanges(true);
-};
-
+      }
+      
+      setHasUnsavedChanges(true);
+      return { ...prev, nativeAttributes: updatedAttributes };
+    });
+  };
 
   const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
     setProductOptions(prev => {
@@ -1014,6 +1025,20 @@ export default function ProductOptionsPage() {
                   <Label htmlFor="productName">Product Name</Label>
                   <Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, name: e.target.value} : null); setHasUnsavedChanges(true);}} />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="productBrand">Brand</Label>
+                  <Input id="productBrand" value={productOptions.brand || ''} placeholder="e.g., Gildan" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, brand: e.target.value} : null); setHasUnsavedChanges(true);}} />
+                </div>
+                <div>
+                  <Label htmlFor="productSku">SKU</Label>
+                  <Input id="productSku" value={productOptions.sku || ''} placeholder="e.g., G5000-WHT-LG" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, sku: e.target.value} : null); setHasUnsavedChanges(true);}} />
+                </div>
+                <div>
+                  <Label htmlFor="productCategory">Category</Label>
+                  <Input id="productCategory" value={productOptions.category || ''} placeholder="e.g., T-Shirts" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, category: e.target.value} : null); setHasUnsavedChanges(true);}} />
+                </div>
+              </div>
               <div>
                   <Label htmlFor="productDescription">Description</Label>
                   <Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, description: e.target.value} : null); setHasUnsavedChanges(true);}} />
@@ -1086,8 +1111,8 @@ export default function ProductOptionsPage() {
                           <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
-                          {productOptions.nativeAttributes.colors.map(color => (
-                              <Badge key={color.name + '-' + color.hex} variant="secondary" className="text-sm">
+                          {productOptions.nativeAttributes.colors.map((color, index) => (
+                              <Badge key={`${color.name}-${color.hex}-${index}`} variant="secondary" className="text-sm">
                                   <div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>
                                   {color.name}
                                   <button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>

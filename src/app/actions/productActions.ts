@@ -11,6 +11,9 @@ export interface NativeProduct {
   userId: string; // The UID of the user who owns this product
   name: string;
   description: string;
+  brand?: string;
+  sku?: string;
+  category?: string;
   // We won't store full options here, just the base product info.
   // The customization options will be stored in the 'userProductOptions' collection,
   // same as for Shopify/WooCommerce products, using the product's ID as the key.
