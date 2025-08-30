@@ -19,6 +19,7 @@ import type { ProductAttributeOptions, VariationImage, NativeProductVariation } 
 import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface ProductView {
     id: string;
@@ -275,12 +276,22 @@ export default function ProductDetailPage() {
                             ${currentPrice.toFixed(2)}
                          </p>
 
-                         {(product.brand || product.sku || product.category || product.customizationTechniques) && (
+                         {(product.brand || product.sku || product.category) && (
                             <div className="text-sm text-muted-foreground space-y-1 mb-4 border-t pt-4">
                                 {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
                                 {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
                                 {product.category && <p><strong>Category:</strong> {product.category}</p>}
-                                {product.customizationTechniques && product.customizationTechniques.length > 0 && <p><strong>Techniques:</strong> {product.customizationTechniques.join(', ')}</p>}
+                            </div>
+                         )}
+
+                        {product.customizationTechniques && product.customizationTechniques.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                                <h3 className="text-sm font-medium text-foreground">Available Techniques:</h3>
+                                <div className="flex flex-wrap gap-2">
+                                {product.customizationTechniques.map(technique => (
+                                    <Badge key={technique} variant="secondary" className="text-xs">{technique}</Badge>
+                                ))}
+                                </div>
                             </div>
                          )}
                          
@@ -379,7 +390,7 @@ export default function ProductDetailPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-4">*This is a placeholder for the volume discount disclaimer.</p>
+                                        <p className="text-xs text-muted-foreground mt-4">*Discount is applied to the subtotal in your cart.</p>
                                     </CardContent>
                                 </Card>
                             )}
