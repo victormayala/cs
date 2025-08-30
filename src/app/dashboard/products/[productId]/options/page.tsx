@@ -132,8 +132,11 @@ export default function ProductOptionsPage() {
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
+  const [sizePriceModifier, setSizePriceModifier] = useState<string>("0");
+
 
   const [bulkPrice, setBulkPrice] = useState<string>('');
+  const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
 
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
@@ -405,23 +408,41 @@ export default function ProductOptionsPage() {
     }
 
     setIsSaving(true);
+    
+    // Create a deep copy to sanitize
+    const cleanProductOptions = JSON.parse(JSON.stringify(productOptions));
+
+    // Sanitize base salePrice
+    if (cleanProductOptions.salePrice === null || cleanProductOptions.salePrice === undefined || isNaN(parseFloat(cleanProductOptions.salePrice))) {
+        delete cleanProductOptions.salePrice;
+    }
+
+    // Sanitize variations
+    if (cleanProductOptions.nativeVariations && Array.isArray(cleanProductOptions.nativeVariations)) {
+        cleanProductOptions.nativeVariations.forEach((variation: any) => {
+            if (variation.salePrice === null || variation.salePrice === undefined || isNaN(parseFloat(variation.salePrice))) {
+                delete variation.salePrice;
+            }
+        });
+    }
+
     const dataToSave: Omit<ProductOptionsFirestoreData, 'createdAt' | 'lastSaved'> & { lastSaved: any; createdAt?: any } = {
-      id: productOptions.id, 
-      name: productOptions.name,
-      description: productOptions.description,
-      price: productOptions.price,
-      salePrice: productOptions.salePrice,
-      shipping: productOptions.shipping,
-      type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
-      defaultViews: productOptions.defaultViews,
-      optionsByColor: productOptions.optionsByColor,
-      groupingAttributeName: productOptions.groupingAttributeName,
-      nativeAttributes: productOptions.nativeAttributes,
-      nativeVariations: productOptions.nativeVariations,
-      allowCustomization: productOptions.allowCustomization,
+      id: cleanProductOptions.id, 
+      name: cleanProductOptions.name,
+      description: cleanProductOptions.description,
+      price: cleanProductOptions.price,
+      salePrice: cleanProductOptions.salePrice,
+      shipping: cleanProductOptions.shipping,
+      type: cleanProductOptions.type === 'shopify' ? 'simple' : cleanProductOptions.type,
+      defaultViews: cleanProductOptions.defaultViews,
+      optionsByColor: cleanProductOptions.optionsByColor,
+      groupingAttributeName: cleanProductOptions.groupingAttributeName,
+      nativeAttributes: cleanProductOptions.nativeAttributes,
+      nativeVariations: cleanProductOptions.nativeVariations,
+      allowCustomization: cleanProductOptions.allowCustomization,
       lastSaved: serverTimestamp(),
     };
-
+    
     try {
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       const docSnap = await getDoc(docRef);
@@ -664,19 +685,26 @@ export default function ProductOptionsPage() {
       setColorHexValue("#000000");
 
     } else { // sizes
-      const size = sizeInputValue.trim();
-      if (!size) {
+      const sizeName = sizeInputValue.trim();
+      const modifier = parseFloat(sizePriceModifier);
+      if (!sizeName) {
         toast({ title: "Size name is required.", variant: "destructive" });
         return;
       }
-      if (productOptions?.nativeAttributes.sizes.includes(size)) {
+      if (isNaN(modifier)) {
+        toast({ title: "Price modifier must be a number.", variant: "destructive" });
+        return;
+      }
+      if (productOptions?.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) {
         toast({ title: "Size already exists.", variant: "destructive" });
         return;
       }
       
-      const newSizes = [...(productOptions?.nativeAttributes.sizes || []), size];
+      const newSize = { id: crypto.randomUUID(), name: sizeName, priceModifier: modifier };
+      const newSizes = [...(productOptions?.nativeAttributes.sizes || []), newSize];
       setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } } : null);
       setSizeInputValue("");
+      setSizePriceModifier("0");
     }
     
     setHasUnsavedChanges(true);
@@ -693,7 +721,7 @@ export default function ProductOptionsPage() {
         delete updatedOptionsByColor[value];
         return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
       } else {
-        updatedAttributes.sizes = updatedAttributes.sizes.filter(item => item !== value);
+        updatedAttributes.sizes = updatedAttributes.sizes.filter(item => item.id !== value);
       }
       
       return { ...prev, nativeAttributes: updatedAttributes };
@@ -859,7 +887,7 @@ export default function ProductOptionsPage() {
                         </div>
                         {sizes.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
-                            {sizes.map(size => <Badge key={size} variant="secondary" className="text-xs">{size}</Badge>)}
+                            {sizes.map(size => <Badge key={size.id} variant="secondary" className="text-xs">{size.name}</Badge>)}
                             </div>
                         )}
                     </div>
@@ -895,65 +923,98 @@ export default function ProductOptionsPage() {
   const generatedVariations: NativeProductVariation[] = [];
     if (productOptions.type === 'variable' && productOptions.source === 'customizer-studio') {
         const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
-        if (colors.length > 0 && sizes.length > 0) {
+        if (colors.length > 0) {
             colors.forEach(color => {
+              if (sizes.length > 0) {
                 sizes.forEach(size => {
-                    const id = `color-${color.name}-size-${size}`.toLowerCase().replace(/\s+/g, '-');
+                    const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
                     const existing = productOptions.nativeVariations?.find(v => v.id === id);
                     generatedVariations.push({
                         id: id,
-                        attributes: { "Color": color.name, "Size": size },
+                        attributes: { "Color": color.name, "Size": size.name },
                         price: existing?.price ?? productOptions.price,
+                        salePrice: existing?.salePrice,
                     });
                 });
-            });
-        } else if (colors.length > 0) {
-            colors.forEach(color => {
+              } else {
                  const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
                  const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                 generatedVariations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price });
+                 generatedVariations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
+              }
             });
         }
     }
   
-  const handleVariationPriceChange = (id: string, newPrice: string) => {
-    const price = parseFloat(newPrice);
-    if (isNaN(price)) return;
+  const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
+    const numValue = parseFloat(value);
     
     setProductOptions(prev => {
         if (!prev) return null;
-        const updatedVariations = prev.nativeVariations.map(v => 
-            v.id === id ? { ...v, price } : v
-        );
-        const allIds = generatedVariations.map(v => v.id);
-        const newVariations = updatedVariations.filter(v => allIds.includes(v.id));
+        
+        const price = (field === 'price' && !isNaN(numValue)) ? numValue : undefined;
+        const salePrice = (field === 'salePrice' && !isNaN(numValue)) ? numValue : undefined;
 
-        // Add any newly generated variations that weren't in the state yet
-        generatedVariations.forEach(genVar => {
-            if (!newVariations.some(v => v.id === genVar.id)) {
-                newVariations.push(genVar);
+        const updatedVariations = prev.nativeVariations.map(v => {
+            if (v.id === id) {
+                const newVariation: NativeProductVariation = {...v};
+                if (price !== undefined) newVariation.price = price;
+                if (salePrice !== undefined) newVariation.salePrice = salePrice;
+                // If the input value is empty or not a number, we want to effectively remove the sale price
+                if (field === 'salePrice' && (value === '' || isNaN(numValue))) {
+                    delete newVariation.salePrice;
+                }
+                return newVariation;
             }
+            return v;
         });
 
-        return { ...prev, nativeVariations: newVariations };
+        // Ensure newly generated variations are also included
+        const allCurrentVariationIds = new Set(updatedVariations.map(v => v.id));
+        generatedVariations.forEach(genVar => {
+            if (!allCurrentVariationIds.has(genVar.id)) {
+                updatedVariations.push(genVar);
+            }
+        });
+        
+        return { ...prev, nativeVariations: updatedVariations };
     });
     setHasUnsavedChanges(true);
   };
 
-  const handleBulkPriceApply = () => {
-    const price = parseFloat(bulkPrice);
-    if (isNaN(price)) {
-      toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
-      return;
-    }
-    setProductOptions(prev => {
-      if (!prev) return null;
-      const updatedVariations = generatedVariations.map(v => ({...v, price: price}));
-      return { ...prev, nativeVariations: updatedVariations };
-    });
-    setHasUnsavedChanges(true);
-    toast({ title: "Prices Updated", description: `All variations set to $${price.toFixed(2)}`});
-  }
+  const handleBulkUpdate = (field: 'price' | 'salePrice') => {
+      const valueStr = field === 'price' ? bulkPrice : bulkSalePrice;
+      const value = parseFloat(valueStr);
+
+      if (isNaN(value) && valueStr !== '') {
+        toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
+        return;
+      }
+      
+      setProductOptions(prev => {
+        if (!prev) return null;
+
+        const updatedVariations = generatedVariations.map(v => {
+            const newVariation = { ...v };
+            const currentVariationData = prev.nativeVariations.find(pv => pv.id === v.id);
+            if(currentVariationData){
+                Object.assign(newVariation, currentVariationData);
+            }
+            
+            if (valueStr === '') {
+                 if(field === 'salePrice') delete newVariation.salePrice;
+                 // Don't allow clearing regular price this way
+            } else {
+                newVariation[field] = value;
+            }
+            
+            return newVariation;
+        });
+        
+        return { ...prev, nativeVariations: updatedVariations };
+      });
+      setHasUnsavedChanges(true);
+      toast({ title: "Prices Updated", description: `All variations' ${field === 'price' ? 'prices' : 'sale prices'} have been updated.`});
+  };
 
   const renderNativeVariationPricing = () => {
       return (
@@ -967,9 +1028,15 @@ export default function ProductOptionsPage() {
                     <div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size in 'Product Attributes' to create variations.</p></div>
                 ) : (
                   <>
-                    <div className="flex gap-2 mb-4">
-                      <Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" />
-                      <Button onClick={handleBulkPriceApply} variant="secondary" size="sm">Apply to All</Button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" />
+                        <Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button>
+                      </div>
+                       <div className="flex gap-2">
+                        <Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" />
+                        <Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button>
+                      </div>
                     </div>
                     <div className="max-h-96 overflow-y-auto border rounded-md">
                       <Table>
@@ -979,27 +1046,48 @@ export default function ProductOptionsPage() {
                                       <TableHead key={attrName}>{attrName}</TableHead>
                                   ))}
                                   <TableHead className="text-right">Price</TableHead>
+                                  <TableHead className="text-right">Sale Price</TableHead>
                               </TableRow>
                           </TableHeader>
                           <TableBody>
-                              {generatedVariations.map(variation => (
-                                  <TableRow key={variation.id}>
-                                      {Object.values(variation.attributes).map((val, i) => (
-                                          <TableCell key={i}>{val}</TableCell>
-                                      ))}
-                                      <TableCell className="text-right">
-                                          <div className="relative flex items-center justify-end">
-                                             <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                             <Input 
-                                                type="number" 
-                                                value={variation.price.toFixed(2)}
-                                                onChange={e => handleVariationPriceChange(variation.id, e.target.value)}
-                                                className="h-8 w-28 pl-7 text-right"
-                                             />
-                                          </div>
-                                      </TableCell>
-                                  </TableRow>
-                              ))}
+                              {generatedVariations.map(variation => {
+                                 const sizeName = variation.attributes.Size;
+                                 const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === sizeName)?.priceModifier || 0;
+                                 const currentVariationData = productOptions.nativeVariations.find(v => v.id === variation.id) || variation;
+                                 return (
+                                   <TableRow key={variation.id}>
+                                       {Object.values(variation.attributes).map((val, i) => (
+                                           <TableCell key={i}>{val}</TableCell>
+                                       ))}
+                                       <TableCell className="text-right">
+                                           <div className="relative flex items-center justify-end">
+                                              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                              <Input 
+                                                 type="number" 
+                                                 value={(currentVariationData.price + sizeModifier).toFixed(2)}
+                                                 onChange={e => {
+                                                    const priceWithoutModifier = parseFloat(e.target.value) - sizeModifier;
+                                                    handleVariationFieldChange(variation.id, 'price', priceWithoutModifier.toString());
+                                                 }}
+                                                 className="h-8 w-28 pl-7 text-right"
+                                              />
+                                           </div>
+                                       </TableCell>
+                                       <TableCell className="text-right">
+                                           <div className="relative flex items-center justify-end">
+                                              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                              <Input 
+                                                 type="number" 
+                                                 placeholder="None"
+                                                 value={currentVariationData.salePrice ?? ''}
+                                                 onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)}
+                                                 className="h-8 w-28 pl-7 text-right"
+                                              />
+                                           </div>
+                                       </TableCell>
+                                   </TableRow>
+                               );
+                              })}
                           </TableBody>
                       </Table>
                     </div>
@@ -1209,21 +1297,25 @@ export default function ProductOptionsPage() {
                           ))}
                       </div>
                     </div>
-                    <div>
+                     <div>
                       <Label htmlFor="size-input" className="flex items-center mb-2">
                           <Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes
                       </Label>
-                      <div className="flex gap-2">
-                          <Input id="size-input" placeholder="e.g., S, M, XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
+                      <div className="grid grid-cols-[2fr_1fr_auto] gap-2">
+                          <Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
+                          <Input type="number" step="0.01" placeholder="+/- $" value={sizePriceModifier} onChange={(e) => setSizePriceModifier(e.target.value)} />
                           <Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
-                          {productOptions.nativeAttributes.sizes.map(size => (
-                              <Badge key={size} variant="secondary" className="text-sm">
-                                  {size}
-                                  <button onClick={() => handleRemoveAttribute('sizes', size)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
+                          {productOptions.nativeAttributes.sizes.map((size) => {
+                              const modifier = size.priceModifier ?? 0;
+                              return (
+                              <Badge key={size.id} variant="secondary" className="text-sm">
+                                  {size.name} {modifier !== 0 && `(${modifier > 0 ? '+' : ''}$${modifier.toFixed(2)})`}
+                                  <button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
                               </Badge>
-                          ))}
+                            );
+                          })}
                       </div>
                     </div>
                   </div>
@@ -1318,3 +1410,4 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
