@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -106,6 +106,8 @@ export default function ProductViewSetup({
   confirmDeleteView,
 }: ProductViewSetupProps) {
   
+  const [bulkPrice, setBulkPrice] = useState('');
+  
   if (!productOptions) {
     return (
       <Card className="shadow-md">
@@ -118,6 +120,18 @@ export default function ProductViewSetup({
       </Card>
     );
   }
+
+  const handleBulkPriceChange = () => {
+    const priceValue = parseFloat(bulkPrice);
+    if (isNaN(priceValue) || priceValue < 0) {
+      // Potentially show a toast error here
+      return;
+    }
+    productOptions.defaultViews.forEach(view => {
+      handleViewDetailChange(view.id, 'price', priceValue);
+    });
+    setBulkPrice(''); // Clear input after applying
+  };
 
   const currentView = productOptions.defaultViews.find(v => v.id === activeViewId);
 
@@ -153,6 +167,16 @@ export default function ProductViewSetup({
         <Tabs defaultValue="views" className="w-full">
           <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Default Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewId}>Customization Areas</TabsTrigger></TabsList>
           <TabsContent value="views" className="mt-4">
+             <div className="mb-4 p-3 border rounded-md bg-muted/20">
+                <Label htmlFor="bulk-price" className="text-sm font-medium">Set Price for All Views</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="relative flex-grow">
+                    <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input id="bulk-price" type="number" placeholder="e.g., 5.00" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="pl-7 h-9"/>
+                  </div>
+                  <Button size="sm" onClick={handleBulkPriceChange} disabled={!bulkPrice}>Apply</Button>
+                </div>
+            </div>
             <div className="mb-4"><h4 className="text-sm font-medium text-muted-foreground mb-2">Select a Default View:</h4>
               <div className="flex flex-wrap gap-2 justify-center">
                 {productOptions.defaultViews.map(view => (<Button key={view.id} variant={activeViewId === view.id ? "default" : "outline"} onClick={() => handleSelectView(view.id)} size="sm" className="flex-grow sm:flex-grow-0">{view.name}</Button>))}

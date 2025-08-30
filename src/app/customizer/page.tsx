@@ -510,23 +510,10 @@ function CustomizerLayoutAndLogic() {
   ]);
 
   useEffect(() => {
-    const usedViewIdsWithElements = new Set<string>();
-    canvasImages.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
-    canvasTexts.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
-    canvasShapes.forEach(item => { if (item.viewId) usedViewIdsWithElements.add(item.viewId); });
-    const viewsToPrice = new Set<string>(usedViewIdsWithElements);
-    if (activeViewId) viewsToPrice.add(activeViewId); 
-
-    let viewSurcharges = 0;
-    if (productDetails?.views) {
-      viewsToPrice.forEach(viewId => {
-        const view = productDetails.views.find(v => v.id === viewId);
-        viewSurcharges += view?.price ?? 0;
-      });
-    }
+    const activeViewPrice = productDetails?.views.find(v => v.id === activeViewId)?.price ?? 0;
     const basePrice = productDetails?.basePrice ?? 0;
-    setTotalCustomizationPrice(basePrice + viewSurcharges);
-  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, activeViewId]);
+    setTotalCustomizationPrice(basePrice + activeViewPrice);
+  }, [productDetails?.views, productDetails?.basePrice, activeViewId]);
 
   const getToolPanelTitle = (toolId: string): string => {
     const tool = toolItems.find(item => item.id === toolId);

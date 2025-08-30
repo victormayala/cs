@@ -615,7 +615,6 @@ export default function ProductOptionsPage() {
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
     if (!productOptions) return;
   
-    // Validate inputs first
     if (type === 'colors') {
       const name = colorInputValue.trim();
       if (!name) {
