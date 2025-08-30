@@ -369,22 +369,24 @@ export default function ProductDetailPage() {
                         <div className="mt-8">
                             <h3 className="text-base font-medium text-foreground mb-3">Shipping Options</h3>
                             <RadioGroup value={selectedShipping} onValueChange={setSelectedShipping} className="space-y-3">
-                                <Label htmlFor="shipping-standard" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'standard' && "border-primary ring-2 ring-primary")}>
-                                    <RadioGroupItem value="standard" id="shipping-standard" className="mt-0.5" />
-                                    <div className="ml-4">
-                                        <div className="font-semibold flex items-center gap-2"><Truck className="h-4 w-4 text-muted-foreground" /> Standard Shipping</div>
-                                        <p className="text-sm text-muted-foreground">Get it by Wed, Sep 3 - Mon, Sep 8</p>
-                                        <p className="text-sm text-muted-foreground">Free on orders over $50.</p>
-                                    </div>
-                                </Label>
-                                <Label htmlFor="shipping-rush" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'rush' && "border-primary ring-2 ring-primary")}>
-                                    <RadioGroupItem value="rush" id="shipping-rush" className="mt-0.5" />
-                                    <div className="ml-4">
-                                        <div className="font-semibold flex items-center gap-2"><Rocket className="h-4 w-4 text-muted-foreground" /> Rush Shipping (+$12.00)</div>
-                                        <p className="text-sm text-muted-foreground">Get it by Sun, Aug 31 - Tue, Sep 2</p>
-                                        <p className="text-xs text-muted-foreground mt-1">*Rush applies to shipping time only, not order production.</p>
-                                    </div>
-                                </Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <Label htmlFor="shipping-standard" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'standard' && "border-primary ring-2 ring-primary")}>
+                                        <RadioGroupItem value="standard" id="shipping-standard" className="mt-0.5" />
+                                        <div className="ml-4">
+                                            <div className="font-semibold flex items-center gap-2"><Truck className="h-4 w-4 text-muted-foreground" /> Standard Shipping</div>
+                                            <p className="text-sm text-muted-foreground">Get it by Wed, Sep 3 - Mon, Sep 8</p>
+                                            <p className="text-sm text-muted-foreground">Free on orders over $50.</p>
+                                        </div>
+                                    </Label>
+                                    <Label htmlFor="shipping-rush" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'rush' && "border-primary ring-2 ring-primary")}>
+                                        <RadioGroupItem value="rush" id="shipping-rush" className="mt-0.5" />
+                                        <div className="ml-4">
+                                            <div className="font-semibold flex items-center gap-2"><Rocket className="h-4 w-4 text-muted-foreground" /> Rush Shipping (+$12.00)</div>
+                                            <p className="text-sm text-muted-foreground">Get it by Sun, Aug 31 - Tue, Sep 2</p>
+                                            <p className="text-xs text-muted-foreground mt-1">*Rush applies to shipping time only, not order production.</p>
+                                        </div>
+                                    </Label>
+                                </div>
                                 {storeConfig.shipping?.localDeliveryEnabled && (
                                     <Label htmlFor="shipping-local" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'local' && "border-primary ring-2 ring-primary")}>
                                         <RadioGroupItem value="local" id="shipping-local" className="mt-0.5" />
