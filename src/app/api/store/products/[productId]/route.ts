@@ -19,7 +19,7 @@ interface PublicProductDetail extends PublicProduct {
     brand?: string;
     sku?: string;
     category?: string;
-    customizationTechnique?: CustomizationTechnique;
+    customizationTechniques?: CustomizationTechnique[];
 }
 
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
@@ -75,7 +75,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       brand: productData.brand,
       sku: productData.sku,
       category: productData.category,
-      customizationTechnique: productData.customizationTechnique,
+      customizationTechniques: productData.customizationTechniques,
     };
 
     return NextResponse.json({ product: publicProductDetail });

@@ -30,7 +30,6 @@ import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupO
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
@@ -41,7 +40,7 @@ interface ProductOptionsData {
   brand?: string;
   sku?: string;
   category?: string;
-  customizationTechnique?: CustomizationTechnique;
+  customizationTechniques?: CustomizationTechnique[];
   price: number; 
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
@@ -147,7 +146,7 @@ export default function ProductOptionsPage() {
     setVariationsError(null);
     
     try {
-      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechnique?: CustomizationTechnique; };
+      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; };
       
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
@@ -233,7 +232,7 @@ export default function ProductOptionsPage() {
           brand: nativeProduct.brand,
           sku: nativeProduct.sku,
           category: nativeProduct.category,
-          customizationTechnique: nativeProduct.customizationTechnique,
+          customizationTechniques: nativeProduct.customizationTechniques,
         };
       }
 
@@ -241,17 +240,17 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+      const baseDefaultViews: Omit<ProductView, 'id' | 'boundaryBoxes' | 'price'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view" },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view" },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view" },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view" },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
         const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing, price: existing.price ?? 0 } : { ...baseView, id: crypto.randomUUID(), price: 0 };
+        return existing ? {...existing, price: existing.price ?? 0 } : { ...baseView, id: crypto.randomUUID(), price: 0, boundaryBoxes: [] };
       }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
       const nativeAttributes = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
@@ -432,7 +431,7 @@ export default function ProductOptionsPage() {
             brand: productOptions.brand,
             sku: productOptions.sku,
             category: productOptions.category,
-            customizationTechnique: productOptions.customizationTechnique,
+            customizationTechniques: productOptions.customizationTechniques,
             lastModified: serverTimestamp() 
         }, { merge: true });
       }
@@ -694,6 +693,22 @@ export default function ProductOptionsPage() {
     });
     setHasUnsavedChanges(true);
   };
+
+    const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
+        setProductOptions(prev => {
+            if (!prev) return null;
+            const currentTechniques = prev.customizationTechniques || [];
+            const newTechniques = checked
+                ? [...currentTechniques, technique]
+                : currentTechniques.filter(t => t !== technique);
+            
+            // Remove duplicates
+            const uniqueTechniques = Array.from(new Set(newTechniques));
+
+            return { ...prev, customizationTechniques: uniqueTechniques };
+        });
+        setHasUnsavedChanges(true);
+    };
 
 
   if (isLoading) {
@@ -1066,22 +1081,19 @@ export default function ProductOptionsPage() {
               </div>
                {source === 'customizer-studio' && (
                 <div>
-                  <Label className="flex items-center"><Gem className="mr-2 h-4 w-4 text-primary" /> Customization Technique</Label>
-                  <RadioGroup
-                    value={productOptions.customizationTechnique}
-                    onValueChange={(value: CustomizationTechnique) => {
-                      setProductOptions(prev => prev ? { ...prev, customizationTechnique: value } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                    className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2"
-                  >
+                  <Label className="flex items-center"><Gem className="mr-2 h-4 w-4 text-primary" /> Customization Techniques</Label>
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {CUSTOMIZATION_TECHNIQUES.map(technique => (
                       <div key={technique} className="flex items-center space-x-2">
-                        <RadioGroupItem value={technique} id={`tech-${technique}`} />
+                        <Checkbox 
+                            id={`tech-${technique}`} 
+                            checked={productOptions.customizationTechniques?.includes(technique)}
+                            onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)}
+                        />
                         <Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label>
                       </div>
                     ))}
-                  </RadioGroup>
+                  </div>
                 </div>
               )}
             </CardContent>

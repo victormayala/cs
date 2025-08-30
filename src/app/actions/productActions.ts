@@ -16,7 +16,7 @@ export interface NativeProduct {
   brand?: string;
   sku?: string;
   category?: string;
-  customizationTechnique?: CustomizationTechnique;
+  customizationTechniques?: CustomizationTechnique[]; // Changed to array for multi-select
   // We won't store full options here, just the base product info.
   // The customization options will be stored in the 'userProductOptions' collection,
   // same as for Shopify/WooCommerce products, using the product's ID as the key.

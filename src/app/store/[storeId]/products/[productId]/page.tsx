@@ -31,7 +31,7 @@ interface ProductDetail extends PublicProduct {
     brand?: string;
     sku?: string;
     category?: string;
-    customizationTechnique?: CustomizationTechnique;
+    customizationTechniques?: CustomizationTechnique[];
 }
 
 function PDPSkeleton() {
@@ -231,12 +231,12 @@ export default function ProductDetailPage() {
                             From ${product.price.toFixed(2)}
                          </p>
 
-                         {(product.brand || product.sku || product.category || product.customizationTechnique) && (
+                         {(product.brand || product.sku || product.category || product.customizationTechniques) && (
                             <div className="text-sm text-muted-foreground space-y-1 mb-4 border-t pt-4">
                                 {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
                                 {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
                                 {product.category && <p><strong>Category:</strong> {product.category}</p>}
-                                {product.customizationTechnique && <p><strong>Technique:</strong> {product.customizationTechnique}</p>}
+                                {product.customizationTechniques && product.customizationTechniques.length > 0 && <p><strong>Techniques:</strong> {product.customizationTechniques.join(', ')}</p>}
                             </div>
                          )}
                          
