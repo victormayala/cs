@@ -15,7 +15,7 @@ import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, G
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-import type { ProductAttributeOptions, VariationImage } from '@/app/actions/productOptionsActions';
+import type { ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
 import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
 
@@ -35,6 +35,7 @@ interface ProductDetail extends PublicProduct {
     sku?: string;
     category?: string;
     customizationTechniques?: CustomizationTechnique[];
+    nativeVariations?: NativeProductVariation[];
 }
 
 function PDPSkeleton() {
@@ -174,6 +175,22 @@ export default function ProductDetailPage() {
     fetchPageData();
   }, [storeId, productId]);
 
+  const currentPrice = useMemo(() => {
+    if (!product) return 0;
+    if (product.nativeVariations && selectedColor) {
+      const matchingVariation = product.nativeVariations.find(v => {
+        const colorMatch = v.attributes.Color === selectedColor;
+        // If there are no sizes, only color matters. If there are sizes, both must match.
+        const sizeMatch = !product.attributes?.sizes?.length || v.attributes.Size === selectedSize;
+        return colorMatch && sizeMatch;
+      });
+      if (matchingVariation) {
+        return matchingVariation.price;
+      }
+    }
+    return product.price;
+  }, [product, selectedColor, selectedSize]);
+
   if (isLoading || !storeConfig) {
     return <PDPSkeleton />;
   }
@@ -254,7 +271,7 @@ export default function ProductDetailPage() {
                     <div className="flex flex-col pt-4">
                          <h1 className="text-3xl lg:text-4xl font-bold font-headline text-foreground">{product.name}</h1>
                          <p className="text-2xl font-semibold mt-2 mb-4" style={{ color: `hsl(var(--primary))` }}>
-                            From ${product.price.toFixed(2)}
+                            ${currentPrice.toFixed(2)}
                          </p>
 
                          {(product.brand || product.sku || product.category || product.customizationTechniques) && (

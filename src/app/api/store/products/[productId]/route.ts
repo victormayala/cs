@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
-import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
 
 // A more detailed version for the PDP
 interface PublicProductDetail extends PublicProduct {
@@ -21,6 +21,7 @@ interface PublicProductDetail extends PublicProduct {
     sku?: string;
     category?: string;
     customizationTechniques?: CustomizationTechnique[];
+    nativeVariations?: NativeProductVariation[];
 }
 
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
@@ -90,6 +91,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       sku: productData.sku,
       category: productData.category,
       customizationTechniques: productData.customizationTechniques,
+      nativeVariations: optionsData?.nativeVariations,
     };
 
     return NextResponse.json({ product: publicProductDetail });
