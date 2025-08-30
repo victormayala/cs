@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +11,7 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
-import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem, InfoIcon } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem, InfoIcon, Truck } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
@@ -339,6 +340,12 @@ export default function ProductDetailPage() {
                                     Customize This Product <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>
                             </Button>
+                            {storeConfig.shipping?.localDeliveryEnabled && (
+                                <div className="mt-4 flex items-center text-sm text-muted-foreground">
+                                    <Truck className="h-5 w-5 mr-2 text-primary" />
+                                    <span>{storeConfig.shipping.localDeliveryText} - ${storeConfig.shipping.localDeliveryFee.toFixed(2)}</span>
+                                </div>
+                            )}
                          </div>
                     </div>
                  </div>

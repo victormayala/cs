@@ -10,12 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
@@ -77,6 +77,11 @@ function CreateStorePageContent() {
     { quantity: 25, percentage: 10 },
   ]);
 
+  // Shipping State
+  const [localDeliveryEnabled, setLocalDeliveryEnabled] = useState(false);
+  const [localDeliveryFee, setLocalDeliveryFee] = useState(0);
+  const [localDeliveryText, setLocalDeliveryText] = useState("Available for local delivery");
+
   useEffect(() => {
     if (!user) return;
     const fetchExistingConfig = async () => {
@@ -94,6 +99,9 @@ function CreateStorePageContent() {
         if (data.volumeDiscounts?.tiers && data.volumeDiscounts.tiers.length > 0) {
           setDiscountTiers(data.volumeDiscounts.tiers);
         }
+        setLocalDeliveryEnabled(data.shipping?.localDeliveryEnabled || false);
+        setLocalDeliveryFee(data.shipping?.localDeliveryFee || 0);
+        setLocalDeliveryText(data.shipping?.localDeliveryText || "Available for local delivery");
       }
       setIsLoadingExisting(false);
     };
@@ -167,6 +175,11 @@ function CreateStorePageContent() {
         volumeDiscounts: {
           enabled: discountsEnabled,
           tiers: discountTiers.filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
+        },
+        shipping: {
+          localDeliveryEnabled,
+          localDeliveryFee,
+          localDeliveryText,
         },
         deployment: {
           status: 'pending', // Start as pending
@@ -400,6 +413,56 @@ function CreateStorePageContent() {
             </CardContent>
           </Card>
           
+          <Card className="shadow-lg border-border bg-card">
+              <CardHeader>
+                <CardTitle className="font-headline text-xl text-card-foreground">
+                  Shipping Fees
+                </CardTitle>
+                <CardDescription>
+                  Configure shipping options for your store.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="enable-local-delivery" 
+                        checked={localDeliveryEnabled} 
+                        onCheckedChange={(checked) => setLocalDeliveryEnabled(checked as boolean)}
+                      />
+                      <Label htmlFor="enable-local-delivery" className="font-medium">
+                        Enable Local Delivery
+                      </Label>
+                  </div>
+
+                  {localDeliveryEnabled && (
+                    <div className="space-y-3 pt-2 pl-6 border-l">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="delivery-fee">Delivery Fee ($)</Label>
+                          <Input
+                            id="delivery-fee"
+                            type="number"
+                            value={localDeliveryFee}
+                            onChange={(e) => setLocalDeliveryFee(parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                           <Label htmlFor="delivery-text">Delivery Text</Label>
+                           <Input
+                            id="delivery-text"
+                            value={localDeliveryText}
+                            onChange={(e) => setLocalDeliveryText(e.target.value)}
+                            placeholder="e.g., Available for local delivery"
+                           />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+              </CardContent>
+          </Card>
+
           {/* Volume Discounts Card */}
           <Card className="shadow-lg border-border bg-card">
               <CardHeader>

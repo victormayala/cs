@@ -45,6 +45,13 @@ export interface UserStoreConfig {
     tiers: VolumeDiscountTier[];
   };
 
+  // Shipping settings
+  shipping?: {
+    localDeliveryEnabled: boolean;
+    localDeliveryFee: number;
+    localDeliveryText: string;
+  };
+
   // Timestamps
   createdAt: FieldValue;
   lastSaved: FieldValue;
