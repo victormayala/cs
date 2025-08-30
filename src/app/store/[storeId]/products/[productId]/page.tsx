@@ -22,6 +22,7 @@ import { CustomizationTechnique } from '@/app/actions/productActions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from '@/components/ui/label';
 
 
 interface ProductView {
@@ -91,6 +92,7 @@ function PDPSkeleton() {
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const storeId = params.storeId as string;
   const productId = params.productId as string;
 
@@ -227,7 +229,24 @@ export default function ProductDetailPage() {
   }
 
   if (!product) {
-      return <div></div>; // Should be handled by error state, but as a fallback.
+      return (
+        <div className="flex flex-col min-h-screen bg-background">
+          <StoreHeader storeConfig={storeConfig} />
+          <main className="flex-1 flex items-center justify-center p-4">
+              <div className="text-center text-muted-foreground">
+                  <AlertTriangle className="mx-auto h-12 w-12" />
+                  <h2 className="mt-4 text-xl font-semibold">Product Not Found</h2>
+                  <p className="mt-2 text-sm">The requested product could not be loaded.</p>
+                   <Button asChild variant="outline" className="mt-6">
+                        <Link href={`/store/${storeId}/products`}>
+                            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Products
+                        </Link>
+                    </Button>
+              </div>
+          </main>
+          <StoreFooter storeConfig={storeConfig} />
+        </div>
+      );
   }
 
   // The link to the customizer
