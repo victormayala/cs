@@ -26,7 +26,7 @@ import type { ShopifyProduct } from '@/types/shopify';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import ProductViewSetup from '@/components/product-options/ProductViewSetup'; 
 import { Separator } from '@/components/ui/separator';
-import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage } from '@/app/actions/productOptionsActions';
 import type { NativeProduct } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,6 +61,7 @@ interface ActiveDragState {
 
 const MIN_BOX_SIZE_PERCENT = 5; 
 const MAX_PRODUCT_VIEWS = 4; 
+const MAX_VARIATION_IMAGES = 4;
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -229,11 +230,11 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id' | 'price'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
+      const baseDefaultViews: Omit<ProductView, 'id'>[] = [
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
@@ -482,14 +483,7 @@ export default function ProductOptionsPage() {
     if (!productOptions || !viewIdToDelete) return;
     const updatedViews = productOptions.defaultViews.filter(v => v.id !== viewIdToDelete);
     
-    const updatedOptionsByColor = { ...productOptions.optionsByColor };
-    Object.keys(updatedOptionsByColor).forEach(colorKey => {
-      if (updatedOptionsByColor[colorKey].variantViewImages[viewIdToDelete]) {
-        delete updatedOptionsByColor[colorKey].variantViewImages[viewIdToDelete];
-      }
-    });
-
-    setProductOptions(prev => prev ? { ...prev, defaultViews: updatedViews, optionsByColor: updatedOptionsByColor } : null);
+    setProductOptions(prev => prev ? { ...prev, defaultViews: updatedViews } : null);
     if (activeViewIdForSetup === viewIdToDelete) {
       setActiveViewIdForSetup(updatedViews[0]?.id || null); setSelectedBoundaryBoxId(null);
     }
@@ -562,20 +556,22 @@ export default function ProductOptionsPage() {
     setProductOptions(prev => {
       if (!prev) return null;
       const updatedOptionsByColor = { ...prev.optionsByColor };
-  
+      let variationIdsToSet: string[] = [];
+
       if (checked) {
-        // For native products, there's no list of variation IDs. We can use a placeholder.
-        const mockVariationIds = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size}`) || [];
-        updatedOptionsByColor[groupKey] = {
-          selectedVariationIds: mockVariationIds.length > 0 ? mockVariationIds : [groupKey], // Use groupKey as ID if no sizes
-          variantViewImages: updatedOptionsByColor[groupKey]?.variantViewImages || {},
-        };
-      } else {
-        // If unchecked, clear the selected IDs but keep the images.
-        if (updatedOptionsByColor[groupKey]) {
-          updatedOptionsByColor[groupKey].selectedVariationIds = [];
-        }
+          if (prev.source === 'woocommerce' && groupedVariations) {
+            variationIdsToSet = groupedVariations[groupKey]?.map(v => v.id.toString()) || [];
+          } else { // native
+            variationIdsToSet = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size}`) || [groupKey];
+          }
       }
+      
+      if (!updatedOptionsByColor[groupKey]) {
+          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantImages: [] };
+      } else {
+          updatedOptionsByColor[groupKey].selectedVariationIds = variationIdsToSet;
+      }
+      
       return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
@@ -583,29 +579,38 @@ export default function ProductOptionsPage() {
   
   const handleVariantViewImageChange = (
     colorKey: string,
-    viewId: string,
+    imageIndex: number,
     field: 'imageUrl' | 'aiHint',
     value: string
   ) => {
     setProductOptions(prev => {
-      if (!prev) return null; 
+        if (!prev) return null;
 
-      const baseOptionsByColor = typeof prev.optionsByColor === 'object' && prev.optionsByColor !== null
-                                 ? prev.optionsByColor
-                                 : {};
-      const updatedOptionsByColor = JSON.parse(JSON.stringify(baseOptionsByColor));
+        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+        if (!updatedOptionsByColor[colorKey]) {
+            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
+        }
+        
+        const variantImages = updatedOptionsByColor[colorKey].variantImages || [];
+        
+        // Ensure the array is long enough
+        while (variantImages.length <= imageIndex) {
+            variantImages.push({ imageUrl: '', aiHint: '' });
+        }
 
-      if (!updatedOptionsByColor[colorKey]) updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {} };
-      if (!updatedOptionsByColor[colorKey].variantViewImages) updatedOptionsByColor[colorKey].variantViewImages = {};
-      if (!updatedOptionsByColor[colorKey].variantViewImages[viewId]) updatedOptionsByColor[colorKey].variantViewImages[viewId] = { imageUrl: '', aiHint: '' };
-      
-      updatedOptionsByColor[colorKey].variantViewImages[viewId][field] = value;
+        variantImages[imageIndex] = {
+            ...variantImages[imageIndex],
+            [field]: value
+        };
+        
+        // If imageUrl is cleared, also clear aiHint
+        if (field === 'imageUrl' && !value) {
+            variantImages[imageIndex].aiHint = '';
+        }
 
-      if (field === 'imageUrl' && !value && updatedOptionsByColor[colorKey].variantViewImages[viewId]) {
-          updatedOptionsByColor[colorKey].variantViewImages[viewId].aiHint = '';
-      }
-      
-      return { ...prev, optionsByColor: updatedOptionsByColor };
+        updatedOptionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
+
+        return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
   };
@@ -742,7 +747,7 @@ export default function ProductOptionsPage() {
         </div>
         <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
         {Object.entries(groupedVariations).map(([groupKey, variationsInGroup]) => {
-            const groupOptions = productOptions.optionsByColor[groupKey] || { selectedVariationIds: [], variantViewImages: {} };
+            const groupOptions = productOptions.optionsByColor[groupKey] || { selectedVariationIds: [], variantImages: [] };
             const allInGroupSelected = variationsInGroup.every(v => groupOptions.selectedVariationIds.includes(v.id.toString()));
             
             const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
@@ -762,18 +767,26 @@ export default function ProductOptionsPage() {
                 </div>
                 </div>
                 <div>
-                <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === groupKey ? null : groupKey)} className="w-full sm:w-auto hover:bg-accent/20">
-                    <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === groupKey ? "Done Editing" : `Manage Images for ${groupKey}`}
-                </Button>
-                {editingImagesForColor === groupKey && (
-                    <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
-                    {productOptions.defaultViews.map(defaultView => (
-                    <div key={defaultView.id} className="p-2 border-b last:border-b-0">
-                        <Label htmlFor={`variant-view-url-${groupKey}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
-                        <Input id={`variant-view-url-${groupKey}-${defaultView.id}`} value={productOptions.optionsByColor[groupKey]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(groupKey, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
-                    </div>))}
-                    </div>
-                )}
+                  <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === groupKey ? null : groupKey)} className="w-full sm:w-auto hover:bg-accent/20">
+                      <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === groupKey ? "Done Editing" : `Manage Images for ${groupKey}`}
+                  </Button>
+                  {editingImagesForColor === groupKey && (
+                      <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
+                          <Label className="text-xs font-medium text-muted-foreground">Up to {MAX_VARIATION_IMAGES} images for this variation group</Label>
+                          {Array.from({ length: MAX_VARIATION_IMAGES }).map((_, index) => (
+                              <div key={index} className="space-y-1">
+                                  <Label htmlFor={`variant-img-${groupKey}-${index}`} className="text-xs">Image {index + 1} URL</Label>
+                                  <Input
+                                      id={`variant-img-${groupKey}-${index}`}
+                                      value={groupOptions.variantImages?.[index]?.imageUrl || ''}
+                                      onChange={(e) => handleVariantViewImageChange(groupKey, index, 'imageUrl', e.target.value)}
+                                      className="h-8 text-xs bg-background"
+                                      placeholder="https://example.com/image.png"
+                                  />
+                              </div>
+                          ))}
+                      </div>
+                  )}
                 </div>
             </div>);
         })}
@@ -801,7 +814,8 @@ export default function ProductOptionsPage() {
         </div>
         <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
         {colors.map(color => {
-            const isSelected = productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0;
+            const groupOptions = productOptions.optionsByColor[color.name] || { selectedVariationIds: [], variantImages: [] };
+            const isSelected = groupOptions.selectedVariationIds.length > 0;
             return (
             <div key={color.name + '-' + color.hex} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", isSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
                 <div className="flex items-start sm:items-center gap-4">
@@ -819,18 +833,26 @@ export default function ProductOptionsPage() {
                     </div>
                 </div>
                 <div>
-                    <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color.name ? null : color.name)} className="w-full sm:w-auto hover:bg-accent/20">
-                        <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color.name ? "Done" : `Manage Images for ${color.name}`}
-                    </Button>
-                    {editingImagesForColor === color.name && (
-                        <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
-                        {productOptions.defaultViews.map(defaultView => (
-                        <div key={defaultView.id} className="p-2 border-b last:border-b-0">
-                            <Label htmlFor={`variant-view-url-${color.name}-${defaultView.id}`} className="text-xs font-medium text-muted-foreground">{defaultView.name} Image URL</Label>
-                            <Input id={`variant-view-url-${color.name}-${defaultView.id}`} value={productOptions.optionsByColor[color.name]?.variantViewImages[defaultView.id]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(color.name, defaultView.id, 'imageUrl', e.target.value)} className="h-8 text-xs mt-1 bg-background" placeholder={`Optional override for ${defaultView.name}`} />
-                        </div>))}
-                        </div>
-                    )}
+                  <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color.name ? null : color.name)} className="w-full sm:w-auto hover:bg-accent/20">
+                      <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color.name ? "Done" : `Manage Images for ${color.name}`}
+                  </Button>
+                  {editingImagesForColor === color.name && (
+                      <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
+                          <Label className="text-xs font-medium text-muted-foreground">Up to {MAX_VARIATION_IMAGES} images for this color</Label>
+                          {Array.from({ length: MAX_VARIATION_IMAGES }).map((_, index) => (
+                              <div key={index} className="space-y-1">
+                                  <Label htmlFor={`variant-img-${color.name}-${index}`} className="text-xs">Image {index + 1} URL</Label>
+                                  <Input
+                                      id={`variant-img-${color.name}-${index}`}
+                                      value={groupOptions.variantImages?.[index]?.imageUrl || ''}
+                                      onChange={(e) => handleVariantViewImageChange(color.name, index, 'imageUrl', e.target.value)}
+                                      className="h-8 text-xs bg-background"
+                                      placeholder="https://example.com/image.png"
+                                  />
+                              </div>
+                          ))}
+                      </div>
+                  )}
                 </div>
             </div>);
         })}
@@ -1097,7 +1119,7 @@ export default function ProductOptionsPage() {
 
             {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && renderNativeVariationPricing()}
 
-            {productOptions.type === 'variable' && productOptions.source !== 'customizer-studio' && (
+            {productOptions.type === 'variable' && (
               <Card className="shadow-md">
                 <CardHeader>
                   <CardTitle className="font-headline text-lg">Product Variations</CardTitle>

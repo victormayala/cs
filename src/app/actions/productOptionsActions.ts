@@ -20,13 +20,20 @@ interface ProductView {
   name: string;
   imageUrl: string;
   aiHint?: string;
-  price?: number; // Price for customizing this specific view
+  price: number; // Price for customizing this specific view
   boundaryBoxes: BoundaryBox[];
+}
+
+// New structure for variation-specific images
+export interface VariationImage {
+  imageUrl: string;
+  aiHint?: string;
 }
 
 interface ColorGroupOptions {
   selectedVariationIds: string[];
-  variantViewImages: Record<string, { imageUrl: string; aiHint?: string }>;
+  // Replaced variantViewImages with a simple array for a gallery
+  variantImages: VariationImage[];
 }
 
 // New interface for native product attributes
