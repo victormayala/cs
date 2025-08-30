@@ -16,6 +16,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import type { ProductAttributeOptions } from '@/app/actions/productOptionsActions';
+import { Separator } from '@/components/ui/separator';
+
 
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
@@ -25,6 +27,9 @@ interface ProductDetail extends PublicProduct {
         imageUrl: string;
     }[];
     attributes?: ProductAttributeOptions;
+    brand?: string;
+    sku?: string;
+    category?: string;
 }
 
 function PDPSkeleton() {
@@ -47,6 +52,11 @@ function PDPSkeleton() {
                     <div className="space-y-6">
                         <Skeleton className="h-10 w-3/4" />
                         <Skeleton className="h-8 w-1/4" />
+                        <div className="space-y-2 pt-4">
+                          <Skeleton className="h-4 w-1/2" />
+                          <Skeleton className="h-4 w-1/3" />
+                          <Skeleton className="h-4 w-1/4" />
+                        </div>
                         <Skeleton className="h-5 w-full" />
                         <Skeleton className="h-5 w-full" />
                         <Skeleton className="h-5 w-5/6" />
@@ -218,6 +228,15 @@ export default function ProductDetailPage() {
                          <p className="text-2xl font-semibold mt-2 mb-4" style={{ color: `hsl(var(--primary))` }}>
                             From ${product.price.toFixed(2)}
                          </p>
+
+                         {(product.brand || product.sku || product.category) && (
+                            <div className="text-sm text-muted-foreground space-y-1 mb-4 border-t pt-4">
+                                {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
+                                {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
+                                {product.category && <p><strong>Category:</strong> {product.category}</p>}
+                            </div>
+                         )}
+                         
                          <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none">
                             <p>{product.description}</p>
                          </div>

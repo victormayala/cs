@@ -16,6 +16,9 @@ interface PublicProductDetail extends PublicProduct {
         imageUrl: string;
     }[];
     attributes?: ProductAttributeOptions;
+    brand?: string;
+    sku?: string;
+    category?: string;
 }
 
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
@@ -68,6 +71,9 @@ export async function GET(request: Request, { params }: { params: { productId: s
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,
       attributes: optionsData?.nativeAttributes,
+      brand: productData.brand,
+      sku: productData.sku,
+      category: productData.category,
     };
 
     return NextResponse.json({ product: publicProductDetail });
