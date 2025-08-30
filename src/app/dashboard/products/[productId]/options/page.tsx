@@ -1003,6 +1003,8 @@ export default function ProductOptionsPage() {
       )
   }
 
+  const isPriceDisabled = source === 'customizer-studio' && productOptions.type === 'variable';
+
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
       <div className="mb-6 flex justify-between items-center">
@@ -1060,7 +1062,16 @@ export default function ProductOptionsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="productPrice">Base Price ($)</Label>
-                  <Input id="productPrice" type="number" value={productOptions.price} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, price: parseFloat(e.target.value) || 0} : null); setHasUnsavedChanges(true);}} />
+                  <Input 
+                    id="productPrice" 
+                    type="number" 
+                    value={productOptions.price} 
+                    className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} 
+                    readOnly={source !== 'customizer-studio' || isPriceDisabled} 
+                    onChange={(e) => {setProductOptions(prev => prev ? {...prev, price: parseFloat(e.target.value) || 0} : null); setHasUnsavedChanges(true);}} 
+                    title={isPriceDisabled ? "Price is managed by variations." : "Set the base price for a simple product."}
+                  />
+                  {isPriceDisabled && <p className="text-xs text-muted-foreground mt-1">Disabled for variable products.</p>}
                 </div>
                 <div>
                   <Label htmlFor="productType">Type</Label>
