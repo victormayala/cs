@@ -45,7 +45,7 @@ function PDPSkeleton() {
             <div className="container mx-auto px-4 md:px-6"><Skeleton className="h-6 w-1/4" /></div>
         </header>
         <main className="flex-1 py-12 md:py-16">
-            <div className="container max-w-5xl mx-auto px-4">
+            <div className="container max-w-7xl mx-auto px-4">
                 <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
                     <div>
                         <Skeleton className="w-full aspect-square rounded-lg" />
@@ -227,7 +227,7 @@ export default function ProductDetailPage() {
     <div className="flex flex-col min-h-screen bg-background">
         <StoreHeader storeConfig={storeConfig} />
         <main className="flex-1 py-12 md:py-16">
-            <div className="container max-w-5xl mx-auto px-4">
+            <div className="container max-w-7xl mx-auto px-4">
                  <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
                     {/* Image Gallery */}
                     <div>
