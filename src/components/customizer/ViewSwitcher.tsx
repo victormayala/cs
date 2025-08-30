@@ -3,7 +3,12 @@
 
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
-import type { ProductView } from '@/app/customizer/page';
+import type { ProductView as CustomizerProductView } from '@/app/customizer/page';
+
+// The price is optional here as we are removing it from the view-switching display
+interface ProductView extends CustomizerProductView {
+  price?: number; 
+}
 
 interface ViewSwitcherProps {
   productViews: ProductView[];
@@ -23,23 +28,17 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
       </h4>
       <div className="flex flex-wrap justify-start gap-2">
         {productViews.map(view => {
-          const viewPrice = view.price ?? 0;
-          let priceDisplay = "FREE";
-          if (viewPrice > 0) {
-            priceDisplay = `+ $${viewPrice.toFixed(2)}`;
-          }
-
           return (
             <button
               key={view.id}
               onClick={() => setActiveViewId(view.id)}
               className={cn(
-                "rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center w-[70px]", // Added items-center and text-center
+                "rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center w-[70px]",
                 activeViewId === view.id
                   ? "border-primary opacity-100 ring-1 ring-primary ring-offset-background shadow-sm"
                   : "border-transparent opacity-70 hover:border-muted-foreground/30 bg-muted/30 hover:bg-muted/50"
               )}
-              title={`Select ${view.name} view ${viewPrice > 0 ? `(Adds $${viewPrice.toFixed(2)})` : '(Free to use)'}`}
+              title={`Select ${view.name} view`}
               aria-pressed={activeViewId === view.id}
             >
               <div className="relative h-12 w-full bg-background rounded-sm overflow-hidden shadow-sm">
@@ -53,12 +52,6 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
                 />
               </div>
               <p className="text-xs mt-1 w-full truncate font-medium">{view.name}</p>
-              <p className={cn(
-                "text-[10px] w-full truncate",
-                viewPrice > 0 ? "text-primary font-semibold" : "text-muted-foreground"
-              )}>
-                {priceDisplay}
-              </p>
             </button>
           );
         })}
@@ -66,4 +59,3 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
     </div>
   );
 }
-

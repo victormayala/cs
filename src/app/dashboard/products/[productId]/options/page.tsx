@@ -225,16 +225,16 @@ export default function ProductOptionsPage() {
 
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
       const baseDefaultViews: Omit<ProductView, 'id'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [], price: 0 },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [], price: 0 },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [], price: 0 },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [], price: 0 },
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", boundaryBoxes: [] },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", boundaryBoxes: [] },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", boundaryBoxes: [] },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", boundaryBoxes: [] },
       ];
 
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
         const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing, price: existing.price ?? 0} : { ...baseView, id: crypto.randomUUID() };
+        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID() };
       }).slice(0, MAX_PRODUCT_VIEWS); // Ensure we don't exceed max views
       
       const nativeAttributes = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
@@ -449,24 +449,15 @@ export default function ProductOptionsPage() {
     const newView: ProductView = {
       id: crypto.randomUUID(), name: `View ${productOptions.defaultViews.length + 1}`,
       imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', aiHint: 'product view',
-      boundaryBoxes: [], price: 0, 
+      boundaryBoxes: [],
     };
     setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
   
-  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => { 
+  const handleViewDetailChange = (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint'>, value: string) => { 
     if (!productOptions) return;
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => {
-      if (v.id === viewId) {
-        if (field === 'price') {
-          const newPrice = typeof value === 'number' ? value : parseFloat(value.toString());
-          return { ...v, price: isNaN(newPrice) ? (v.price ?? 0) : Math.max(0, newPrice) };
-        }
-        return { ...v, [field]: value };
-      }
-      return v;
-    })} : null);
+    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === viewId ? { ...v, [field]: value } : v) } : null);
     setHasUnsavedChanges(true);
   };
 

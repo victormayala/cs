@@ -62,7 +62,6 @@ export interface ProductView {
   imageUrl: string;
   aiHint?: string;
   boundaryBoxes: BoundaryBox[];
-  price?: number;
 }
 
 interface ColorGroupOptionsForCustomizer {
@@ -109,7 +108,6 @@ const defaultFallbackProduct: ProductForCustomizer = {
       boundaryBoxes: [
         { id: 'fallback_area_1', name: 'Default Area', x: 25, y: 25, width: 50, height: 50 },
       ],
-      price: 0,
     }
   ],
   type: 'simple',
@@ -201,7 +199,7 @@ function CustomizerLayoutAndLogic() {
 
   const [loadedOptionsByColor, setLoadedOptionsByColor] = useState<Record<string, ColorGroupOptionsForCustomizer> | null>(null);
   const [loadedGroupingAttributeName, setLoadedGroupingAttributeName] = useState<string | null>(null);
-  const [viewBaseImages, setViewBaseImages] = useState<Record<string, {url: string, aiHint?: string, price?: number}>>({});
+  const [viewBaseImages, setViewBaseImages] = useState<Record<string, {url: string, aiHint?: string}>>({});
   const [totalCustomizationPrice, setTotalCustomizationPrice] = useState<number>(0);
 
   const [hasCanvasElements, setHasCanvasElements] = useState(false);
@@ -270,8 +268,8 @@ function CustomizerLayoutAndLogic() {
     if (!productIdToLoad) {
       setError("No product ID provided. Displaying default customizer.");
       const defaultViews = defaultFallbackProduct.views;
-      const baseImagesMap: Record<string, {url: string, aiHint?: string, price?: number}> = {};
-      defaultViews.forEach(view => { baseImagesMap[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
+      const baseImagesMap: Record<string, {url: string, aiHint?: string}> = {};
+      defaultViews.forEach(view => { baseImagesMap[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
       setViewBaseImages(baseImagesMap);
       setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
       setActiveViewId(defaultViews[0]?.id || null);
@@ -367,7 +365,7 @@ function CustomizerLayoutAndLogic() {
         return;
     }
     
-    let finalDefaultViews = firestoreOptions?.defaultViews?.map(v => ({...v, price: v.price ?? 0})) || [];
+    let finalDefaultViews = firestoreOptions?.defaultViews || [];
     if (finalDefaultViews.length === 0) {
         const defaultImageUrl = source === 'shopify' 
             ? (await fetchShopifyProductById((await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.shop, (await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.accessToken, baseProductDetails.id)).product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl
@@ -377,7 +375,7 @@ function CustomizerLayoutAndLogic() {
             id: `default_view_${baseProductDetails.id}`, name: "Front View",
             imageUrl: defaultImageUrl,
             aiHint: defaultFallbackProduct.views[0].aiHint,
-            boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes, price: 0,
+            boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes,
         }];
         if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
     }
@@ -390,8 +388,8 @@ function CustomizerLayoutAndLogic() {
     setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
     setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
 
-    const baseImagesMapFinal: Record<string, {url: string, aiHint?: string, price?:number}> = {};
-    finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint, price: view.price ?? 0 }; });
+    const baseImagesMapFinal: Record<string, {url: string, aiHint?: string}> = {};
+    finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
     setViewBaseImages(baseImagesMapFinal);
     
     setProductDetails({ ...baseProductDetails, views: finalDefaultViews, allowCustomization: true, meta: metaForProduct });
@@ -491,10 +489,10 @@ function CustomizerLayoutAndLogic() {
           finalAiHint = baseAiHint;
         }
 
-        if (view.imageUrl !== finalImageUrl || view.aiHint !== finalAiHint || (view.price ?? 0) !== (baseImageInfo?.price ?? view.price ?? 0)) {
+        if (view.imageUrl !== finalImageUrl || view.aiHint !== finalAiHint) {
           viewsContentActuallyChanged = true;
         }
-        return { ...view, imageUrl: finalImageUrl!, aiHint: finalAiHint, price: baseImageInfo?.price ?? view.price ?? 0 };
+        return { ...view, imageUrl: finalImageUrl!, aiHint: finalAiHint };
       });
 
       const basePriceChanged = prevProductDetails.basePrice !== (matchingVariation ? parseFloat(matchingVariation.price || '0') : prevProductDetails.basePrice);
@@ -510,10 +508,9 @@ function CustomizerLayoutAndLogic() {
   ]);
 
   useEffect(() => {
-    const activeViewPrice = productDetails?.views.find(v => v.id === activeViewId)?.price ?? 0;
     const basePrice = productDetails?.basePrice ?? 0;
-    setTotalCustomizationPrice(basePrice + activeViewPrice);
-  }, [productDetails?.views, productDetails?.basePrice, activeViewId]);
+    setTotalCustomizationPrice(basePrice);
+  }, [productDetails?.basePrice]);
 
   const getToolPanelTitle = (toolId: string): string => {
     const tool = toolItems.find(item => item.id === toolId);

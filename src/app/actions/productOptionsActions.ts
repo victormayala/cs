@@ -21,7 +21,6 @@ interface ProductView {
   imageUrl: string;
   aiHint?: string;
   boundaryBoxes: BoundaryBox[];
-  price?: number;
 }
 
 interface ColorGroupOptions {
@@ -52,4 +51,3 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox, ProductView, ColorGroupOptions };
-
