@@ -12,7 +12,7 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
-import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem, InfoIcon, Truck } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem, InfoIcon, Truck, Rocket, MapPin } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,8 @@ import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+
 
 interface ProductView {
     id: string;
@@ -100,6 +102,7 @@ export default function ProductDetailPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedTechnique, setSelectedTechnique] = useState<CustomizationTechnique | null>(null);
+  const [selectedShipping, setSelectedShipping] = useState<string>('standard');
 
   const displayedImages = useMemo(() => {
     if (!product) return [];
@@ -280,18 +283,6 @@ export default function ProductDetailPage() {
                          <p className="text-2xl font-semibold mt-2 mb-4" style={{ color: `hsl(var(--primary))` }}>
                             ${currentPrice.toFixed(2)}
                          </p>
-
-                         {(product.brand || product.sku || product.category) && (
-                            <div className="text-sm text-muted-foreground space-y-1 mb-4 border-t pt-4">
-                                {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
-                                {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
-                                {product.category && <p><strong>Category:</strong> {product.category}</p>}
-                            </div>
-                         )}
-                         
-                         <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none hidden md:block">
-                            {/* Hidden on mobile, shown in two-col layout below */}
-                         </div>
                          
                          <div className="mt-6 space-y-6">
                             {product.attributes && product.attributes.colors && product.attributes.colors.length > 0 && (
@@ -355,18 +346,49 @@ export default function ProductDetailPage() {
                             )}
                         </div>
 
+                        {/* Shipping Options */}
+                        <div className="mt-8">
+                            <h3 className="text-base font-medium text-foreground mb-3">Shipping Options</h3>
+                            <RadioGroup value={selectedShipping} onValueChange={setSelectedShipping} className="space-y-3">
+                                <Label htmlFor="shipping-standard" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'standard' && "border-primary ring-2 ring-primary")}>
+                                    <RadioGroupItem value="standard" id="shipping-standard" className="mt-0.5" />
+                                    <div className="ml-4">
+                                        <div className="font-semibold flex items-center gap-2"><Truck className="h-4 w-4 text-muted-foreground" /> Standard Shipping</div>
+                                        <p className="text-sm text-muted-foreground">Get it by Wed, Sep 3 - Mon, Sep 8</p>
+                                        <p className="text-sm text-muted-foreground">Free on orders over $50.</p>
+                                    </div>
+                                </Label>
+                                <Label htmlFor="shipping-rush" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'rush' && "border-primary ring-2 ring-primary")}>
+                                    <RadioGroupItem value="rush" id="shipping-rush" className="mt-0.5" />
+                                    <div className="ml-4">
+                                        <div className="font-semibold flex items-center gap-2"><Rocket className="h-4 w-4 text-muted-foreground" /> Rush Shipping (+$12.00)</div>
+                                        <p className="text-sm text-muted-foreground">Get it by Sun, Aug 31 - Tue, Sep 2</p>
+                                        <p className="text-xs text-muted-foreground mt-1">*Rush applies to shipping time only, not order production.</p>
+                                    </div>
+                                </Label>
+                                {storeConfig.shipping?.localDeliveryEnabled && (
+                                    <Label htmlFor="shipping-local" className={cn("flex rounded-lg border p-4 cursor-pointer transition-colors", selectedShipping === 'local' && "border-primary ring-2 ring-primary")}>
+                                        <RadioGroupItem value="local" id="shipping-local" className="mt-0.5" />
+                                        <div className="ml-4">
+                                            <div className="font-semibold flex items-center gap-2">
+                                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                Local Delivery {storeConfig.shipping.localDeliveryFee > 0 ? `(+$${storeConfig.shipping.localDeliveryFee.toFixed(2)})` : ''}
+                                            </div>
+                                            <p className="text-sm text-muted-foreground">{storeConfig.shipping.localDeliveryText}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">*Someone from the shop will reach out to coordinate the order delivery.</p>
+                                        </div>
+                                    </Label>
+                                )}
+                            </RadioGroup>
+                        </div>
+
+
                          <div className="mt-auto pt-8">
                             <Button asChild size="lg" className="w-full md:w-auto">
                                 <Link href={customizerLink}>
                                     Customize This Product <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>
                             </Button>
-                            {storeConfig.shipping?.localDeliveryEnabled && (
-                                <div className="mt-4 flex items-center text-sm text-muted-foreground">
-                                    <Truck className="h-5 w-5 mr-2 text-primary" />
-                                    <span>{storeConfig.shipping.localDeliveryText} - ${storeConfig.shipping.localDeliveryFee.toFixed(2)}</span>
-                                </div>
-                            )}
                          </div>
                     </div>
                  </div>
@@ -375,6 +397,11 @@ export default function ProductDetailPage() {
                     <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
                         <div>
                             <h2 className="text-2xl font-bold mb-4 font-headline text-foreground">Product Description</h2>
+                             <div className="text-sm text-muted-foreground space-y-2 mb-4">
+                                {product.brand && <p><strong>Brand:</strong> {product.brand}</p>}
+                                {product.sku && <p><strong>SKU:</strong> {product.sku}</p>}
+                                {product.category && <p><strong>Category:</strong> {product.category}</p>}
+                            </div>
                             <div className="prose prose-sm text-muted-foreground max-w-none">
                                 <p>{product.description}</p>
                             </div>
@@ -413,4 +440,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-
