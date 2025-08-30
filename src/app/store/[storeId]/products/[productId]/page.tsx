@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,13 +10,14 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { PublicProduct } from '@/types/product';
-import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, Gem, InfoIcon } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import type { ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
 import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface ProductView {
     id: string;
@@ -283,8 +283,8 @@ export default function ProductDetailPage() {
                             </div>
                          )}
                          
-                         <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none">
-                            <p>{product.description}</p>
+                         <div className="text-muted-foreground space-y-4 prose prose-sm max-w-none hidden md:block">
+                            {/* Hidden on mobile, shown in two-col layout below */}
                          </div>
                          
                          {product.attributes && (
@@ -340,6 +340,43 @@ export default function ProductDetailPage() {
                                 </Link>
                             </Button>
                          </div>
+                    </div>
+                 </div>
+                 {/* Two-column Description and Discounts Section */}
+                 <div className="mt-12 md:mt-16 pt-8 border-t">
+                    <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+                        <div>
+                            <h2 className="text-2xl font-bold mb-4 font-headline text-foreground">Product Description</h2>
+                            <div className="prose prose-sm text-muted-foreground max-w-none">
+                                <p>{product.description}</p>
+                            </div>
+                        </div>
+                        <div>
+                            {storeConfig.volumeDiscounts?.enabled && storeConfig.volumeDiscounts.tiers.length > 0 && (
+                                <Card className="bg-muted/30">
+                                    <CardContent className="p-6">
+                                        <h3 className="text-lg font-semibold flex items-center mb-4 text-foreground">
+                                            <InfoIcon className="h-5 w-5 mr-2 text-primary" />
+                                            Volume Discounts
+                                        </h3>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between font-medium text-muted-foreground">
+                                                <span>Quantity</span>
+                                                <span>Discount</span>
+                                            </div>
+                                            <Separator />
+                                            {storeConfig.volumeDiscounts.tiers.map((tier, index) => (
+                                                <div key={index} className="flex justify-between items-center">
+                                                    <span>{tier.quantity}+ units</span>
+                                                    <span className="font-bold text-green-600">{tier.percentage}% Off</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-4">*This is a placeholder for the volume discount disclaimer.</p>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
                     </div>
                  </div>
             </div>
