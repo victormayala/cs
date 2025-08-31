@@ -24,7 +24,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import AppHeader from '@/components/layout/AppHeader';
-import { useRouter } from 'next/navigation';
 
 export interface ProductCategory {
   id: string;
@@ -39,7 +38,6 @@ export interface ProductCategory {
 function CategoriesPageContent() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const router = useRouter();
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
