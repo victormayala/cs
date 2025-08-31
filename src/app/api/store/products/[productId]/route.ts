@@ -23,7 +23,7 @@ interface PublicProductDetail extends PublicProduct {
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
-    category?: string; // Now holds the category NAME
+    category?: string; // This will now hold the category ID
     customizationTechniques?: CustomizationTechnique[];
     nativeVariations?: NativeProductVariation[];
 }
@@ -57,26 +57,6 @@ export async function GET(request: Request, { params }: { params: { productId: s
 
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
-    
-    // --- Corrected Category Name Fetching Logic ---
-    let categoryName: string | undefined = undefined;
-    if (productData.category && typeof productData.category === 'string') {
-        const categoryId = productData.category;
-        try {
-            const categoryDocRef = doc(db, 'users', configUserId, 'productCategories', categoryId);
-            const categoryDocSnap = await getDoc(categoryDocRef);
-            if (categoryDocSnap.exists()) {
-                const categoryData = categoryDocSnap.data() as ProductCategory;
-                categoryName = categoryData.name;
-            } else {
-                console.warn(`Category document with ID "${categoryId}" not found for user "${configUserId}".`);
-            }
-        } catch (catError) {
-            console.error(`Error fetching category "${categoryId}" for product "${productId}":`, catError);
-            // Don't block the request if category fetch fails, just log it.
-        }
-    }
-    // --- End Corrected Logic ---
     
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
@@ -117,7 +97,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
-      category: categoryName, // Use the fetched name here
+      category: productData.category, // Pass the ID directly
       customizationTechniques: productData.customizationTechniques,
       nativeVariations: cleanNativeVariations,
     };
