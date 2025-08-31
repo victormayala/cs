@@ -270,7 +270,6 @@ export default function ProductOptionsPage() {
           };
       } else if (source === 'woocommerce') {
           const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
-          const credDocSnap = await getDoc(credDocRef);
            if (!credDocSnap.exists()) {
             setCredentialsExist(false);
             throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
@@ -535,7 +534,11 @@ export default function ProductOptionsPage() {
 
     if (productOptions.brand) dataToSave.brand = productOptions.brand;
     if (productOptions.sku) dataToSave.sku = productOptions.sku;
-    if (productOptions.category) dataToSave.category = productOptions.category;
+    if (productOptions.category) {
+      dataToSave.category = productOptions.category;
+    } else {
+      dataToSave.category = deleteField();
+    }
     if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
     if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
 
@@ -569,7 +572,11 @@ export default function ProductOptionsPage() {
             };
             if (productOptions.brand) nativeProductData.brand = productOptions.brand;
             if (productOptions.sku) nativeProductData.sku = productOptions.sku;
-            if (productOptions.category) nativeProductData.category = productOptions.category;
+            if (productOptions.category) {
+                nativeProductData.category = productOptions.category;
+            } else {
+                nativeProductData.category = deleteField();
+            }
             if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
             await setDoc(productBaseRef, nativeProductData, { merge: true });
         }
@@ -991,10 +998,10 @@ export default function ProductOptionsPage() {
               <div>
                 <Label htmlFor="productCategory">Category</Label>
                 <Select
-                  value={productOptions.category || ''}
+                  value={productOptions.category || 'none'}
                   onValueChange={(value) => {
                     if (source === 'customizer-studio') {
-                      setProductOptions(prev => prev ? {...prev, category: value} : null);
+                      setProductOptions(prev => prev ? {...prev, category: value === 'none' ? undefined : value} : null);
                       setHasUnsavedChanges(true);
                     }
                   }}
@@ -1004,7 +1011,7 @@ export default function ProductOptionsPage() {
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                      <SelectItem value=""><em>Uncategorized</em></SelectItem>
+                      <SelectItem value="none"><em>Uncategorized</em></SelectItem>
                       {renderCategoryOptions(categoryTree)}
                   </SelectContent>
                 </Select>
