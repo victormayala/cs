@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -440,17 +440,17 @@ export default function ProductOptionsPage() {
     if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
       dataToSave.salePrice = productOptions.salePrice;
     } else {
-      delete dataToSave.salePrice;
+      delete (dataToSave as Partial<typeof dataToSave>).salePrice;
     }
 
     // Sanitize salePrice on variations
     if (productOptions.nativeVariations && Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
-            const cleanVariation = {...variation};
+            const cleanVariation: Partial<NativeProductVariation> = {...variation};
             if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
                 delete cleanVariation.salePrice;
             }
-            return cleanVariation;
+            return cleanVariation as NativeProductVariation;
         });
     }
     
@@ -785,7 +785,7 @@ export default function ProductOptionsPage() {
   if (!productOptions) { 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
+            <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold text-muted-foreground mb-2">Product Data Not Available</h2>
             <p className="text-muted-foreground text-center mb-6">Could not load the specific options for this product. It might be missing or there was an issue fetching it.</p>
             <Button variant="outline" asChild><Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link></Button>
@@ -795,145 +795,6 @@ export default function ProductOptionsPage() {
 
   const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   
-  const renderWooCommerceVariations = () => {
-    if (isLoadingVariations || (isRefreshing && isLoading)) return <div className="flex items-center justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading variations...</p></div>;
-    if (variationsError) return <div className="text-center py-6"><AlertTriangle className="mx-auto h-10 w-10 text-destructive" /><p className="mt-3 text-destructive font-semibold">Error loading variations</p><p className="text-sm text-muted-foreground mt-1">{variationsError}</p></div>;
-    if (!groupedVariations || Object.keys(groupedVariations).length === 0) return <div className="text-center py-6"><LayersIcon className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">This product has no variations, or they could not be grouped automatically.</p></div>;
-    
-    const allVariationsSelectedOverall = variations.length > 0 && 
-        Object.entries(groupedVariations).every(([groupKey, variationsInGroup]) => {
-        const groupOpts = productOptions.optionsByColor[groupKey];
-        return groupOpts && variationsInGroup.every(v => groupOpts.selectedVariationIds.includes(v.id.toString()));
-    });
-
-    const someVariationsSelectedOverall = Object.values(productOptions.optionsByColor).some(group => group.selectedVariationIds.length > 0) && !allVariationsSelectedOverall;
-
-    return (<>
-        <div className="mb-4 flex items-center space-x-2 p-2 border-b">
-            <Checkbox id="selectAllVariationGroups"
-            checked={allVariationsSelectedOverall}
-            onCheckedChange={(cs) => {
-                const isChecked = cs === 'indeterminate' ? true : cs as boolean;
-                Object.keys(groupedVariations).forEach(groupKey => handleSelectAllVariationsInGroup(groupKey, isChecked));
-            }}
-            data-state={someVariationsSelectedOverall ? 'indeterminate' : (allVariationsSelectedOverall ? 'checked' : 'unchecked')} />
-            <Label htmlFor="selectAllVariationGroups" className="text-sm font-medium">{allVariationsSelectedOverall ? "Deselect All Color Groups" : "Select All Color Groups"}</Label>
-        </div>
-        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-        {Object.entries(groupedVariations).map(([groupKey, variationsInGroup]) => {
-            const groupOptions = productOptions.optionsByColor[groupKey] || { selectedVariationIds: [], variantImages: [] };
-            const allInGroupSelected = variationsInGroup.every(v => groupOptions.selectedVariationIds.includes(v.id.toString()));
-            
-            const representativeImage = variationsInGroup[0]?.image?.src || currentView?.imageUrl || 'https://placehold.co/100x100.png';
-            const stockStatusSummary = variationsInGroup.some(v => v.stock_status === 'outofstock') ? 'Some Out of Stock' : (variationsInGroup.every(v => v.stock_status === 'instock') ? 'All In Stock' : 'Mixed Stock');
-            
-            return (
-            <div key={groupKey} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", allInGroupSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
-                <div className="flex items-start sm:items-center gap-4">
-                <Checkbox id={`selectGroup-${groupKey.replace(/\s+/g, '-')}`} checked={allInGroupSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(groupKey, cs as boolean)} className="mt-1 flex-shrink-0" />
-                <div className="relative h-20 w-20 rounded-md overflow-hidden border bg-card flex-shrink-0">
-                    <Image src={representativeImage} alt={groupKey} fill className="object-contain" />
-                </div>
-                <div className="flex-grow">
-                    <h4 className="text-md font-semibold text-foreground mb-1">{productOptions.groupingAttributeName}: <span className="text-primary">{groupKey}</span></h4>
-                    <p className="text-xs text-muted-foreground">Stock: {stockStatusSummary}</p>
-                    <p className="text-xs text-muted-foreground">Variations (SKUs) in group: {variationsInGroup.length}</p>
-                </div>
-                </div>
-                <div>
-                  <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === groupKey ? null : groupKey)} className="w-full sm:w-auto hover:bg-accent/20">
-                      <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === groupKey ? "Done Editing" : `Manage Images for ${groupKey}`}
-                  </Button>
-                  {editingImagesForColor === groupKey && (
-                      <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
-                          <Label className="text-xs font-medium text-muted-foreground">Up to {MAX_VARIATION_IMAGES} images for this variation group</Label>
-                          {Array.from({ length: MAX_VARIATION_IMAGES }).map((_, index) => (
-                              <div key={index} className="space-y-1">
-                                  <Label htmlFor={`variant-img-${groupKey}-${index}`} className="text-xs">Image {index + 1} URL</Label>
-                                  <Input
-                                      id={`variant-img-${groupKey}-${index}`}
-                                      value={groupOptions.variantImages?.[index]?.imageUrl || ''}
-                                      onChange={(e) => handleVariantViewImageChange(groupKey, index, 'imageUrl', e.target.value)}
-                                      className="h-8 text-xs bg-background"
-                                      placeholder="https://example.com/image.png"
-                                  />
-                              </div>
-                          ))}
-                      </div>
-                  )}
-                </div>
-            </div>);
-        })}
-        </div>
-    </>);
-  };
-
-  const renderNativeVariations = () => {
-    const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
-    if (colors.length === 0) return <div className="text-center py-6"><Palette className="mx-auto h-10 w-10 text-muted-foreground" /><p className="mt-3 text-muted-foreground">Add colors in 'Product Attributes' to create variations.</p></div>;
-
-    const allColorsSelected = colors.every(color => productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0);
-    const someColorsSelected = colors.some(color => productOptions.optionsByColor[color.name]?.selectedVariationIds?.length > 0) && !allColorsSelected;
-
-    return (<>
-        <div className="mb-4 flex items-center space-x-2 p-2 border-b">
-            <Checkbox id="selectAllNativeColors"
-            checked={allColorsSelected}
-            onCheckedChange={(cs) => {
-                const isChecked = cs === 'indeterminate' ? true : cs as boolean;
-                colors.forEach(color => handleSelectAllVariationsInGroup(color.name, isChecked));
-            }}
-            data-state={someColorsSelected ? 'indeterminate' : 'checked'} />
-            <Label htmlFor="selectAllNativeColors" className="text-sm font-medium">{allColorsSelected ? "Deselect All Colors" : "Select All Colors"}</Label>
-        </div>
-        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-        {colors.map(color => {
-            const groupOptions = productOptions.optionsByColor[color.name] || { selectedVariationIds: [], variantImages: [] };
-            const isSelected = groupOptions.selectedVariationIds.length > 0;
-            return (
-            <div key={`${color.name}-${color.hex}`} className={cn("p-4 border rounded-md flex flex-col gap-4 transition-colors", isSelected ? "bg-primary/10 border-primary shadow-sm" : "bg-muted/30 hover:bg-muted/50")}>
-                <div className="flex items-start sm:items-center gap-4">
-                    <Checkbox id={`selectGroup-${color.name}`} checked={isSelected} onCheckedChange={(cs) => handleSelectAllVariationsInGroup(color.name, cs as boolean)} className="mt-1 flex-shrink-0" />
-                    <div className="flex-grow">
-                        <div className="flex items-center gap-2">
-                           <div className="w-5 h-5 rounded-full border" style={{ backgroundColor: color.hex }}></div>
-                           <h4 className="text-md font-semibold text-foreground">Color: <span className="text-primary">{color.name}</span></h4>
-                        </div>
-                        {sizes.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                            {sizes.map(size => <Badge key={size.id} variant="secondary" className="text-xs">{size.name}</Badge>)}
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div>
-                  <Button variant="outline" size="sm" onClick={() => setEditingImagesForColor(editingImagesForColor === color.name ? null : color.name)} className="w-full sm:w-auto hover:bg-accent/20">
-                      <Edit3 className="mr-2 h-4 w-4" /> {editingImagesForColor === color.name ? "Done" : `Manage Images for ${color.name}`}
-                  </Button>
-                  {editingImagesForColor === color.name && (
-                      <div className="mt-4 space-y-3 p-3 border rounded-md bg-card">
-                          <Label className="text-xs font-medium text-muted-foreground">Up to {MAX_VARIATION_IMAGES} images for this color</Label>
-                          {Array.from({ length: MAX_VARIATION_IMAGES }).map((_, index) => (
-                              <div key={index} className="space-y-1">
-                                  <Label htmlFor={`variant-img-${color.name}-${index}`} className="text-xs">Image {index + 1} URL</Label>
-                                  <Input
-                                      id={`variant-img-${color.name}-${index}`}
-                                      value={groupOptions.variantImages?.[index]?.imageUrl || ''}
-                                      onChange={(e) => handleVariantViewImageChange(color.name, index, 'imageUrl', e.target.value)}
-                                      className="h-8 text-xs bg-background"
-                                      placeholder="https://example.com/image.png"
-                                  />
-                              </div>
-                          ))}
-                      </div>
-                  )}
-                </div>
-            </div>);
-        })}
-        </div>
-    </>);
-  };
-
   const generatedVariations = useMemo(() => {
     if (productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
         return [];
@@ -976,7 +837,7 @@ export default function ProductOptionsPage() {
         if (variationExists) {
             updatedVariations = prev.nativeVariations.map(v => {
                 if (v.id === id) {
-                    const newVariation: NativeProductVariation = {...v};
+                    const newVariation: Partial<NativeProductVariation> = {...v};
                     if (field === 'price') {
                         newVariation.price = numValue ?? prev.price; // Fallback to base price if empty
                     } else if (field === 'salePrice') {
@@ -986,7 +847,7 @@ export default function ProductOptionsPage() {
                            newVariation.salePrice = numValue;
                         }
                     }
-                    return newVariation;
+                    return newVariation as NativeProductVariation;
                 }
                 return v;
             });
@@ -1033,15 +894,15 @@ export default function ProductOptionsPage() {
         const existingVariationsMap = new Map(prev.nativeVariations.map(v => [v.id, v]));
 
         const updatedVariations = generatedVariations.map(genVar => {
-            const newVariation = { ...(existingVariationsMap.get(genVar.id) || genVar) };
+            const newVariation: Partial<NativeProductVariation> = { ...(existingVariationsMap.get(genVar.id) || genVar) };
 
             if (valueStr === '') {
                  if(field === 'salePrice') delete newVariation.salePrice;
             } else {
-                newVariation[field] = value;
+                (newVariation as any)[field] = value;
             }
             
-            return newVariation;
+            return newVariation as NativeProductVariation;
         });
         
         return { ...prev, nativeVariations: updatedVariations };
@@ -1087,7 +948,8 @@ export default function ProductOptionsPage() {
                               {generatedVariations.map(variation => {
                                  const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === variation.attributes.Size)?.priceModifier || 0;
                                  const currentVariationData = productOptions.nativeVariations.find(v => v.id === variation.id);
-                                 const displayPrice = (currentVariationData?.price ?? productOptions.price) + sizeModifier;
+                                 const basePriceForVariation = currentVariationData?.price ?? productOptions.price;
+                                 const displayPrice = basePriceForVariation + sizeModifier;
                                  
                                  return (
                                    <TableRow key={variation.id}>
@@ -1364,18 +1226,6 @@ export default function ProductOptionsPage() {
 
             {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && renderNativeVariationPricing()}
 
-            {productOptions.type === 'variable' && (
-              <Card className="shadow-md">
-                <CardHeader>
-                  <CardTitle className="font-headline text-lg">Product Variations</CardTitle>
-                  <CardDescription>Select which variation color groups should be available in the customizer. Configure view-specific images per color.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {productOptions.source === 'woocommerce' && renderWooCommerceVariations()}
-                    {productOptions.source === 'customizer-studio' && renderNativeVariations()}
-                </CardContent>
-              </Card>
-            )}
         </div>
 
         <div className="md:col-span-1 space-y-6">
@@ -1423,14 +1273,6 @@ export default function ProductOptionsPage() {
               {currentView && (
                 <div className="text-sm text-muted-foreground">
                   Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span>
-                </div>
-              )}
-              {productOptions.type === 'variable' && (
-                <div className="text-sm text-muted-foreground">
-                  Total Variation SKUs enabled for customizer: <span className="font-semibold text-foreground">
-                    {Object.values(productOptions.optionsByColor).reduce((acc, group) => acc + group.selectedVariationIds.length, 0)}
-                    </span>
-                    {productOptions.source === 'woocommerce' && ` of ${variations.length}`}
                 </div>
               )}
               {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
