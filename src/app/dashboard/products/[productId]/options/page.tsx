@@ -105,7 +105,6 @@ export default function ProductOptionsPage() {
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
   
-  // These hooks must be called at the top level
   const productIdFromUrl = useMemo(() => decodeURIComponent(params.productId as string), [params.productId]);
   const source = useMemo(() => searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce', [searchParams]);
   const firestoreDocId = useMemo(() => productIdFromUrl.split('/').pop() || productIdFromUrl, [productIdFromUrl]);
@@ -155,8 +154,8 @@ export default function ProductOptionsPage() {
     if (colors.length > 0) {
         colors.forEach(color => {
             if (sizes.length > 0) {
-                sizes.forEach(size => {
-                    const id = `color-${color.name}-size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
+                sizes.forEach((size, sizeIndex) => {
+                    const id = `color-${color.name}-size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
                     const existing = productOptions.nativeVariations?.find(v => v.id === id);
                     variations.push({
                         id,
@@ -172,8 +171,8 @@ export default function ProductOptionsPage() {
             }
         });
     } else { // Only sizes exist
-        sizes.forEach(size => {
-            const id = `size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
+        sizes.forEach((size, sizeIndex) => {
+            const id = `size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
             variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
         });
@@ -458,18 +457,18 @@ export default function ProductOptionsPage() {
     setIsSaving(true);
   
     try {
-      // 1. Create a clean base object for Firestore with required fields
-      const dataToSave: Partial<ProductOptionsFirestoreData> & { id: string; name: string; description: string; price: number, type: 'simple' | 'variable' | 'grouped' | 'external', allowCustomization: boolean, lastSaved: any } = {
+      // Create a base object with only the required fields
+      const dataToSave: any = {
         id: productOptions.id,
         name: productOptions.name,
         description: productOptions.description,
-        price: productOptions.price,
-        type: productOptions.type === 'shopify' ? 'simple' : productOptions.type, // Map shopify type
+        price: productOptions.price || 0,
+        type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
         allowCustomization: productOptions.allowCustomization,
         lastSaved: serverTimestamp(),
       };
       
-      // 2. Conditionally add optional fields if they are valid
+      // Conditionally add optional fields ONLY if they have a valid, non-undefined value
       if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
         dataToSave.salePrice = productOptions.salePrice;
       }
@@ -478,31 +477,30 @@ export default function ProductOptionsPage() {
       if (productOptions.groupingAttributeName) dataToSave.groupingAttributeName = productOptions.groupingAttributeName;
       if (productOptions.nativeAttributes) dataToSave.nativeAttributes = productOptions.nativeAttributes;
   
-      // 3. Deep-sanitize the nativeVariations array
+      // Deep-sanitize the nativeVariations array
       if (productOptions.nativeVariations && Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
           const cleanVariation: Partial<NativeProductVariation> = { ...variation };
-          // Remove salePrice if it is null, undefined, or NaN
           if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
-            delete cleanVariation.salePrice;
+            delete cleanVariation.salePrice; // Remove the key if it's invalid
           }
-          return cleanVariation as NativeProductVariation;
+          return cleanVariation;
         });
       }
 
-      // 4. Sanitize shipping object
+      // Sanitize shipping object
       if (productOptions.shipping) {
         const cleanShipping: Partial<ShippingAttributes> = {};
-        if (typeof productOptions.shipping.weight === 'number') cleanShipping.weight = productOptions.shipping.weight;
-        if (typeof productOptions.shipping.length === 'number') cleanShipping.length = productOptions.shipping.length;
-        if (typeof productOptions.shipping.width === 'number') cleanShipping.width = productOptions.shipping.width;
-        if (typeof productOptions.shipping.height === 'number') cleanShipping.height = productOptions.shipping.height;
+        if (typeof productOptions.shipping.weight === 'number' && !isNaN(productOptions.shipping.weight)) cleanShipping.weight = productOptions.shipping.weight;
+        if (typeof productOptions.shipping.length === 'number' && !isNaN(productOptions.shipping.length)) cleanShipping.length = productOptions.shipping.length;
+        if (typeof productOptions.shipping.width === 'number' && !isNaN(productOptions.shipping.width)) cleanShipping.width = productOptions.shipping.width;
+        if (typeof productOptions.shipping.height === 'number' && !isNaN(productOptions.shipping.height)) cleanShipping.height = productOptions.shipping.height;
         if (Object.keys(cleanShipping).length > 0) {
-          dataToSave.shipping = cleanShipping as ShippingAttributes;
+          dataToSave.shipping = cleanShipping;
         }
       }
   
-      // 5. Save the fully sanitized object
+      // Save the fully sanitized object
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
@@ -510,7 +508,7 @@ export default function ProductOptionsPage() {
       }
       await setDoc(docRef, dataToSave, { merge: true });
   
-      // 6. Save native product base info if applicable
+      // Save native product base info if applicable
       if (source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
         const nativeProductData: Partial<NativeProduct> = {
@@ -1215,8 +1213,8 @@ export default function ProductOptionsPage() {
                           <Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
-                          {productOptions.nativeAttributes.colors.map((color, index) => (
-                              <Badge key={`${color.name}-${color.hex}-${index}`} variant="secondary" className="text-sm">
+                          {productOptions.nativeAttributes.colors.map((color) => (
+                              <Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm">
                                   <div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>
                                   {color.name}
                                   <button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
