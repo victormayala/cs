@@ -409,20 +409,22 @@ export default function ProductOptionsPage() {
 
     setIsSaving(true);
     
-    // Create a deep copy to sanitize
+    // Create a clean copy to avoid mutating state directly and to sanitize data
     const cleanProductOptions = JSON.parse(JSON.stringify(productOptions));
 
     // Sanitize base salePrice
-    if (cleanProductOptions.salePrice === null || cleanProductOptions.salePrice === undefined || isNaN(parseFloat(cleanProductOptions.salePrice))) {
+    if (cleanProductOptions.salePrice === null || isNaN(parseFloat(cleanProductOptions.salePrice))) {
         delete cleanProductOptions.salePrice;
     }
 
     // Sanitize variations
     if (cleanProductOptions.nativeVariations && Array.isArray(cleanProductOptions.nativeVariations)) {
-        cleanProductOptions.nativeVariations.forEach((variation: any) => {
-            if (variation.salePrice === null || variation.salePrice === undefined || isNaN(parseFloat(variation.salePrice))) {
-                delete variation.salePrice;
+        cleanProductOptions.nativeVariations = cleanProductOptions.nativeVariations.map((variation: any) => {
+            const cleanVariation = {...variation};
+            if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(parseFloat(cleanVariation.salePrice))) {
+                delete cleanVariation.salePrice;
             }
+            return cleanVariation;
         });
     }
 
@@ -608,7 +610,7 @@ export default function ProductOptionsPage() {
           if (prev.source === 'woocommerce' && groupedVariations) {
             variationIdsToSet = groupedVariations[groupKey]?.map(v => v.id.toString()) || [];
           } else { // native
-            variationIdsToSet = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size}`) || [groupKey];
+            variationIdsToSet = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size.id}`) || [groupKey];
           }
       }
       
@@ -713,21 +715,23 @@ export default function ProductOptionsPage() {
   const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
     setProductOptions(prev => {
       if (!prev) return null;
-      const updatedAttributes = { ...prev.nativeAttributes };
-
+      let updatedAttributes = { ...prev.nativeAttributes };
+  
       if (type === 'colors') {
         updatedAttributes.colors = updatedAttributes.colors.filter(item => item.name !== value);
         const updatedOptionsByColor = { ...prev.optionsByColor };
         delete updatedOptionsByColor[value];
         return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
       } else {
-        updatedAttributes.sizes = updatedAttributes.sizes.filter(item => item.id !== value);
+        const newSizes = prev.nativeAttributes.sizes.filter(item => item.id !== value);
+        updatedAttributes = { ...updatedAttributes, sizes: newSizes };
       }
       
       return { ...prev, nativeAttributes: updatedAttributes };
     });
     setHasUnsavedChanges(true);
   };
+  
 
     const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
         setProductOptions(prev => {
@@ -926,8 +930,8 @@ export default function ProductOptionsPage() {
         if (colors.length > 0) {
             colors.forEach(color => {
               if (sizes.length > 0) {
-                sizes.forEach(size => {
-                    const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
+                sizes.forEach((size, sizeIndex) => {
+                    const id = `color-${color.name}-size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
                     const existing = productOptions.nativeVariations?.find(v => v.id === id);
                     generatedVariations.push({
                         id: id,
@@ -958,9 +962,9 @@ export default function ProductOptionsPage() {
             if (v.id === id) {
                 const newVariation: NativeProductVariation = {...v};
                 if (price !== undefined) newVariation.price = price;
-                if (salePrice !== undefined) newVariation.salePrice = salePrice;
-                // If the input value is empty or not a number, we want to effectively remove the sale price
-                if (field === 'salePrice' && (value === '' || isNaN(numValue))) {
+                if (salePrice !== undefined) {
+                    newVariation.salePrice = salePrice;
+                } else if (field === 'salePrice') {
                     delete newVariation.salePrice;
                 }
                 return newVariation;
@@ -1051,8 +1055,7 @@ export default function ProductOptionsPage() {
                           </TableHeader>
                           <TableBody>
                               {generatedVariations.map(variation => {
-                                 const sizeName = variation.attributes.Size;
-                                 const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === sizeName)?.priceModifier || 0;
+                                 const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === variation.attributes.Size)?.priceModifier || 0;
                                  const currentVariationData = productOptions.nativeVariations.find(v => v.id === variation.id) || variation;
                                  return (
                                    <TableRow key={variation.id}>
@@ -1308,9 +1311,9 @@ export default function ProductOptionsPage() {
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
                           {productOptions.nativeAttributes.sizes.map((size) => {
-                              const modifier = size.priceModifier ?? 0;
-                              return (
-                              <Badge key={size.id} variant="secondary" className="text-sm">
+                            const modifier = size.priceModifier ?? 0;
+                            return (
+                              <Badge key={`${size.id}-${size.name}`} variant="secondary" className="text-sm">
                                   {size.name} {modifier !== 0 && `(${modifier > 0 ? '+' : ''}$${modifier.toFixed(2)})`}
                                   <button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
                               </Badge>
@@ -1410,4 +1413,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-
