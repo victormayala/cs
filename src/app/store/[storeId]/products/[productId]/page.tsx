@@ -320,9 +320,9 @@ export default function ProductDetailPage() {
                          <h1 className="text-3xl lg:text-4xl font-bold font-headline text-foreground">{product.name}</h1>
                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                             {product.brand && <span>Brand: <span className="font-medium text-foreground">{product.brand}</span></span>}
-                            {product.brand && (product.sku || product.category) && <span>|</span>}
+                            {(product.brand && (product.sku || product.category)) && <span>|</span>}
                             {product.sku && <span>SKU: <span className="font-medium text-foreground">{product.sku}</span></span>}
-                            {product.sku && product.category && <span>|</span>}
+                            {(product.sku && product.category) && <span>|</span>}
                             {product.category && <span>Category: <span className="font-medium text-foreground">{product.category}</span></span>}
                          </div>
                          <div className="flex items-baseline gap-2 mt-2 mb-4">
