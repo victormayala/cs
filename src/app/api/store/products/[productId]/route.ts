@@ -22,7 +22,7 @@ interface PublicProductDetail extends PublicProduct {
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
-    category?: string; // This will now be the category name
+    category?: string;
     customizationTechniques?: CustomizationTechnique[];
     nativeVariations?: NativeProductVariation[];
 }
@@ -57,21 +57,6 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
     
-    let categoryName: string | undefined = undefined;
-    if (productData.category && typeof productData.category === 'string') {
-      try {
-        const categoryDocRef = doc(db, `users/${configUserId}/productCategories`, productData.category);
-        const categoryDocSnap = await getDoc(categoryDocRef);
-        if (categoryDocSnap.exists()) {
-          categoryName = categoryDocSnap.data().name;
-        } else {
-          console.warn(`Category document with ID ${productData.category} not found for user ${configUserId}.`);
-        }
-      } catch (catError) {
-        console.error(`Error fetching category name for ID ${productData.category}:`, catError);
-      }
-    }
-
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
     const views = optionsData?.defaultViews?.map(view => ({
@@ -111,7 +96,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
-      category: categoryName,
+      category: productData.category,
       customizationTechniques: productData.customizationTechniques,
       nativeVariations: cleanNativeVariations,
     };
