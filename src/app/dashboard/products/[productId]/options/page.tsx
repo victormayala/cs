@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -180,7 +180,6 @@ export default function ProductOptionsPage() {
     }
     return variations;
   }, [productOptions]);
-
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
     if (!user?.uid || !productIdFromUrl || !db) { 
