@@ -143,6 +143,36 @@ export default function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
 
+  const generatedVariations = useMemo(() => {
+    if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
+        return [];
+    }
+    const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
+    const variations: NativeProductVariation[] = [];
+
+    if (colors.length > 0) {
+        colors.forEach(color => {
+            if (sizes.length > 0) {
+                sizes.forEach((size, sizeIndex) => {
+                    const id = `color-${color.name}-size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
+                    const existing = productOptions.nativeVariations?.find(v => v.id === id);
+                    variations.push({
+                        id,
+                        attributes: { "Color": color.name, "Size": size.name },
+                        price: existing?.price ?? productOptions.price,
+                        salePrice: existing?.salePrice,
+                    });
+                });
+            } else {
+                const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
+                const existing = productOptions.nativeVariations?.find(v => v.id === id);
+                variations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
+            }
+        });
+    }
+    return variations;
+  }, [productOptions]);
+
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
     if (!user?.uid || !productIdFromUrl || !db) { 
@@ -759,73 +789,7 @@ export default function ProductOptionsPage() {
         setHasUnsavedChanges(true);
     };
 
-
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
-  }
-  
-  if (error) { 
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Product Options</h2>
-        <p className="text-muted-foreground text-center mb-6">{error}</p>
-        {(error.includes("store not connected") || error.includes("credentials")) && (
-           <Button variant="link" asChild>
-              <Link href="/dashboard"><PlugZap className="mr-2 h-4 w-4" />Go to Dashboard to Connect</Link>
-          </Button>
-        )}
-        <Button variant="outline" asChild className="mt-2">
-          <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link>
-        </Button>
-      </div>
-    );
-  }
-  
-  if (!productOptions) { 
-    return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-            <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold text-muted-foreground mb-2">Product Data Not Available</h2>
-            <p className="text-muted-foreground text-center mb-6">Could not load the specific options for this product. It might be missing or there was an issue fetching it.</p>
-            <Button variant="outline" asChild><Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link></Button>
-        </div>
-    );
-  }
-
-  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
-  
-  const generatedVariations = useMemo(() => {
-    if (productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
-        return [];
-    }
-    const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
-    const variations: NativeProductVariation[] = [];
-
-    if (colors.length > 0) {
-        colors.forEach(color => {
-            if (sizes.length > 0) {
-                sizes.forEach((size, sizeIndex) => {
-                    const id = `color-${color.name}-size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
-                    const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                    variations.push({
-                        id,
-                        attributes: { "Color": color.name, "Size": size.name },
-                        price: existing?.price ?? productOptions.price,
-                        salePrice: existing?.salePrice,
-                    });
-                });
-            } else {
-                const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
-                const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                variations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
-            }
-        });
-    }
-    return variations;
-  }, [productOptions]);
-  
-  const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
+    const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
     const numValue = value === '' ? null : parseFloat(value);
 
     setProductOptions(prev => {
@@ -911,6 +875,41 @@ export default function ProductOptionsPage() {
       toast({ title: "Prices Updated", description: `All variations' ${field === 'price' ? 'prices' : 'sale prices'} have been updated.`});
   };
 
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
+  }
+  
+  if (error) { 
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Product Options</h2>
+        <p className="text-muted-foreground text-center mb-6">{error}</p>
+        {(error.includes("store not connected") || error.includes("credentials")) && (
+           <Button variant="link" asChild>
+              <Link href="/dashboard"><PlugZap className="mr-2 h-4 w-4" />Go to Dashboard to Connect</Link>
+          </Button>
+        )}
+        <Button variant="outline" asChild className="mt-2">
+          <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
+  
+  if (!productOptions) { 
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+            <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold text-muted-foreground mb-2">Product Data Not Available</h2>
+            <p className="text-muted-foreground text-center mb-6">Could not load the specific options for this product. It might be missing or there was an issue fetching it.</p>
+            <Button variant="outline" asChild><Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link></Button>
+        </div>
+    );
+  }
+
+  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+  
   const renderNativeVariationPricing = () => {
       return (
         <Card className="shadow-md">
