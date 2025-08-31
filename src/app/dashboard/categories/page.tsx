@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, where, writeBatch } from 'firebase/firestore';
@@ -24,7 +24,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import AppHeader from '@/components/layout/AppHeader';
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarProvider } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
 
 export interface ProductCategory {
@@ -37,7 +36,7 @@ export interface ProductCategory {
   productCount?: number;
 }
 
-export default function CategoriesPage() {
+function CategoriesPageContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -371,4 +370,21 @@ export default function CategoriesPage() {
       </AlertDialog>
     </div>
   );
+}
+
+export default function CategoriesPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen bg-muted/30">
+                <AppHeader />
+                <main className="flex-1 p-4 md:p-6 lg:p-8">
+                    <div className="flex justify-center items-center h-full">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    </div>
+                </main>
+            </div>
+        }>
+            <CategoriesPageContent />
+        </Suspense>
+    );
 }
