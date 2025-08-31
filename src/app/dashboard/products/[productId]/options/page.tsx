@@ -616,6 +616,24 @@ export default function ProductOptionsPage() {
       return;
     }
     setIsSaving(true);
+
+    const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
+    if (productOptions.optionsByColor) {
+        for (const colorKey in productOptions.optionsByColor) {
+            const group = productOptions.optionsByColor[colorKey];
+            const cleanImages = (group.variantImages || [])
+                .map(img => ({
+                    imageUrl: img.imageUrl,
+                    aiHint: img.aiHint || '',
+                }))
+                .filter(img => img && img.imageUrl); // Ensure only images with a URL are saved
+
+            cleanOptionsByColor[colorKey] = {
+                selectedVariationIds: group.selectedVariationIds || [],
+                variantImages: cleanImages,
+            };
+        }
+    }
     
     // Manually reconstruct the object to save to ensure no undefined values are sent to Firestore
     const dataToSave: { [key: string]: any } = {
@@ -625,8 +643,8 @@ export default function ProductOptionsPage() {
         price: Number(productOptions.price) || 0,
         type: productOptions.type,
         allowCustomization: productOptions.allowCustomization,
-        defaultViews: productOptions.defaultViews.map(view => ({...view, price: Number(view.price) || 0})), // Remove size price modifier
-        optionsByColor: productOptions.optionsByColor || {},
+        defaultViews: productOptions.defaultViews.map(view => ({...view, price: Number(view.price) || 0})),
+        optionsByColor: cleanOptionsByColor,
         groupingAttributeName: productOptions.groupingAttributeName || null,
         nativeAttributes: {
           colors: productOptions.nativeAttributes.colors || [],
@@ -1265,5 +1283,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-
-    
