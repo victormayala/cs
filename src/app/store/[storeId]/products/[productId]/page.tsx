@@ -318,13 +318,13 @@ export default function ProductDetailPage() {
                     {/* Product Info */}
                     <div className="flex flex-col pt-4">
                          <h1 className="text-3xl lg:text-4xl font-bold font-headline text-foreground">{product.name}</h1>
-                         {(product.brand || product.sku) && (
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-                                {product.brand && <span>Brand: <span className="font-medium text-foreground">{product.brand}</span></span>}
-                                {product.brand && product.sku && <span>|</span>}
-                                {product.sku && <span>SKU: <span className="font-medium text-foreground">{product.sku}</span></span>}
-                            </div>
-                         )}
+                         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                            {product.brand && <span>Brand: <span className="font-medium text-foreground">{product.brand}</span></span>}
+                            {product.brand && (product.sku || product.category) && <span>|</span>}
+                            {product.sku && <span>SKU: <span className="font-medium text-foreground">{product.sku}</span></span>}
+                            {product.sku && product.category && <span>|</span>}
+                            {product.category && <span>Category: <span className="font-medium text-foreground">{product.category}</span></span>}
+                         </div>
                          <div className="flex items-baseline gap-2 mt-2 mb-4">
                             <p className={cn("text-2xl font-semibold", currentPriceInfo.salePrice != null ? "text-destructive" : "text-primary")} style={{ color: currentPriceInfo.salePrice == null ? `hsl(var(--primary))` : '' }}>
                                 ${currentPriceInfo.salePrice != null ? currentPriceInfo.salePrice.toFixed(2) : currentPriceInfo.price.toFixed(2)}
@@ -450,7 +450,6 @@ export default function ProductDetailPage() {
                     <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
                         <div>
                             <h2 className="text-2xl font-bold mb-4 font-headline text-foreground">Product Description</h2>
-                             {product.category && <p className="text-sm text-muted-foreground mb-4"><strong>Category:</strong> {product.category}</p>}
                             <div className="prose prose-sm text-muted-foreground max-w-none">
                                 <p>{product.description}</p>
                             </div>

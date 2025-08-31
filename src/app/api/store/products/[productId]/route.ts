@@ -22,7 +22,7 @@ interface PublicProductDetail extends PublicProduct {
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
-    category?: string;
+    category?: string; // This will now be the category name
     customizationTechniques?: CustomizationTechnique[];
     nativeVariations?: NativeProductVariation[];
 }
@@ -56,6 +56,20 @@ export async function GET(request: Request, { params }: { params: { productId: s
 
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
+    
+    let categoryName: string | undefined = undefined;
+    if (productData.category) {
+      try {
+        const categoryRef = doc(db, `users/${configUserId}/productCategories`, productData.category);
+        const categorySnap = await getDoc(categoryRef);
+        if (categorySnap.exists()) {
+          categoryName = categorySnap.data().name;
+        }
+      } catch (catError) {
+        console.warn(`Could not fetch category name for ID ${productData.category}:`, catError);
+        // Fail gracefully, categoryName will remain undefined
+      }
+    }
 
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
@@ -97,7 +111,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
-      category: productData.category,
+      category: categoryName,
       customizationTechniques: productData.customizationTechniques,
       nativeVariations: cleanNativeVariations,
     };
