@@ -201,8 +201,8 @@ export default function ProductDetailPage() {
   const currentPriceInfo = useMemo(() => {
     if (!product) return { price: 0, salePrice: null };
 
-    // 1. Determine the base price from the selected variation.
-    let variationPrice = product.price; // Start with the product's default price.
+    // 1. Get the price for the selected variation (color + size)
+    let variationPrice = product.price;
     let variationSalePrice: number | null = product.salePrice ?? null;
 
     if (product.nativeVariations && product.nativeVariations.length > 0) {
@@ -214,14 +214,14 @@ export default function ProductDetailPage() {
 
       if (matchingVariation) {
         variationPrice = matchingVariation.price;
-        variationSalePrice = matchingVariation.salePrice ?? null; // Use variation sale price if available
+        variationSalePrice = matchingVariation.salePrice ?? null;
       }
     }
 
-    // 2. Find the size modifier.
+    // 2. Get the price modifier for the selected size
     const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
     
-    // 3. ADD the modifier to the base prices.
+    // 3. ADD the modifier to the variation prices
     const finalPrice = variationPrice + sizeModifier;
     const finalSalePrice = variationSalePrice !== null ? variationSalePrice + sizeModifier : null;
 
