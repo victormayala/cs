@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
             // Fetch store config and product data in parallel
             const [storeRes, productRes] = await Promise.all([
                 getDoc(doc(db, 'userStores', storeId)),
-                fetch(`/api/store/products/${productId}?configUserId=${storeId}`)
+                fetch(`/api/store/products/${productId}?configUserId=${storeId}`, { cache: 'no-store' })
             ]);
 
             // Process store config
@@ -200,37 +200,32 @@ export default function ProductDetailPage() {
 
   const currentPriceInfo = useMemo(() => {
     if (!product) return { price: 0, salePrice: null };
-
-    // Start with the product's base price as a fallback.
-    let basePrice = product.price;
-    let baseSalePrice = product.salePrice;
-
-    // If there are variations, find the one that matches the current selections.
+  
+    // 1. Determine the base price and base sale price from the selected variation.
+    let basePrice = product.price; // Fallback to the product's main price
+    let baseSalePrice: number | null = product.salePrice ?? null;
+  
     if (product.nativeVariations && product.nativeVariations.length > 0) {
-        const matchingVariation = product.nativeVariations.find(v => {
-            const colorMatch = !v.attributes.Color || v.attributes.Color === selectedColor;
-            const sizeMatch = !v.attributes.Size || v.attributes.Size === selectedSize;
-            return colorMatch && sizeMatch;
-        });
-
-        // If a specific variation is found, use its price.
-        if (matchingVariation) {
-            basePrice = matchingVariation.price;
-            // A sale price of null/undefined means there is no sale.
-            baseSalePrice = matchingVariation.salePrice ?? null;
-        }
+      const matchingVariation = product.nativeVariations.find(v => {
+        const colorMatch = !v.attributes.Color || v.attributes.Color === selectedColor;
+        const sizeMatch = !v.attributes.Size || v.attributes.Size === selectedSize;
+        return colorMatch && sizeMatch;
+      });
+  
+      if (matchingVariation) {
+        basePrice = matchingVariation.price;
+        baseSalePrice = matchingVariation.salePrice ?? null; // Use variation's sale price, or null if none
+      }
     }
-
-    // Find the price modifier for the selected size.
+  
+    // 2. Find the price modifier for the selected size.
     const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
-    
-    // Calculate the final price by adding the size modifier to the determined base price.
+  
+    // 3. Add the size modifier to the determined base price.
     const finalPrice = basePrice + sizeModifier;
     
-    // Only calculate a final sale price if a base sale price exists for the variation/product.
-    const finalSalePrice = (baseSalePrice !== null && baseSalePrice !== undefined) 
-      ? baseSalePrice + sizeModifier 
-      : null;
+    // 4. If there's a sale price, add the modifier to it as well. Otherwise, it remains null.
+    const finalSalePrice = (baseSalePrice !== null) ? baseSalePrice + sizeModifier : null;
     
     return { price: finalPrice, salePrice: finalSalePrice };
   }, [product, selectedColor, selectedSize]);
