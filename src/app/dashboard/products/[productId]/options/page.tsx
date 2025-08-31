@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
@@ -100,11 +100,15 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
 }
 
 export default function ProductOptionsPage() {
-  const params = useParams();
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
+  
+  const productIdFromUrl = useMemo(() => decodeURIComponent(params.productId as string), [params.productId]);
+  const source = useMemo(() => searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce', [searchParams]);
+  const firestoreDocId = useMemo(() => productIdFromUrl.split('/').pop() || productIdFromUrl, [productIdFromUrl]);
 
   const [productOptions, setProductOptions] = useState<ProductOptionsData | null>(null);
   const [activeViewIdForSetup, setActiveViewIdForSetup] = useState<string | null>(null);
@@ -132,10 +136,6 @@ export default function ProductOptionsPage() {
   const [sizePriceModifier, setSizePriceModifier] = useState<number>(0);
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
-  
-  const productIdFromUrl = useMemo(() => decodeURIComponent(params.productId as string), [params.productId]);
-  const source = useMemo(() => searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce', [searchParams]);
-  const firestoreDocId = useMemo(() => productIdFromUrl.split('/').pop() || productIdFromUrl, [productIdFromUrl]);
 
   const generatedVariations = useMemo(() => {
     if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
@@ -155,7 +155,7 @@ export default function ProductOptionsPage() {
                         id,
                         attributes: { "Color": color.name, "Size": size.name },
                         price: existing?.price ?? productOptions.price,
-                        salePrice: existing?.salePrice ?? null, // Default to null
+                        salePrice: existing?.salePrice ?? null,
                     });
                 });
             } else {
@@ -173,7 +173,6 @@ export default function ProductOptionsPage() {
     }
     return variations;
   }, [productOptions]);
-
 
   const fetchAndSetProductData = useCallback(async (isRefresh = false) => {
     if (!user?.uid || !productIdFromUrl || !db) {
@@ -431,74 +430,66 @@ export default function ProductOptionsPage() {
     };
   }, [activeDrag, handleDragging, handleInteractionEnd]);
 
-  // NEW SAVE HANDLER
   const handleSaveChanges = async () => {
     if (!productOptions || !user?.uid || !db || !firestoreDocId) {
       toast({ title: "Error", description: "Cannot save. Missing required data.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
-
+  
     try {
-      // Create a deep copy to sanitize for Firestore
-      const optionsToSave = JSON.parse(JSON.stringify(productOptions));
-
-      // 1. Sanitize top-level optional fields
+      const {
+        id, name, description, price, type, allowCustomization, 
+        defaultViews, optionsByColor, groupingAttributeName, nativeAttributes, 
+        nativeVariations, brand, sku, category, customizationTechniques, shipping, salePrice
+      } = productOptions;
+  
+      // 1. Build the base object with guaranteed fields
       const dataToSave: any = {
-        id: optionsToSave.id,
-        name: optionsToSave.name,
-        description: optionsToSave.description,
-        price: optionsToSave.price || 0,
-        type: optionsToSave.type === 'shopify' ? 'simple' : optionsToSave.type,
-        allowCustomization: optionsToSave.allowCustomization,
+        id, name, description, price, type, allowCustomization,
+        defaultViews, optionsByColor, groupingAttributeName, nativeAttributes,
         lastSaved: serverTimestamp(),
-        defaultViews: optionsToSave.defaultViews,
-        optionsByColor: optionsToSave.optionsByColor,
-        groupingAttributeName: optionsToSave.groupingAttributeName,
-        nativeAttributes: optionsToSave.nativeAttributes,
       };
+  
+      // 2. Conditionally add optional top-level fields
+      if (salePrice !== null) { dataToSave.salePrice = salePrice; } 
+      else { dataToSave.salePrice = deleteField(); }
 
-      if (optionsToSave.salePrice != null) {
-        dataToSave.salePrice = optionsToSave.salePrice;
-      }
-      if (optionsToSave.brand) dataToSave.brand = optionsToSave.brand;
-      if (optionsToSave.sku) dataToSave.sku = optionsToSave.sku;
-      if (optionsToSave.category) dataToSave.category = optionsToSave.category;
-      if (optionsToSave.shipping) dataToSave.shipping = optionsToSave.shipping;
-
-
-      // 2. Deep-sanitize the nativeVariations array
-      if (Array.isArray(optionsToSave.nativeVariations)) {
-        dataToSave.nativeVariations = optionsToSave.nativeVariations.map((variation: any) => {
+      if (brand) dataToSave.brand = brand;
+      if (sku) dataToSave.sku = sku;
+      if (category) dataToSave.category = category;
+      if (shipping) dataToSave.shipping = shipping;
+  
+      // 3. Sanitize and add nativeVariations
+      if (Array.isArray(nativeVariations)) {
+        dataToSave.nativeVariations = nativeVariations.map(variation => {
           const cleanVariation = { ...variation };
-          // Firestore rule: no `undefined`. Convert to `null` or remove. `null` is better to clear a field.
-          if (cleanVariation.salePrice === undefined) {
-            cleanVariation.salePrice = null;
+          // Explicitly handle salePrice: if it's null, we want to remove it.
+          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined) {
+            delete (cleanVariation as any).salePrice;
           }
           return cleanVariation;
         });
-      } else {
-        dataToSave.nativeVariations = [];
       }
-
+      
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       await setDoc(docRef, dataToSave, { merge: true });
-
+  
       if (productOptions.source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
         const nativeProductData: Partial<NativeProduct> = {
-          name: productOptions.name,
-          description: productOptions.description,
+          name: name,
+          description: description,
           lastModified: serverTimestamp()
         };
-        if (productOptions.brand) nativeProductData.brand = productOptions.brand;
-        if (productOptions.sku) nativeProductData.sku = productOptions.sku;
-        if (productOptions.category) nativeProductData.category = productOptions.category;
-        if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
+        if (brand) nativeProductData.brand = brand;
+        if (sku) nativeProductData.sku = sku;
+        if (category) nativeProductData.category = category;
+        if (customizationTechniques) nativeProductData.customizationTechniques = customizationTechniques;
         await setDoc(productBaseRef, nativeProductData, { merge: true });
       }
       
-      toast({ title: "Saved", description: "Custom views, areas, and variation selections saved to your account." });
+      toast({ title: "Saved", description: "Your product configurations have been saved." });
       setHasUnsavedChanges(false);
     } catch (error: any) {
       console.error('Error saving product options to Firestore:', error);
@@ -511,7 +502,6 @@ export default function ProductOptionsPage() {
       setIsSaving(false);
     }
   };
-
 
   const handleOpenInCustomizer = () => {
     if (!productOptions || hasUnsavedChanges) {
@@ -729,40 +719,50 @@ export default function ProductOptionsPage() {
       setHasUnsavedChanges(true);
   };
 
-  // NEW variation field change handler
   const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
-    const numValue = value === '' ? null : parseFloat(value);
-    
-    // For price, we don't allow null. Fallback to base price if cleared.
+    // If the value is an empty string, we treat it as `null` to signify clearing the field.
+    // Otherwise, parse it to a float.
+    const numValue = value.trim() === '' ? null : parseFloat(value);
+  
+    // For the base price, we don't allow it to be null/empty.
     if (field === 'price' && numValue === null) {
-        toast({ title: "Invalid Price", description: "Base price for a variation cannot be empty.", variant: "destructive" });
-        return;
+      toast({ title: "Invalid Price", description: "Base price for a variation cannot be empty.", variant: "destructive" });
+      return;
     }
-
+  
+    // If it's not empty, but still not a valid number (e.g., "abc"), ignore the change.
     if (numValue !== null && isNaN(numValue)) {
-        return; // Ignore non-numeric input
+      return;
     }
-    
+  
     setProductOptions(prev => {
-        if (!prev) return null;
-        let variationExists = prev.nativeVariations.some(v => v.id === id);
-        let updatedVariations: NativeProductVariation[];
-
-        if (variationExists) {
-            updatedVariations = prev.nativeVariations.map(v => 
-                v.id === id ? { ...v, [field]: numValue } : v
-            );
-        } else {
-            const template = generatedVariations.find(v => v.id === id);
-            if (!template) return prev;
-            const newVariation = { ...template, [field]: numValue };
-            updatedVariations = [...prev.nativeVariations, newVariation];
-        }
-        return { ...prev, nativeVariations: updatedVariations };
+      if (!prev) return null;
+  
+      const variationExists = prev.nativeVariations.some(v => v.id === id);
+      let updatedVariations: NativeProductVariation[];
+  
+      if (variationExists) {
+        updatedVariations = prev.nativeVariations.map(v =>
+          v.id === id ? { ...v, [field]: numValue } : v
+        );
+      } else {
+        // Find the template variation to create a new entry
+        const template = generatedVariations.find(v => v.id === id);
+        if (!template) return prev; // Should not happen
+        
+        // Create a new variation object ensuring `salePrice` is `null` by default
+        const newVariation: NativeProductVariation = { 
+          ...template, 
+          salePrice: null // Explicitly initialize salePrice as null
+        };
+        // Now, apply the update
+        (newVariation as any)[field] = numValue;
+        updatedVariations = [...prev.nativeVariations, newVariation];
+      }
+      return { ...prev, nativeVariations: updatedVariations };
     });
     setHasUnsavedChanges(true);
   };
-
 
   const handleBulkUpdate = (field: 'price' | 'salePrice') => {
       const valueStr = field === 'price' ? bulkPrice : bulkSalePrice;
@@ -770,7 +770,7 @@ export default function ProductOptionsPage() {
           toast({ title: "Invalid Price", description: "Base price cannot be empty.", variant: "destructive"});
           return;
       }
-      const value = valueStr === '' ? null : parseFloat(valueStr);
+      const value = valueStr.trim() === '' ? null : parseFloat(valueStr);
       if (value !== null && isNaN(value)) {
         toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
         return;

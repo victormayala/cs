@@ -25,6 +25,8 @@ interface PublicProductDetail extends PublicProduct {
     nativeVariations?: NativeProductVariation[];
 }
 
+export const revalidate = 0; // Force dynamic rendering and disable caching
+
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
   const { searchParams } = new URL(request.url);
   const configUserId = searchParams.get('configUserId');
@@ -77,6 +79,13 @@ export async function GET(request: Request, { params }: { params: { productId: s
         }
       }
     }
+    
+    // Clean native variations to ensure salePrice is null if not present
+    const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => ({
+      ...v,
+      salePrice: v.salePrice ?? null,
+    }));
+
 
     const publicProductDetail: PublicProductDetail = {
       id: productId,
@@ -93,7 +102,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       sku: productData.sku,
       category: productData.category,
       customizationTechniques: productData.customizationTechniques,
-      nativeVariations: optionsData?.nativeVariations,
+      nativeVariations: cleanNativeVariations,
     };
 
     return NextResponse.json({ product: publicProductDetail });
