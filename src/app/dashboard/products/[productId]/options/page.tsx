@@ -108,7 +108,7 @@ export default function ProductOptionsPage() {
 
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
-
+  
   const [productOptions, setProductOptions] = useState<ProductOptionsData | null>(null);
   const [activeViewIdForSetup, setActiveViewIdForSetup] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); 
@@ -150,6 +150,8 @@ export default function ProductOptionsPage() {
     const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
     const variations: NativeProductVariation[] = [];
 
+    if (colors.length === 0 && sizes.length === 0) return [];
+
     if (colors.length > 0) {
         colors.forEach(color => {
             if (sizes.length > 0) {
@@ -168,6 +170,12 @@ export default function ProductOptionsPage() {
                 const existing = productOptions.nativeVariations?.find(v => v.id === id);
                 variations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
             }
+        });
+    } else { // Only sizes exist
+        sizes.forEach((size, sizeIndex) => {
+            const id = `size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
+            const existing = productOptions.nativeVariations?.find(v => v.id === id);
+            variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
         });
     }
     return variations;
@@ -297,8 +305,8 @@ export default function ProductOptionsPage() {
       
       const nativeAttributesFromFS = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
       if (!nativeAttributesFromFS.colors) nativeAttributesFromFS.colors = [];
-      const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any) => ({
-        id: s.id || crypto.randomUUID(), // Assign ID if missing
+      const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any, index: number) => ({
+        id: s.id || crypto.randomUUID() + index, // Assign ID if missing
         name: s.name,
         priceModifier: s.priceModifier ?? 0,
       }));
@@ -334,13 +342,11 @@ export default function ProductOptionsPage() {
   }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast, hasUnsavedChanges]); 
 
   useEffect(() => {
-    let didCancel = false;
     if (authIsLoading) return;
-    if (!user?.uid) { if (!didCancel) { setError("User not authenticated."); setIsLoading(false); } return; }
-    if (!productIdFromUrl) { if (!didCancel) { setError("Product ID is missing."); setIsLoading(false); } return; }
+    if (!user?.uid) { setError("User not authenticated."); setIsLoading(false); return; }
+    if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
     if (!productOptions && !error) { fetchAndSetProductData(false); } 
-    else { if (!didCancel) setIsLoading(false); }
-    return () => { didCancel = true; };
+    else { setIsLoading(false); }
   }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
 
@@ -446,45 +452,47 @@ export default function ProductOptionsPage() {
       toast({ title: "Error", description: "Product ID is missing from options data. Cannot save.", variant: "destructive" });
       return;
     }
-
+    
     setIsSaving(true);
-    
-    // Create a deep copy to sanitize for Firestore
-    const dataToSave: Omit<ProductOptionsFirestoreData, 'createdAt' | 'lastSaved'> & { lastSaved: any; createdAt?: any } = {
-      id: productOptions.id, 
-      name: productOptions.name,
-      description: productOptions.description,
-      price: productOptions.price,
-      shipping: productOptions.shipping,
-      type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
-      defaultViews: productOptions.defaultViews,
-      optionsByColor: productOptions.optionsByColor,
-      groupingAttributeName: productOptions.groupingAttributeName,
-      nativeAttributes: productOptions.nativeAttributes,
-      nativeVariations: [], // Will be populated next
-      allowCustomization: productOptions.allowCustomization,
-      lastSaved: serverTimestamp(),
-    };
 
-    // Sanitize salePrice on base product
-    if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
-      dataToSave.salePrice = productOptions.salePrice;
-    } else {
-      delete (dataToSave as Partial<typeof dataToSave>).salePrice;
-    }
-
-    // Sanitize salePrice on variations
-    if (productOptions.nativeVariations && Array.isArray(productOptions.nativeVariations)) {
-        dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
-            const cleanVariation: Partial<NativeProductVariation> = {...variation};
-            if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
-                delete cleanVariation.salePrice;
-            }
-            return cleanVariation as NativeProductVariation;
-        });
-    }
-    
     try {
+      // 1. Create a clean base object for Firestore
+      const dataToSave: Omit<ProductOptionsFirestoreData, 'createdAt' | 'lastSaved'> & { lastSaved: any; createdAt?: any } = {
+        id: productOptions.id,
+        name: productOptions.name,
+        description: productOptions.description,
+        price: productOptions.price,
+        shipping: productOptions.shipping,
+        type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
+        defaultViews: productOptions.defaultViews,
+        optionsByColor: productOptions.optionsByColor,
+        groupingAttributeName: productOptions.groupingAttributeName,
+        nativeAttributes: productOptions.nativeAttributes,
+        nativeVariations: [], // This will be sanitized next
+        allowCustomization: productOptions.allowCustomization,
+        lastSaved: serverTimestamp(),
+      };
+      
+      // 2. Sanitize optional fields on the main object
+      if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
+        dataToSave.salePrice = productOptions.salePrice;
+      } else {
+        delete (dataToSave as Partial<typeof dataToSave>).salePrice;
+      }
+
+      // 3. Sanitize the nativeVariations array
+      if (productOptions.nativeVariations && Array.isArray(productOptions.nativeVariations)) {
+        dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
+          const cleanVariation: Partial<NativeProductVariation> = { ...variation };
+          // Remove salePrice if it is null, undefined, or NaN
+          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
+            delete cleanVariation.salePrice;
+          }
+          return cleanVariation as NativeProductVariation;
+        });
+      }
+
+      // 4. Save the fully sanitized object
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
@@ -492,17 +500,21 @@ export default function ProductOptionsPage() {
       }
       await setDoc(docRef, dataToSave, { merge: true });
 
+      // 5. Save native product base info if applicable
       if (source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
-        await setDoc(productBaseRef, { 
-            name: productOptions.name, 
-            description: productOptions.description,
-            brand: productOptions.brand,
-            sku: productOptions.sku,
-            category: productOptions.category,
-            customizationTechniques: productOptions.customizationTechniques,
-            lastModified: serverTimestamp() 
-        }, { merge: true });
+        const nativeProductData: Partial<NativeProduct> = {
+          name: productOptions.name, 
+          description: productOptions.description,
+          lastModified: serverTimestamp() 
+        };
+        // Add optional fields only if they have a value
+        if (productOptions.brand) nativeProductData.brand = productOptions.brand;
+        if (productOptions.sku) nativeProductData.sku = productOptions.sku;
+        if (productOptions.category) nativeProductData.category = productOptions.category;
+        if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
+
+        await setDoc(productBaseRef, nativeProductData, { merge: true });
       }
       
       toast({ title: "Saved", description: "Custom views, areas, and variation selections saved to your account." });
@@ -911,6 +923,19 @@ export default function ProductOptionsPage() {
   const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   
   const renderNativeVariationPricing = () => {
+      if (!generatedVariations || generatedVariations.length === 0) {
+        return (
+          <Card className="shadow-md">
+            <CardHeader>
+                <CardTitle className="font-headline text-lg">Variation Pricing</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size in 'Product Attributes' to create variations.</p></div>
+            </CardContent>
+          </Card>
+        );
+      }
+
       return (
         <Card className="shadow-md">
             <CardHeader>
@@ -918,77 +943,73 @@ export default function ProductOptionsPage() {
                 <CardDescription>Set individual prices for each product variant.</CardDescription>
             </CardHeader>
             <CardContent>
-                {generatedVariations.length === 0 ? (
-                    <div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size in 'Product Attributes' to create variations.</p></div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      <div className="flex gap-2">
-                        <Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" />
-                        <Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button>
-                      </div>
-                       <div className="flex gap-2">
-                        <Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" />
-                        <Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button>
-                      </div>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto border rounded-md">
-                      <Table>
-                          <TableHeader className="sticky top-0 bg-muted/50 z-10">
-                              <TableRow>
-                                  {Object.keys(generatedVariations[0].attributes).map(attrName => (
-                                      <TableHead key={attrName}>{attrName}</TableHead>
-                                  ))}
-                                  <TableHead className="text-right">Price</TableHead>
-                                  <TableHead className="text-right">Sale Price</TableHead>
-                              </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                              {generatedVariations.map(variation => {
-                                 const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === variation.attributes.Size)?.priceModifier || 0;
-                                 const currentVariationData = productOptions.nativeVariations.find(v => v.id === variation.id);
-                                 const basePriceForVariation = currentVariationData?.price ?? productOptions.price;
-                                 const displayPrice = basePriceForVariation + sizeModifier;
-                                 
-                                 return (
-                                   <TableRow key={variation.id}>
-                                       {Object.values(variation.attributes).map((val, i) => (
-                                           <TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>
-                                       ))}
-                                       <TableCell className="text-right">
-                                           <div className="relative flex items-center justify-end">
-                                              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                              <Input 
-                                                 type="number" 
-                                                 value={displayPrice.toFixed(2)}
-                                                 onChange={e => {
-                                                    const priceWithoutModifier = (parseFloat(e.target.value) || 0) - sizeModifier;
-                                                    handleVariationFieldChange(variation.id, 'price', priceWithoutModifier.toString());
-                                                 }}
-                                                 className="h-8 w-28 pl-7 text-right"
-                                              />
-                                           </div>
-                                       </TableCell>
-                                       <TableCell className="text-right">
-                                           <div className="relative flex items-center justify-end">
-                                              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                              <Input 
-                                                 type="number" 
-                                                 placeholder="None"
-                                                 value={currentVariationData?.salePrice ?? ''}
-                                                 onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)}
-                                                 className="h-8 w-28 pl-7 text-right"
-                                              />
-                                           </div>
-                                       </TableCell>
-                                   </TableRow>
-                               );
-                              })}
-                          </TableBody>
-                      </Table>
-                    </div>
-                  </>
-                )}
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" />
+                    <Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button>
+                  </div>
+                   <div className="flex gap-2">
+                    <Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" />
+                    <Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button>
+                  </div>
+                </div>
+                <div className="max-h-96 overflow-y-auto border rounded-md">
+                  <Table>
+                      <TableHeader className="sticky top-0 bg-muted/50 z-10">
+                          <TableRow>
+                              {Object.keys(generatedVariations[0].attributes).map(attrName => (
+                                  <TableHead key={attrName}>{attrName}</TableHead>
+                              ))}
+                              <TableHead className="text-right">Price</TableHead>
+                              <TableHead className="text-right">Sale Price</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {generatedVariations.map(variation => {
+                             const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === variation.attributes.Size)?.priceModifier || 0;
+                             const currentVariationData = productOptions.nativeVariations?.find(v => v.id === variation.id);
+                             const basePriceForVariation = currentVariationData?.price ?? productOptions.price;
+                             const displayPrice = basePriceForVariation + sizeModifier;
+                             
+                             return (
+                               <TableRow key={variation.id}>
+                                   {Object.values(variation.attributes).map((val, i) => (
+                                       <TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>
+                                   ))}
+                                   <TableCell className="text-right">
+                                       <div className="relative flex items-center justify-end">
+                                          <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                          <Input 
+                                             type="number" 
+                                             value={displayPrice.toFixed(2)}
+                                             onChange={e => {
+                                                const priceWithoutModifier = (parseFloat(e.target.value) || 0) - sizeModifier;
+                                                handleVariationFieldChange(variation.id, 'price', priceWithoutModifier.toString());
+                                             }}
+                                             className="h-8 w-28 pl-7 text-right"
+                                          />
+                                       </div>
+                                   </TableCell>
+                                   <TableCell className="text-right">
+                                       <div className="relative flex items-center justify-end">
+                                          <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                          <Input 
+                                             type="number" 
+                                             placeholder="None"
+                                             value={currentVariationData?.salePrice?.toString() ?? ''}
+                                             onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)}
+                                             className="h-8 w-28 pl-7 text-right"
+                                          />
+                                       </div>
+                                   </TableCell>
+                               </TableRow>
+                           );
+                          })}
+                      </TableBody>
+                  </Table>
+                </div>
+              </>
             </CardContent>
         </Card>
       )
@@ -1210,7 +1231,7 @@ export default function ProductOptionsPage() {
                           {productOptions.nativeAttributes.sizes.map((size) => {
                             const modifier = size.priceModifier ?? 0;
                             return (
-                              <Badge key={size.id} variant="secondary" className="text-sm">
+                              <Badge key={size.id + size.name} variant="secondary" className="text-sm">
                                   {size.name} {modifier !== 0 && `(${modifier > 0 ? '+' : ''}$${modifier.toFixed(2)})`}
                                   <button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
                               </Badge>
