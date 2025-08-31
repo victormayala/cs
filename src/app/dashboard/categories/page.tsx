@@ -388,3 +388,5 @@ export default function CategoriesPage() {
         </Suspense>
     );
 }
+
+    
