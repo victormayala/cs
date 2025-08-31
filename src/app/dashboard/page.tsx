@@ -63,6 +63,7 @@ type ActiveDashboardTab = 'products' | 'storeIntegration' | 'settings' | 'profil
 interface ProductToDelete {
   id: string;
   name: string;
+  source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
 const LOCALLY_HIDDEN_PRODUCTS_KEY_PREFIX = 'customizer_studio_locally_hidden_products_';
@@ -497,21 +498,48 @@ function DashboardPageContent() {
   }, [activeTab, user, isLoadingWcCredentials, isLoadingShopifyCredentials, products.length, isLoadingProducts, error, loadAllProducts, wcCredentialsExist, shopifyCredentialsExist]);
 
   const handleDeleteProduct = (product: DisplayProduct) => {
-    setProductToDelete({ id: product.id, name: product.name });
+    setProductToDelete({ id: product.id, name: product.name, source: product.source });
     setIsDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!productToDelete || !user) return;
-    const currentHiddenIds = getLocallyHiddenProductIds();
-    if (!currentHiddenIds.includes(productToDelete.id)) {
-      setLocallyHiddenProductIds([...currentHiddenIds, productToDelete.id]);
+  
+    if (productToDelete.source === 'customizer-studio') {
+      // PERMANENTLY DELETE NATIVE PRODUCT
+      try {
+        const productRef = doc(db, `users/${user.uid}/products`, productToDelete.id);
+        const optionsRef = doc(db, `userProductOptions/${user.uid}/products`, productToDelete.id);
+  
+        await deleteDoc(productRef);
+        await deleteDoc(optionsRef);
+  
+        toast({
+          title: "Product Deleted",
+          description: `"${productToDelete.name}" has been permanently deleted.`,
+        });
+        setProducts(prev => prev.filter(p => p.id !== productToDelete.id));
+      } catch (error: any) {
+        console.error("Error deleting native product:", error);
+        toast({
+          title: "Deletion Failed",
+          description: `Could not delete product: ${error.message}`,
+          variant: "destructive",
+        });
+      }
+    } else {
+      // HIDE EXTERNAL PRODUCT
+      const currentHiddenIds = getLocallyHiddenProductIds();
+      if (!currentHiddenIds.includes(productToDelete.id)) {
+        setLocallyHiddenProductIds([...currentHiddenIds, productToDelete.id]);
+      }
+      toast({
+        title: "Product Hidden",
+        description: `${productToDelete.name} has been hidden from your dashboard view. It is not deleted from your store.`,
+      });
+      setProducts(prev => prev.filter(p => p.id !== productToDelete.id));
     }
-    toast({
-      title: "Product Hidden",
-      description: `${productToDelete.name} has been hidden from your dashboard view. It is not deleted from your store.`,
-    });
-    setProducts(prev => prev.filter(p => p.id !== productToDelete.id)); 
+  
     setIsDeleteDialogOpen(false);
     setProductToDelete(null);
   };
@@ -640,7 +668,7 @@ function DashboardPageContent() {
                                           <Code className="mr-2 h-4 w-4" /> Open in Customizer
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => handleDeleteProduct(product)}>
-                                          <Trash2 className="mr-2 h-4 w-4" /> Hide From View
+                                          <Trash2 className="mr-2 h-4 w-4" /> {product.source === 'customizer-studio' ? 'Delete Product' : 'Hide From View'}
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -790,11 +818,17 @@ function DashboardPageContent() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>This action will hide the product "{productToDelete?.name}" from your dashboard view. It will not be deleted from your store. You can refresh your product data to see it again.</AlertDialogDescription>
+            <AlertDialogDescription>
+              {productToDelete?.source === 'customizer-studio'
+                ? `This will permanently delete "${productToDelete.name}" and all of its customization settings. This action cannot be undone.`
+                : `This will hide "${productToDelete?.name}" from your dashboard. It will NOT be deleted from your ${productToDelete?.source} store. You can see it again by refreshing all products.`}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setProductToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({variant: "destructive"}))}>Hide Product</AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({variant: productToDelete?.source === 'customizer-studio' ? "destructive" : "default"}))}>
+              {productToDelete?.source === 'customizer-studio' ? "Delete Permanently" : "Hide Product"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
