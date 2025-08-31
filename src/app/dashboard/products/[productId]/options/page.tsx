@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIconLucide, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIcon, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -309,7 +309,7 @@ export default function ProductOptionsPage() {
         ...baseProduct,
         source,
         price: firestoreOptions?.price ?? baseProduct.price,
-        salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
+        salePrice: firestoreOptions?.salePrice ?? null,
         shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
         type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
@@ -436,9 +436,10 @@ export default function ProductOptionsPage() {
         return;
     }
     setIsSaving(true);
-
+  
     try {
-        const dataToSave: Partial<ProductOptionsFirestoreData> & { lastSaved: FieldValue } = {
+        // Create a clean object to save, starting with required fields.
+        const dataToSave: { [key: string]: any } = {
             id: productOptions.id,
             name: productOptions.name,
             description: productOptions.description,
@@ -451,44 +452,46 @@ export default function ProductOptionsPage() {
             nativeAttributes: productOptions.nativeAttributes || { colors: [], sizes: [] },
             lastSaved: serverTimestamp(),
         };
-
-        // Explicitly handle optional top-level fields
+  
+        // Handle optional top-level fields: only add them if they have a valid value.
+        // For salePrice, a valid value is a number (including 0). Null/undefined means delete.
         if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
             dataToSave.salePrice = productOptions.salePrice;
         } else {
-            dataToSave.salePrice = deleteField() as any; // Firestore will remove the field
+            dataToSave.salePrice = deleteField(); // Explicitly delete if not valid
         }
-
+  
         if (productOptions.brand) dataToSave.brand = productOptions.brand;
         if (productOptions.sku) dataToSave.sku = productOptions.sku;
         if (productOptions.category) dataToSave.category = productOptions.category;
         if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
         if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
-
-        // Manually rebuild the nativeVariations array to ensure no `undefined` values
+  
+        // Manually rebuild the nativeVariations array to ensure no `undefined` values and omit salePrice if null/undefined.
         if (Array.isArray(productOptions.nativeVariations)) {
             dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
-                const cleanVariation: Partial<NativeProductVariation> = {
+                const cleanVariation: { [key: string]: any } = {
                     id: variation.id,
                     attributes: variation.attributes,
                     price: variation.price,
                 };
+                // Only include salePrice if it's a valid number.
                 if (variation.salePrice !== null && variation.salePrice !== undefined && !isNaN(variation.salePrice)) {
                     cleanVariation.salePrice = variation.salePrice;
                 }
-                // Omitting salePrice if it's null/undefined, so it won't be written to Firestore
-                return cleanVariation as NativeProductVariation;
+                return cleanVariation;
             });
         } else {
             dataToSave.nativeVariations = [];
         }
-
+  
         const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
         await setDoc(docRef, dataToSave, { merge: true });
-
+  
+        // For native products, also update the base product document.
         if (productOptions.source === 'customizer-studio') {
             const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
-            const nativeProductData: Partial<NativeProduct> & { lastModified: FieldValue } = {
+            const nativeProductData: { [key: string]: any } = {
                 name: productOptions.name,
                 description: productOptions.description,
                 lastModified: serverTimestamp()
@@ -499,7 +502,7 @@ export default function ProductOptionsPage() {
             if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
             await setDoc(productBaseRef, nativeProductData, { merge: true });
         }
-
+  
         toast({ title: "Saved", description: "Your product configurations have been saved." });
         setHasUnsavedChanges(false);
     } catch (error: any) {
@@ -879,9 +882,7 @@ export default function ProductOptionsPage() {
                {source === 'customizer-studio' && (<div><Label className="flex items-center"><Gem className="mr-2 h-4 w-4 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)}/><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>)}
             </CardContent>
           </Card>
-          <Card className="shadow-md">
-            <CardHeader><CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle><CardDescription>Enter shipping details for native store calculations.</CardDescription></CardHeader>
-            <CardContent><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle><CardDescription>Enter shipping details for native store calculations.</CardDescription></CardHeader><CardContent><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div><Label htmlFor="shippingWeight">Weight (lbs)</Label><Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
               <div><Label htmlFor="shippingLength">Length (in)</Label><Input id="shippingLength" type="number" step="0.01" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
               <div><Label htmlFor="shippingWidth">Width (in)</Label><Input id="shippingWidth" type="number" step="0.01" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
@@ -898,7 +899,7 @@ export default function ProductOptionsPage() {
               <CardContent>
                 {isLoadingVariations ? (<div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>)
                 : variationsError ? (<ShadCnAlert variant="destructive"><AlertTriangle className="h-4 w-4" /><ShadCnAlertTitle>Error Loading Variations</ShadCnAlertTitle><ShadCnAlertDescription>{variationsError}</ShadCnAlertDescription></ShadCnAlert>)
-                : !groupedVariations && productOptions.source !== 'customizer-studio' ? (<p className="text-sm text-muted-foreground">No variations with a clear grouping attribute (like 'Color') were found for this product.</p>)
+                : (source === 'woocommerce' && !groupedVariations) ? (<p className="text-sm text-muted-foreground">No variations with a clear grouping attribute (like 'Color') were found for this product.</p>)
                 : (<div className="space-y-4">
                     {Object.keys(productOptions.source === 'customizer-studio' ? productOptions.nativeAttributes.colors.reduce((acc, c) => ({...acc, [c.name]:[]}), {}) : groupedVariations || {}).map((groupKey) => (
                       <div key={groupKey}>
@@ -960,5 +961,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-
-    
