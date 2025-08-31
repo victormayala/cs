@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   try {
     const productsRef = collection(db, `users/${configUserId}/products`);
     const q = query(productsRef);
+    // Use { cache: 'no-store' } to prevent Next.js from caching the data fetch
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
 
       try {
         const optionsRef = doc(db, 'userProductOptions', configUserId, 'products', productId);
+        // Use { cache: 'no-store' } for this fetch as well
         const optionsSnap = await getDoc(optionsRef);
 
         if (optionsSnap.exists()) {
