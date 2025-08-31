@@ -10,6 +10,7 @@ import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationIma
 
 // A more detailed version for the PDP
 interface PublicProductDetail extends PublicProduct {
+    salePrice?: number; // Added optional salePrice
     views: {
         id: string;
         name: string;
@@ -82,6 +83,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       name: productData.name,
       description: productData.description,
       price: optionsData?.price || 0,
+      salePrice: optionsData?.salePrice, // Add salePrice here
       imageUrl: primaryImageUrl,
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,

@@ -44,6 +44,7 @@ interface ProductView {
 
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
+    salePrice?: number;
     views: ProductView[];
     attributes?: ProductAttributeOptionsForPDP; // Use the more specific type
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
@@ -197,20 +198,19 @@ export default function ProductDetailPage() {
     fetchPageData();
   }, [storeId, productId]);
 
-  const currentPrice = useMemo(() => {
-    if (!product) return 0;
+  const currentPriceInfo = useMemo(() => {
+    if (!product) return { price: 0, salePrice: undefined };
     if (product.nativeVariations && selectedColor) {
       const matchingVariation = product.nativeVariations.find(v => {
         const colorMatch = v.attributes.Color === selectedColor;
-        // If there are no sizes, only color matters. If there are sizes, both must match.
         const sizeMatch = !product.attributes?.sizes?.length || v.attributes.Size === selectedSize;
         return colorMatch && sizeMatch;
       });
       if (matchingVariation) {
-        return matchingVariation.price;
+        return { price: matchingVariation.price, salePrice: matchingVariation.salePrice };
       }
     }
-    return product.price;
+    return { price: product.price, salePrice: product.salePrice };
   }, [product, selectedColor, selectedSize]);
 
   if (isLoading || !storeConfig) {
@@ -316,9 +316,16 @@ export default function ProductDetailPage() {
                                 {product.sku && <span>SKU: <span className="font-medium text-foreground">{product.sku}</span></span>}
                             </div>
                          )}
-                         <p className="text-2xl font-semibold mt-2 mb-4" style={{ color: `hsl(var(--primary))` }}>
-                            ${currentPrice.toFixed(2)}
-                         </p>
+                         <div className="flex items-baseline gap-2 mt-2 mb-4">
+                            <p className={cn("text-2xl font-semibold", currentPriceInfo.salePrice ? "text-destructive" : "text-primary")} style={{ color: !currentPriceInfo.salePrice ? `hsl(var(--primary))` : '' }}>
+                                ${currentPriceInfo.salePrice ? currentPriceInfo.salePrice.toFixed(2) : currentPriceInfo.price.toFixed(2)}
+                            </p>
+                            {currentPriceInfo.salePrice && (
+                                <p className="text-lg text-muted-foreground line-through">
+                                    ${currentPriceInfo.price.toFixed(2)}
+                                </p>
+                            )}
+                         </div>
                          
                          <div className="mt-6 space-y-6">
                             {product.attributes && product.attributes.colors && product.attributes.colors.length > 0 && (
