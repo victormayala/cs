@@ -6,6 +6,7 @@ import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
 import type { SizeAttribute } from '@/app/dashboard/products/[productId]/options/page';
+import { ProductCategory } from '@/app/dashboard/categories/page';
 
 interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 'sizes'> {
   sizes: SizeAttribute[];
@@ -22,7 +23,7 @@ interface PublicProductDetail extends PublicProduct {
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
-    category?: string;
+    category?: string; // Now holds the category NAME
     customizationTechniques?: CustomizationTechnique[];
     nativeVariations?: NativeProductVariation[];
 }
@@ -56,6 +57,25 @@ export async function GET(request: Request, { params }: { params: { productId: s
 
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
+    
+    // --- New Category Name Fetching Logic ---
+    let categoryName: string | undefined = undefined;
+    if (productData.category && typeof productData.category === 'string') {
+        const categoryId = productData.category;
+        try {
+            const categoryRef = doc(db, `users/${configUserId}/productCategories`, categoryId);
+            const categorySnap = await getDoc(categoryRef);
+            if (categorySnap.exists()) {
+                const categoryData = categorySnap.data() as ProductCategory;
+                categoryName = categoryData.name;
+            } else {
+                console.warn(`Category with ID "${categoryId}" not found for product "${productId}".`);
+            }
+        } catch (catError) {
+            console.error(`Error fetching category "${categoryId}" for product "${productId}":`, catError);
+        }
+    }
+    // --- End New Logic ---
     
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
@@ -96,7 +116,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
-      category: productData.category,
+      category: categoryName, // Use the fetched name here
       customizationTechniques: productData.customizationTechniques,
       nativeVariations: cleanNativeVariations,
     };
