@@ -75,10 +75,15 @@ export async function GET(request: Request, { params }: { params: { productId: s
       }
     }
     
-    const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => ({
-      ...v,
-      salePrice: v.salePrice ?? null,
-    }));
+    // Clean nativeVariations to ensure salePrice is either a number or null
+    const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => {
+      const cleanVariation: any = { ...v };
+      // Ensure salePrice is a number or null, not undefined.
+      cleanVariation.salePrice = (v.salePrice !== undefined && v.salePrice !== null) ? v.salePrice : null;
+      // If salePrice is explicitly undefined in the DB, it becomes null.
+      // If salePrice is missing, it becomes null.
+      return cleanVariation as NativeProductVariation;
+    });
 
 
     const publicProductDetail: PublicProductDetail = {
@@ -86,7 +91,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       name: productData.name,
       description: productData.description,
       price: optionsData?.price ?? 0,
-      salePrice: optionsData?.salePrice ?? null,
+      salePrice: optionsData?.salePrice ?? null, // Ensure base sale price is also cleaned
       imageUrl: primaryImageUrl,
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,

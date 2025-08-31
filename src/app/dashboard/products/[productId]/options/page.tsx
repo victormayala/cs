@@ -51,7 +51,7 @@ interface ProductOptionsData {
   price: number;
   salePrice: number | null; // Use null for empty, not undefined
   shipping: ShippingAttributes;
-  type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
+  type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
@@ -444,29 +444,30 @@ export default function ProductOptionsPage() {
         nativeVariations, brand, sku, category, customizationTechniques, shipping, salePrice
       } = productOptions;
   
-      // 1. Build the base object with guaranteed fields
       const dataToSave: any = {
         id, name, description, price, type, allowCustomization,
         defaultViews, optionsByColor, groupingAttributeName, nativeAttributes,
         lastSaved: serverTimestamp(),
       };
-  
-      // 2. Conditionally add optional top-level fields
-      if (salePrice !== null) { dataToSave.salePrice = salePrice; } 
-      else { dataToSave.salePrice = deleteField(); }
+      
+      // Explicitly handle optional top-level fields
+      if (salePrice !== null && salePrice !== undefined && !isNaN(salePrice)) {
+          dataToSave.salePrice = salePrice;
+      } else {
+          dataToSave.salePrice = deleteField();
+      }
 
       if (brand) dataToSave.brand = brand;
       if (sku) dataToSave.sku = sku;
       if (category) dataToSave.category = category;
       if (shipping) dataToSave.shipping = shipping;
+      if (customizationTechniques) dataToSave.customizationTechniques = customizationTechniques;
   
-      // 3. Sanitize and add nativeVariations
       if (Array.isArray(nativeVariations)) {
         dataToSave.nativeVariations = nativeVariations.map(variation => {
-          const cleanVariation = { ...variation };
-          // Explicitly handle salePrice: if it's null, we want to remove it.
-          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined) {
-            delete (cleanVariation as any).salePrice;
+          const cleanVariation: any = { ...variation };
+          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
+            delete cleanVariation.salePrice;
           }
           return cleanVariation;
         });
@@ -502,6 +503,7 @@ export default function ProductOptionsPage() {
       setIsSaving(false);
     }
   };
+  
 
   const handleOpenInCustomizer = () => {
     if (!productOptions || hasUnsavedChanges) {
@@ -720,17 +722,13 @@ export default function ProductOptionsPage() {
   };
 
   const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
-    // If the value is an empty string, we treat it as `null` to signify clearing the field.
-    // Otherwise, parse it to a float.
     const numValue = value.trim() === '' ? null : parseFloat(value);
   
-    // For the base price, we don't allow it to be null/empty.
     if (field === 'price' && numValue === null) {
       toast({ title: "Invalid Price", description: "Base price for a variation cannot be empty.", variant: "destructive" });
       return;
     }
   
-    // If it's not empty, but still not a valid number (e.g., "abc"), ignore the change.
     if (numValue !== null && isNaN(numValue)) {
       return;
     }
@@ -746,16 +744,13 @@ export default function ProductOptionsPage() {
           v.id === id ? { ...v, [field]: numValue } : v
         );
       } else {
-        // Find the template variation to create a new entry
         const template = generatedVariations.find(v => v.id === id);
-        if (!template) return prev; // Should not happen
+        if (!template) return prev;
         
-        // Create a new variation object ensuring `salePrice` is `null` by default
         const newVariation: NativeProductVariation = { 
           ...template, 
-          salePrice: null // Explicitly initialize salePrice as null
+          salePrice: null 
         };
-        // Now, apply the update
         (newVariation as any)[field] = numValue;
         updatedVariations = [...prev.nativeVariations, newVariation];
       }
@@ -821,7 +816,7 @@ export default function ProductOptionsPage() {
   }
 
   const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
-  const isPriceDisabled = source === 'customizer-studio' && productOptions.type === 'variable';
+  const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
