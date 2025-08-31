@@ -201,26 +201,29 @@ export default function ProductDetailPage() {
   const currentPriceInfo = useMemo(() => {
     if (!product) return { price: 0, salePrice: null };
 
-    let basePrice = product.price;
-    let baseSalePrice: number | null = product.salePrice ?? null;
+    // 1. Determine the base price from the selected variation.
+    let variationPrice = product.price; // Start with the product's default price.
+    let variationSalePrice: number | null = product.salePrice ?? null;
 
     if (product.nativeVariations && product.nativeVariations.length > 0) {
       const matchingVariation = product.nativeVariations.find(v => {
-        const colorMatch = !v.attributes.Color || v.attributes.Color === selectedColor;
-        const sizeMatch = !v.attributes.Size || v.attributes.Size === selectedSize;
+        const colorMatch = !selectedColor || v.attributes.Color === selectedColor;
+        const sizeMatch = !selectedSize || v.attributes.Size === selectedSize;
         return colorMatch && sizeMatch;
       });
 
       if (matchingVariation) {
-        basePrice = matchingVariation.price;
-        baseSalePrice = matchingVariation.salePrice ?? null;
+        variationPrice = matchingVariation.price;
+        variationSalePrice = matchingVariation.salePrice ?? null; // Use variation sale price if available
       }
     }
 
+    // 2. Find the size modifier.
     const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
-
-    const finalPrice = basePrice + sizeModifier;
-    const finalSalePrice = baseSalePrice !== null ? baseSalePrice + sizeModifier : null;
+    
+    // 3. ADD the modifier to the base prices.
+    const finalPrice = variationPrice + sizeModifier;
+    const finalSalePrice = variationSalePrice !== null ? variationSalePrice + sizeModifier : null;
 
     return { price: finalPrice, salePrice: finalSalePrice };
   }, [product, selectedColor, selectedSize]);
