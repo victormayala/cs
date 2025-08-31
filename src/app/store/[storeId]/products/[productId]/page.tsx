@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
             // Fetch store config and product data in parallel
             const [storeRes, productRes] = await Promise.all([
                 getDoc(doc(db, 'userStores', storeId)),
-                fetch(`/api/store/products/${productId}?configUserId=${storeId}`, { cache: 'no-store' }) // Added no-store
+                fetch(`/api/store/products/${productId}?configUserId=${storeId}`)
             ]);
 
             // Process store config
@@ -220,7 +220,7 @@ export default function ProductDetailPage() {
     const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
     
     const finalPrice = price + sizeModifier;
-    const finalSalePrice = salePrice !== null ? salePrice + sizeModifier : null;
+    const finalSalePrice = salePrice !== null && salePrice !== undefined ? salePrice + sizeModifier : null;
     
     return { price: finalPrice, salePrice: finalSalePrice };
   }, [product, selectedColor, selectedSize]);

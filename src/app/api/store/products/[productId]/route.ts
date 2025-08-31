@@ -45,10 +45,9 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const productRef = doc(db, `users/${configUserId}/products`, productId);
     const optionsRef = doc(db, 'userProductOptions', configUserId, 'products', productId);
 
-    // Use { cache: 'no-store' } to prevent Next.js from caching the data fetch
     const [productSnap, optionsSnap] = await Promise.all([
-        getDoc(productRef, { cache: 'no-store' } as any),
-        getDoc(optionsRef, { cache: 'no-store' } as any)
+        getDoc(productRef),
+        getDoc(optionsRef)
     ]);
 
     if (!productSnap.exists()) {
@@ -103,7 +102,11 @@ export async function GET(request: Request, { params }: { params: { productId: s
       nativeVariations: cleanNativeVariations,
     };
 
-    return NextResponse.json({ product: publicProductDetail });
+    return NextResponse.json({ product: publicProductDetail }, {
+        headers: {
+            'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        },
+    });
 
   } catch (error: any) {
     console.error(`Error fetching product ${productId} for user ${configUserId}:`, error);

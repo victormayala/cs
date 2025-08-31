@@ -436,10 +436,8 @@ export default function ProductOptionsPage() {
       return;
     }
     setIsSaving(true);
-  
+
     try {
-      // Create a clean object with only the properties that should be saved to Firestore.
-      // This is a more robust approach than trying to delete 'undefined' keys.
       const dataToSave: any = {
         id: productOptions.id,
         name: productOptions.name,
@@ -453,19 +451,19 @@ export default function ProductOptionsPage() {
         nativeAttributes: productOptions.nativeAttributes || {},
         lastSaved: serverTimestamp(),
       };
-  
-      // Explicitly handle optional fields to avoid 'undefined'
-      if (productOptions.salePrice !== null && productOptions.salePrice !== undefined) {
+
+      if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
         dataToSave.salePrice = productOptions.salePrice;
+      } else {
+        dataToSave.salePrice = deleteField();
       }
+
       if (productOptions.brand) dataToSave.brand = productOptions.brand;
       if (productOptions.sku) dataToSave.sku = productOptions.sku;
       if (productOptions.category) dataToSave.category = productOptions.category;
       if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
       if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
-  
-      // Sanitize the nativeVariations array. This is critical.
-      // We will create new objects, only including salePrice if it's a valid number.
+
       if (Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
           const cleanVariation: any = {
@@ -473,7 +471,6 @@ export default function ProductOptionsPage() {
             attributes: variation.attributes,
             price: variation.price,
           };
-          // Only add salePrice to the object if it is a valid number.
           if (variation.salePrice !== null && variation.salePrice !== undefined && !isNaN(variation.salePrice)) {
             cleanVariation.salePrice = variation.salePrice;
           }
@@ -485,7 +482,7 @@ export default function ProductOptionsPage() {
       
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       await setDoc(docRef, dataToSave, { merge: true });
-  
+
       if (productOptions.source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
         const nativeProductData: any = {
