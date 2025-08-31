@@ -23,6 +23,17 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from '@/components/ui/label';
 
+// Redefine SizeAttribute here to match the structure on the options page
+interface SizeAttribute {
+    id: string;
+    name: string;
+    priceModifier: number;
+}
+
+interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 'sizes'> {
+    sizes: SizeAttribute[];
+}
+
 
 interface ProductView {
     id: string;
@@ -34,7 +45,7 @@ interface ProductView {
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
     views: ProductView[];
-    attributes?: ProductAttributeOptions;
+    attributes?: ProductAttributeOptionsForPDP; // Use the more specific type
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
@@ -170,7 +181,7 @@ export default function ProductDetailPage() {
               setSelectedColor(fetchedProduct.attributes.colors[0].name);
             }
             if (fetchedProduct.attributes?.sizes?.length > 0) {
-              setSelectedSize(fetchedProduct.attributes.sizes[0]);
+              setSelectedSize(fetchedProduct.attributes.sizes[0].name);
             }
             if (fetchedProduct.customizationTechniques?.length > 0) {
               setSelectedTechnique(fetchedProduct.customizationTechniques[0]);
@@ -339,13 +350,13 @@ export default function ProductDetailPage() {
                                     <div className="flex flex-wrap gap-2">
                                         {product.attributes.sizes.map(size => (
                                             <Button
-                                                key={size}
+                                                key={size.id}
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => setSelectedSize(size)}
-                                                className={cn("h-9", selectedSize === size && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+                                                onClick={() => setSelectedSize(size.name)}
+                                                className={cn("h-9", selectedSize === size.name && 'bg-primary text-primary-foreground hover:bg-primary/90')}
                                             >
-                                                {size}
+                                                {size.name}
                                             </Button>
                                         ))}
                                     </div>
@@ -462,4 +473,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-
