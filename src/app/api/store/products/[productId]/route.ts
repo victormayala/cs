@@ -1,6 +1,4 @@
 
-'use server';
-
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -25,20 +23,23 @@ interface PublicProductDetail extends PublicProduct {
     nativeVariations?: NativeProductVariation[];
 }
 
-export const revalidate = 0; // Force dynamic rendering and disable caching
-
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
   const { searchParams } = new URL(request.url);
   const configUserId = searchParams.get('configUserId');
   const { productId } = params;
 
+  // Define headers for no caching
+  const headers = {
+    'Cache-Control': 'no-store, max-age=0',
+  };
+
   if (!configUserId || !productId) {
-    return NextResponse.json({ error: 'Config User ID and Product ID are required.' }, { status: 400 });
+    return NextResponse.json({ error: 'Config User ID and Product ID are required.' }, { status: 400, headers });
   }
 
   if (!db) {
     console.error("/api/store/products/[productId]: Firestore not initialized.");
-    return NextResponse.json({ error: 'Database service is not available.' }, { status: 500 });
+    return NextResponse.json({ error: 'Database service is not available.' }, { status: 500, headers });
   }
 
   try {
@@ -48,39 +49,32 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const [productSnap, optionsSnap] = await Promise.all([getDoc(productRef), getDoc(optionsRef)]);
 
     if (!productSnap.exists()) {
-      return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'Product not found.' }, { status: 404, headers });
     }
 
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
 
-    // Use a robust default image
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
-    // Construct the views, ensuring they are valid
     const views = optionsData?.defaultViews?.map(view => ({
       id: view.id,
       name: view.name,
-      // Fallback for each view's image
       imageUrl: view.imageUrl && !view.imageUrl.includes('placehold.co') ? view.imageUrl : `${defaultPlaceholderImage}&txtsize=30&text=${encodeURIComponent(view.name)}`,
     })) || [{ id: 'default_view', name: 'Front', imageUrl: defaultPlaceholderImage }];
     
-    // Determine the primary image URL for the main product display
     const primaryImageUrl = views[0]?.imageUrl || defaultPlaceholderImage;
 
-    // Extract variation images
     const variationImages: Record<string, VariationImage[]> = {};
     if (optionsData?.optionsByColor) {
       for (const color in optionsData.optionsByColor) {
         const colorGroup = optionsData.optionsByColor[color];
         if (colorGroup.variantImages && colorGroup.variantImages.length > 0) {
-          // Filter out empty image objects
           variationImages[color] = colorGroup.variantImages.filter(img => img && img.imageUrl);
         }
       }
     }
     
-    // Clean native variations to ensure salePrice is null if not present
     const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => ({
       ...v,
       salePrice: v.salePrice ?? null,
@@ -92,7 +86,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       name: productData.name,
       description: productData.description,
       price: optionsData?.price ?? 0,
-      salePrice: optionsData?.salePrice ?? null, // Use null for consistency
+      salePrice: optionsData?.salePrice ?? null,
       imageUrl: primaryImageUrl,
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,
@@ -105,10 +99,10 @@ export async function GET(request: Request, { params }: { params: { productId: s
       nativeVariations: cleanNativeVariations,
     };
 
-    return NextResponse.json({ product: publicProductDetail });
+    return NextResponse.json({ product: publicProductDetail }, { headers });
 
   } catch (error: any) {
     console.error(`Error fetching product ${productId} for user ${configUserId}:`, error);
-    return NextResponse.json({ error: `Failed to fetch product details: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Failed to fetch product details: ${error.message}` }, { status: 500, headers });
   }
 }
