@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 interface SizeAttribute {
-    id: string; // Guaranteed unique ID
+    id: string;
     name: string;
     priceModifier: number;
 }
@@ -49,7 +49,7 @@ interface ProductOptionsData {
   customizationTechniques?: CustomizationTechnique[];
   price: number;
   salePrice?: number | null;
-  shipping?: ShippingAttributes;
+  shipping: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify';
   defaultViews: ProductView[]; 
   optionsByColor: Record<string, ColorGroupOptions>; 
@@ -102,12 +102,13 @@ export default function ProductOptionsPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const productIdFromUrl = decodeURIComponent(params.productId as string);
-  const source = searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce';
-  const firestoreDocId = productIdFromUrl.split('/').pop() || productIdFromUrl;
-
   const { toast } = useToast();
   const { user, isLoading: authIsLoading } = useAuth();
+  
+  // These hooks must be called at the top level
+  const productIdFromUrl = useMemo(() => decodeURIComponent(params.productId as string), [params.productId]);
+  const source = useMemo(() => searchParams.get('source') as 'woocommerce' | 'shopify' | 'customizer-studio' || 'woocommerce', [searchParams]);
+  const firestoreDocId = useMemo(() => productIdFromUrl.split('/').pop() || productIdFromUrl, [productIdFromUrl]);
   
   const [productOptions, setProductOptions] = useState<ProductOptionsData | null>(null);
   const [activeViewIdForSetup, setActiveViewIdForSetup] = useState<string | null>(null);
@@ -115,7 +116,7 @@ export default function ProductOptionsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null); 
-  const [credentialsExist, setCredentialsExist] = useState(true); // Assume true for native products
+  const [credentialsExist, setCredentialsExist] = useState(true);
 
   const [variations, setVariations] = useState<WCVariation[]>([]);
   const [isLoadingVariations, setIsLoadingVariations] = useState(false);
@@ -137,8 +138,7 @@ export default function ProductOptionsPage() {
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
-  const [sizePriceModifier, setSizePriceModifier] = useState<string>("0");
-
+  const [sizePriceModifier, setSizePriceModifier] = useState<number>(0);
 
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
@@ -155,8 +155,8 @@ export default function ProductOptionsPage() {
     if (colors.length > 0) {
         colors.forEach(color => {
             if (sizes.length > 0) {
-                sizes.forEach((size, sizeIndex) => {
-                    const id = `color-${color.name}-size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
+                sizes.forEach(size => {
+                    const id = `color-${color.name}-size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
                     const existing = productOptions.nativeVariations?.find(v => v.id === id);
                     variations.push({
                         id,
@@ -172,8 +172,8 @@ export default function ProductOptionsPage() {
             }
         });
     } else { // Only sizes exist
-        sizes.forEach((size, sizeIndex) => {
-            const id = `size-${size.id || sizeIndex}`.toLowerCase().replace(/\s+/g, '-');
+        sizes.forEach(size => {
+            const id = `size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
             variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice });
         });
@@ -214,6 +214,7 @@ export default function ProductOptionsPage() {
             type: 'shopify',
             imageUrl: product.featuredImage?.url || 'https://placehold.co/600x600.png',
             imageAlt: product.featuredImage?.altText || product.title,
+            shipping: { weight: 0, length: 0, width: 0, height: 0 }, // Default shipping for external products
           };
       } else if (source === 'woocommerce') { 
           const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
@@ -239,6 +240,7 @@ export default function ProductOptionsPage() {
             type: product.type,
             imageUrl: product.images?.[0]?.src || 'https://placehold.co/600x600.png',
             imageAlt: product.images?.[0]?.alt || product.name,
+            shipping: { weight: 0, length: 0, width: 0, height: 0 }, // Default shipping
           };
 
           if (product.type === 'variable') {
@@ -283,6 +285,7 @@ export default function ProductOptionsPage() {
           sku: nativeProduct.sku,
           category: nativeProduct.category,
           customizationTechniques: nativeProduct.customizationTechniques,
+          shipping: { weight: 0, length: 0, width: 0, height: 0 },
         };
       }
 
@@ -306,7 +309,7 @@ export default function ProductOptionsPage() {
       const nativeAttributesFromFS = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
       if (!nativeAttributesFromFS.colors) nativeAttributesFromFS.colors = [];
       const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any, index: number) => ({
-        id: s.id || crypto.randomUUID() + index, // Assign ID if missing
+        id: s.id || crypto.randomUUID(), // Assign ID if missing
         name: s.name,
         priceModifier: s.priceModifier ?? 0,
       }));
@@ -316,7 +319,7 @@ export default function ProductOptionsPage() {
         source,
         price: firestoreOptions?.price ?? baseProduct.price,
         salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
-        shipping: firestoreOptions?.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
+        shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
         type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
@@ -454,33 +457,29 @@ export default function ProductOptionsPage() {
     }
     
     setIsSaving(true);
-
+  
     try {
-      // 1. Create a clean base object for Firestore
-      const dataToSave: Omit<ProductOptionsFirestoreData, 'createdAt' | 'lastSaved'> & { lastSaved: any; createdAt?: any } = {
+      // 1. Create a clean base object for Firestore with required fields
+      const dataToSave: Partial<ProductOptionsFirestoreData> & { id: string; name: string; description: string; price: number, type: 'simple' | 'variable' | 'grouped' | 'external', allowCustomization: boolean, lastSaved: any } = {
         id: productOptions.id,
         name: productOptions.name,
         description: productOptions.description,
         price: productOptions.price,
-        shipping: productOptions.shipping,
-        type: productOptions.type === 'shopify' ? 'simple' : productOptions.type,
-        defaultViews: productOptions.defaultViews,
-        optionsByColor: productOptions.optionsByColor,
-        groupingAttributeName: productOptions.groupingAttributeName,
-        nativeAttributes: productOptions.nativeAttributes,
-        nativeVariations: [], // This will be sanitized next
+        type: productOptions.type === 'shopify' ? 'simple' : productOptions.type, // Map shopify type
         allowCustomization: productOptions.allowCustomization,
         lastSaved: serverTimestamp(),
       };
       
-      // 2. Sanitize optional fields on the main object
+      // 2. Conditionally add optional fields if they are valid
       if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice)) {
         dataToSave.salePrice = productOptions.salePrice;
-      } else {
-        delete (dataToSave as Partial<typeof dataToSave>).salePrice;
       }
-
-      // 3. Sanitize the nativeVariations array
+      if (productOptions.defaultViews) dataToSave.defaultViews = productOptions.defaultViews;
+      if (productOptions.optionsByColor) dataToSave.optionsByColor = productOptions.optionsByColor;
+      if (productOptions.groupingAttributeName) dataToSave.groupingAttributeName = productOptions.groupingAttributeName;
+      if (productOptions.nativeAttributes) dataToSave.nativeAttributes = productOptions.nativeAttributes;
+  
+      // 3. Deep-sanitize the nativeVariations array
       if (productOptions.nativeVariations && Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
           const cleanVariation: Partial<NativeProductVariation> = { ...variation };
@@ -492,15 +491,27 @@ export default function ProductOptionsPage() {
         });
       }
 
-      // 4. Save the fully sanitized object
+      // 4. Sanitize shipping object
+      if (productOptions.shipping) {
+        const cleanShipping: Partial<ShippingAttributes> = {};
+        if (typeof productOptions.shipping.weight === 'number') cleanShipping.weight = productOptions.shipping.weight;
+        if (typeof productOptions.shipping.length === 'number') cleanShipping.length = productOptions.shipping.length;
+        if (typeof productOptions.shipping.width === 'number') cleanShipping.width = productOptions.shipping.width;
+        if (typeof productOptions.shipping.height === 'number') cleanShipping.height = productOptions.shipping.height;
+        if (Object.keys(cleanShipping).length > 0) {
+          dataToSave.shipping = cleanShipping as ShippingAttributes;
+        }
+      }
+  
+      // 5. Save the fully sanitized object
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
         dataToSave.createdAt = serverTimestamp();
       }
       await setDoc(docRef, dataToSave, { merge: true });
-
-      // 5. Save native product base info if applicable
+  
+      // 6. Save native product base info if applicable
       if (source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
         const nativeProductData: Partial<NativeProduct> = {
@@ -513,7 +524,7 @@ export default function ProductOptionsPage() {
         if (productOptions.sku) nativeProductData.sku = productOptions.sku;
         if (productOptions.category) nativeProductData.category = productOptions.category;
         if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
-
+  
         await setDoc(productBaseRef, nativeProductData, { merge: true });
       }
       
@@ -740,13 +751,9 @@ export default function ProductOptionsPage() {
 
     } else { // sizes
       const sizeName = sizeInputValue.trim();
-      const modifier = parseFloat(sizePriceModifier);
+      const modifier = sizePriceModifier;
       if (!sizeName) {
         toast({ title: "Size name is required.", variant: "destructive" });
-        return;
-      }
-      if (isNaN(modifier)) {
-        toast({ title: "Price modifier must be a number.", variant: "destructive" });
         return;
       }
       if (productOptions.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) {
@@ -758,7 +765,7 @@ export default function ProductOptionsPage() {
       const newSizes = [...productOptions.nativeAttributes.sizes, newSize];
       setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } } : null);
       setSizeInputValue("");
-      setSizePriceModifier("0");
+      setSizePriceModifier(0);
     }
     
     setHasUnsavedChanges(true);
@@ -774,7 +781,7 @@ export default function ProductOptionsPage() {
         const updatedOptionsByColor = { ...prev.optionsByColor };
         delete updatedOptionsByColor[value];
         return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
-      } else { // 'sizes' now uses the unique id for removal
+      } else {
         const newSizes = prev.nativeAttributes.sizes.filter(item => item.id !== value);
         updatedAttributes = { ...updatedAttributes, sizes: newSizes };
       }
@@ -1148,19 +1155,19 @@ export default function ProductOptionsPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label htmlFor="shippingWeight">Weight (lbs)</Label>
-                    <Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                    <Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="shippingLength">Length (in)</Label>
-                    <Input id="shippingLength" type="number" step="0.01" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                    <Input id="shippingLength" type="number" step="0.01" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="shippingWidth">Width (in)</Label>
-                    <Input id="shippingWidth" type="number" step="0.01" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                    <Input id="shippingWidth" type="number" step="0.01" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="shippingHeight">Height (in)</Label>
-                    <Input id="shippingHeight" type="number" step="0.01" value={productOptions.shipping?.height || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...prev.shipping!, height: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
+                    <Input id="shippingHeight" type="number" step="0.01" value={productOptions.shipping?.height || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), height: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" />
                   </div>
               </div>
             </CardContent>
@@ -1224,14 +1231,14 @@ export default function ProductOptionsPage() {
                       </Label>
                       <div className="grid grid-cols-[2fr_1fr_auto] gap-2">
                           <Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/>
-                          <Input type="number" step="0.01" placeholder="+/- $" value={sizePriceModifier} onChange={(e) => setSizePriceModifier(e.target.value)} />
+                          <Input type="number" step="0.01" placeholder="+/- $" value={sizePriceModifier} onChange={(e) => setSizePriceModifier(parseFloat(e.target.value) || 0)} />
                           <Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
                           {productOptions.nativeAttributes.sizes.map((size) => {
                             const modifier = size.priceModifier ?? 0;
                             return (
-                              <Badge key={size.id + size.name} variant="secondary" className="text-sm">
+                              <Badge key={size.id} variant="secondary" className="text-sm">
                                   {size.name} {modifier !== 0 && `(${modifier > 0 ? '+' : ''}$${modifier.toFixed(2)})`}
                                   <button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button>
                               </Badge>
