@@ -847,30 +847,33 @@ export default function ProductOptionsPage() {
     newImageInfo: VariationImage | null
   ) => {
     setProductOptions(prev => {
-        if (!prev) return null;
+      if (!prev) return null;
 
-        // Deep copy to avoid direct state mutation
-        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+      // Deep copy to prevent state mutation issues
+      const newOptions = JSON.parse(JSON.stringify(prev));
+      
+      // Ensure the color key and variantImages array exist
+      if (!newOptions.optionsByColor[colorKey]) {
+        newOptions.optionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
+      }
+      if (!newOptions.optionsByColor[colorKey].variantImages) {
+        newOptions.optionsByColor[colorKey].variantImages = [];
+      }
 
-        // Ensure the color key exists
-        if (!updatedOptionsByColor[colorKey]) {
-            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
-        }
-        
-        let variantImages = updatedOptionsByColor[colorKey].variantImages || [];
-        
-        if (newImageInfo) {
-            // Replace or add the image at the specified index
-            variantImages[imageIndex] = newImageInfo;
-        } else {
-            // Remove the image at the index
-            variantImages.splice(imageIndex, 1);
-        }
+      let variantImages = newOptions.optionsByColor[colorKey].variantImages;
+      
+      if (newImageInfo) {
+        // Replace or add the image at the specified index
+        variantImages[imageIndex] = newImageInfo;
+      } else {
+        // Remove the image at the index
+        variantImages.splice(imageIndex, 1);
+      }
+      
+      // Ensure we don't exceed the max number of images
+      newOptions.optionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
 
-        // Assign the modified array back
-        updatedOptionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
-        
-        return { ...prev, optionsByColor: updatedOptionsByColor };
+      return newOptions;
     });
     setHasUnsavedChanges(true);
   }, []);
@@ -1262,3 +1265,5 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
+    
