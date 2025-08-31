@@ -189,33 +189,46 @@ export default function CategoriesPage() {
     }
   };
   
-
+  // Memoized function to create a hierarchical tree from the flat category list.
   const categoryTree = useMemo(() => {
-    const map: { [key: string]: ProductCategory & { children: ProductCategory[], level: number } } = {};
-    const roots: (ProductCategory & { children: ProductCategory[], level: number })[] = [];
+    // A type for tree nodes which includes children.
+    type TreeNode = ProductCategory & { children: TreeNode[] };
+    const nodeMap = new Map<string, TreeNode>();
+    const tree: TreeNode[] = [];
 
+    // First pass: create a map of all categories as tree nodes.
     categories.forEach(cat => {
-        map[cat.id] = { ...cat, children: [], level: 0 };
+      nodeMap.set(cat.id, { ...cat, children: [] });
     });
 
-    categories.forEach(cat => {
-        if (cat.parentId && map[cat.parentId]) {
-            map[cat.id].level = map[cat.parentId].level + 1;
-            map[cat.parentId].children.push(map[cat.id]);
-        } else {
-            roots.push(map[cat.id]);
-        }
+    // Second pass: link children to their parents.
+    nodeMap.forEach(node => {
+      if (node.parentId && nodeMap.has(node.parentId)) {
+        nodeMap.get(node.parentId)!.children.push(node);
+      } else {
+        tree.push(node);
+      }
     });
-    return roots;
+
+    // Sort children alphabetically within each node.
+    nodeMap.forEach(node => {
+      node.children.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    
+    // Sort root nodes alphabetically.
+    tree.sort((a, b) => a.name.localeCompare(b.name));
+    
+    return tree;
   }, [categories]);
 
-  const renderCategoryRows = (categories: (ProductCategory & { children: ProductCategory[], level: number })[]) => {
+  // Recursive function to render category rows with correct indentation.
+  const renderCategoryRows = (categoriesToRender: (ProductCategory & { children: (ProductCategory & { children: any[] })[] })[], level = 0): JSX.Element[] => {
     let rows: JSX.Element[] = [];
-    categories.forEach(cat => {
+    categoriesToRender.forEach(cat => {
         rows.push(
             <TableRow key={cat.id}>
-                <TableCell style={{ paddingLeft: `${1 + cat.level * 1.5}rem` }}>
-                    <span className="font-medium">{cat.name}</span>
+                <TableCell style={{ paddingLeft: `${1 + level * 1.5}rem` }}>
+                    <span className="font-medium">{level > 0 && '— '}{cat.name}</span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{cat.slug}</TableCell>
                 <TableCell className="text-center">{cat.productCount || 0}</TableCell>
@@ -225,24 +238,27 @@ export default function CategoriesPage() {
                 </TableCell>
             </TableRow>
         );
-        if (cat.children.length > 0) {
-            rows = rows.concat(renderCategoryRows(cat.children.sort((a, b) => a.name.localeCompare(b.name))));
+        if (cat.children && cat.children.length > 0) {
+            rows = rows.concat(renderCategoryRows(cat.children, level + 1));
         }
     });
     return rows;
   };
 
-  const renderCategoryOptions = (categories: (ProductCategory & { children: ProductCategory[]})[], level = 0) => {
+  // Recursive function to render category options for the select dropdown.
+  const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
     let options: JSX.Element[] = [];
-    categories.forEach(cat => {
-        if (editingCategory && cat.id === editingCategory.id) return; // Don't allow a category to be its own parent
+    categoriesToRender.forEach(cat => {
+        // Prevent a category from being its own parent.
+        if (editingCategory && cat.id === editingCategory.id) return;
+        
         options.push(
             <SelectItem key={cat.id} value={cat.id}>
                 <span style={{ paddingLeft: `${level * 1.5}rem` }}>{cat.name}</span>
             </SelectItem>
         );
-        if (cat.children.length > 0) {
-            options = options.concat(renderCategoryOptions(cat.children.sort((a, b) => a.name.localeCompare(b.name)), level + 1));
+        if (cat.children && cat.children.length > 0) {
+            options = options.concat(renderCategoryOptions(cat.children, level + 1));
         }
     });
     return options;
