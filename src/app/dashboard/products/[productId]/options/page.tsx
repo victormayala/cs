@@ -438,39 +438,45 @@ export default function ProductOptionsPage() {
     setIsSaving(true);
   
     try {
-      const {
-        id, name, description, price, type, allowCustomization, 
-        defaultViews, optionsByColor, groupingAttributeName, nativeAttributes, 
-        nativeVariations, brand, sku, category, customizationTechniques, shipping, salePrice
-      } = productOptions;
-  
+      // 1. Create a base object with guaranteed fields
       const dataToSave: any = {
-        id, name, description, price, type, allowCustomization,
-        defaultViews, optionsByColor, groupingAttributeName, nativeAttributes,
+        id: productOptions.id,
+        name: productOptions.name,
+        description: productOptions.description,
+        price: productOptions.price,
+        type: productOptions.type,
+        allowCustomization: productOptions.allowCustomization,
+        defaultViews: productOptions.defaultViews,
+        optionsByColor: productOptions.optionsByColor,
+        groupingAttributeName: productOptions.groupingAttributeName,
+        nativeAttributes: productOptions.nativeAttributes,
         lastSaved: serverTimestamp(),
       };
       
-      // Explicitly handle optional top-level fields
-      if (salePrice !== null && salePrice !== undefined && !isNaN(salePrice)) {
-          dataToSave.salePrice = salePrice;
+      // 2. Conditionally add optional fields, deleting them if they are null/undefined
+      if (productOptions.salePrice) {
+        dataToSave.salePrice = productOptions.salePrice;
       } else {
-          dataToSave.salePrice = deleteField();
+        dataToSave.salePrice = deleteField();
       }
 
-      if (brand) dataToSave.brand = brand;
-      if (sku) dataToSave.sku = sku;
-      if (category) dataToSave.category = category;
-      if (shipping) dataToSave.shipping = shipping;
-      if (customizationTechniques) dataToSave.customizationTechniques = customizationTechniques;
+      if (productOptions.brand) dataToSave.brand = productOptions.brand;
+      if (productOptions.sku) dataToSave.sku = productOptions.sku;
+      if (productOptions.category) dataToSave.category = productOptions.category;
+      if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
+      if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
   
-      if (Array.isArray(nativeVariations)) {
-        dataToSave.nativeVariations = nativeVariations.map(variation => {
+      // 3. Sanitize the nativeVariations array
+      if (Array.isArray(productOptions.nativeVariations)) {
+        dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
           const cleanVariation: any = { ...variation };
-          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice)) {
-            delete cleanVariation.salePrice;
+          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice) || cleanVariation.salePrice === '') {
+             cleanVariation.salePrice = deleteField();
           }
           return cleanVariation;
         });
+      } else {
+        dataToSave.nativeVariations = [];
       }
       
       const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
@@ -478,15 +484,15 @@ export default function ProductOptionsPage() {
   
       if (productOptions.source === 'customizer-studio') {
         const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
-        const nativeProductData: Partial<NativeProduct> = {
-          name: name,
-          description: description,
+        const nativeProductData: any = {
+          name: productOptions.name,
+          description: productOptions.description,
           lastModified: serverTimestamp()
         };
-        if (brand) nativeProductData.brand = brand;
-        if (sku) nativeProductData.sku = sku;
-        if (category) nativeProductData.category = category;
-        if (customizationTechniques) nativeProductData.customizationTechniques = customizationTechniques;
+        if (productOptions.brand) nativeProductData.brand = productOptions.brand;
+        if (productOptions.sku) nativeProductData.sku = productOptions.sku;
+        if (productOptions.category) nativeProductData.category = productOptions.category;
+        if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
         await setDoc(productBaseRef, nativeProductData, { merge: true });
       }
       
@@ -503,7 +509,6 @@ export default function ProductOptionsPage() {
       setIsSaving(false);
     }
   };
-  
 
   const handleOpenInCustomizer = () => {
     if (!productOptions || hasUnsavedChanges) {
