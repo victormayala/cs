@@ -44,7 +44,7 @@ interface ProductView {
 
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
-    salePrice?: number;
+    salePrice?: number | null;
     views: ProductView[];
     attributes?: ProductAttributeOptionsForPDP; // Use the more specific type
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
@@ -199,18 +199,31 @@ export default function ProductDetailPage() {
   }, [storeId, productId]);
 
   const currentPriceInfo = useMemo(() => {
-    if (!product) return { price: 0, salePrice: undefined };
-    if (product.nativeVariations && selectedColor) {
+    if (!product) return { price: 0, salePrice: null };
+    
+    // Default to base product prices
+    let price = product.price;
+    let salePrice = product.salePrice;
+
+    // If variations exist, find the matching one
+    if (product.nativeVariations && product.nativeVariations.length > 0) {
       const matchingVariation = product.nativeVariations.find(v => {
-        const colorMatch = v.attributes.Color === selectedColor;
-        const sizeMatch = !product.attributes?.sizes?.length || v.attributes.Size === selectedSize;
+        const colorMatch = !v.attributes.Color || v.attributes.Color === selectedColor;
+        const sizeMatch = !v.attributes.Size || v.attributes.Size === selectedSize;
         return colorMatch && sizeMatch;
       });
+
       if (matchingVariation) {
-        return { price: matchingVariation.price, salePrice: matchingVariation.salePrice };
+        price = matchingVariation.price;
+        // A variation's salePrice can be null, indicating no sale for that specific variation
+        salePrice = matchingVariation.salePrice ?? null;
       }
     }
-    return { price: product.price, salePrice: product.salePrice };
+    
+    // Apply size price modifier if a size is selected
+    const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
+    
+    return { price: price + sizeModifier, salePrice: salePrice ? salePrice + sizeModifier : null };
   }, [product, selectedColor, selectedSize]);
 
   if (isLoading || !storeConfig) {
@@ -317,10 +330,10 @@ export default function ProductDetailPage() {
                             </div>
                          )}
                          <div className="flex items-baseline gap-2 mt-2 mb-4">
-                            <p className={cn("text-2xl font-semibold", currentPriceInfo.salePrice ? "text-destructive" : "text-primary")} style={{ color: !currentPriceInfo.salePrice ? `hsl(var(--primary))` : '' }}>
-                                ${currentPriceInfo.salePrice ? currentPriceInfo.salePrice.toFixed(2) : currentPriceInfo.price.toFixed(2)}
+                            <p className={cn("text-2xl font-semibold", currentPriceInfo.salePrice != null ? "text-destructive" : "text-primary")} style={{ color: currentPriceInfo.salePrice == null ? `hsl(var(--primary))` : '' }}>
+                                ${currentPriceInfo.salePrice != null ? currentPriceInfo.salePrice.toFixed(2) : currentPriceInfo.price.toFixed(2)}
                             </p>
-                            {currentPriceInfo.salePrice && (
+                            {currentPriceInfo.salePrice != null && (
                                 <p className="text-lg text-muted-foreground line-through">
                                     ${currentPriceInfo.price.toFixed(2)}
                                 </p>
@@ -364,6 +377,9 @@ export default function ProductDetailPage() {
                                                 className={cn("h-9", selectedSize === size.name && 'bg-primary text-primary-foreground hover:bg-primary/90')}
                                             >
                                                 {size.name}
+                                                {size.priceModifier !== 0 && (
+                                                    <span className="text-xs ml-1.5 opacity-80">({size.priceModifier > 0 ? '+' : ''}${size.priceModifier.toFixed(2)})</span>
+                                                )}
                                             </Button>
                                         ))}
                                     </div>
