@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,7 @@ import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupO
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Image as ImageIcon } from 'lucide-react';
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
@@ -47,8 +48,8 @@ interface ProductOptionsData {
   sku?: string;
   category?: string;
   customizationTechniques?: CustomizationTechnique[];
-  price: number;
-  salePrice: number | null; // Use null for empty, not undefined
+  price: number | string;
+  salePrice: number | string | null;
   shipping: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
   defaultViews: ProductView[];
@@ -135,6 +136,10 @@ export default function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
 
+  // NEW: State for variation price input fields
+  const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
+  const [variationSalePriceInputs, setVariationSalePriceInputs] = useState<Record<string, string>>({});
+
   const generatedVariations = useMemo(() => {
     if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
         return [];
@@ -152,21 +157,21 @@ export default function ProductOptionsPage() {
                     variations.push({
                         id,
                         attributes: { "Color": color.name, "Size": size.name },
-                        price: existing?.price ?? productOptions.price,
+                        price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0),
                         salePrice: existing?.salePrice ?? null,
                     });
                 });
             } else {
                 const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
                 const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                variations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice ?? null });
+                variations.push({ id, attributes: { "Color": color.name }, price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), salePrice: existing?.salePrice ?? null });
             }
         });
     } else {
         sizes.forEach(size => {
             const id = `size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
-            variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? productOptions.price, salePrice: existing?.salePrice ?? null });
+            variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), salePrice: existing?.salePrice ?? null });
         });
     }
     return variations;
@@ -182,7 +187,7 @@ export default function ProductOptionsPage() {
     setError(null);
     setVariationsError(null);
     try {
-      let baseProduct: { id: string; name: string; description: string; price: number; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; salePrice: number | null; shipping?: ShippingAttributes };
+      let baseProduct: { id: string; name: string; description: string; price: number | string; type: any; imageUrl: string; imageAlt: string; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; salePrice: number | string | null; shipping?: ShippingAttributes };
       if (source === 'shopify') {
           const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
           const credDocSnap = await getDoc(credDocRef);
@@ -263,7 +268,7 @@ export default function ProductOptionsPage() {
           id: firestoreDocId,
           name: nativeProduct.name,
           description: nativeProduct.description || 'No description provided.',
-          price: 0,
+          price: '',
           salePrice: null,
           type: 'simple',
           imageUrl: 'https://placehold.co/600x600.png',
@@ -306,7 +311,7 @@ export default function ProductOptionsPage() {
         ...baseProduct,
         source,
         price: firestoreOptions?.price ?? baseProduct.price,
-        salePrice: firestoreOptions?.salePrice ?? null,
+        salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
         shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
         type: firestoreOptions?.type ?? baseProduct.type,
         defaultViews: finalDefaultViews,
@@ -316,6 +321,17 @@ export default function ProductOptionsPage() {
         nativeVariations: cleanNativeVariations,
         allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
       });
+
+      // Populate variation input state
+      const priceInputs: Record<string, string> = {};
+      const salePriceInputs: Record<string, string> = {};
+      cleanNativeVariations.forEach(v => {
+        priceInputs[v.id] = String(v.price ?? '');
+        salePriceInputs[v.id] = v.salePrice != null ? String(v.salePrice) : '';
+      });
+      setVariationPriceInputs(priceInputs);
+      setVariationSalePriceInputs(salePriceInputs);
+
       setActiveViewIdForSetup(finalDefaultViews[0]?.id || null);
       setSelectedBoundaryBoxId(null);
       setHasUnsavedChanges(isRefresh ? hasUnsavedChanges : false);
@@ -439,7 +455,7 @@ export default function ProductOptionsPage() {
         id: productOptions.id,
         name: productOptions.name,
         description: productOptions.description,
-        price: productOptions.price,
+        price: Number(productOptions.price) || 0,
         type: productOptions.type,
         allowCustomization: productOptions.allowCustomization,
         defaultViews: productOptions.defaultViews,
@@ -447,13 +463,13 @@ export default function ProductOptionsPage() {
         groupingAttributeName: productOptions.groupingAttributeName || null,
         nativeAttributes: {
           colors: productOptions.nativeAttributes.colors || [],
-          sizes: productOptions.nativeAttributes.sizes.map(s => ({ id: s.id, name: s.name })) || [], // Remove priceModifier on save
+          sizes: productOptions.nativeAttributes.sizes.map(s => ({ id: s.id, name: s.name })) || [],
         },
         lastSaved: serverTimestamp(),
     };
     
     if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
-        dataToSave.salePrice = productOptions.salePrice;
+        dataToSave.salePrice = Number(productOptions.salePrice);
     } else {
         dataToSave.salePrice = deleteField();
     }
@@ -469,10 +485,10 @@ export default function ProductOptionsPage() {
             const cleanVariation: { [key: string]: any } = {
                 id: variation.id,
                 attributes: variation.attributes,
-                price: variation.price,
+                price: Number(variation.price) || 0,
             };
             if (variation.salePrice !== null && variation.salePrice !== undefined && String(variation.salePrice).trim() !== '') {
-                cleanVariation.salePrice = variation.salePrice;
+                cleanVariation.salePrice = Number(variation.salePrice);
             }
             return cleanVariation;
         });
@@ -730,14 +746,31 @@ export default function ProductOptionsPage() {
   };
 
   const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
+    if (field === 'price') {
+      setVariationPriceInputs(prev => ({...prev, [id]: value}));
+    } else {
+      setVariationSalePriceInputs(prev => ({...prev, [id]: value}));
+    }
+    setHasUnsavedChanges(true);
+  };
+  
+  const handleVariationFieldBlur = (id: string, field: 'price' | 'salePrice') => {
+    const value = field === 'price' ? variationPriceInputs[id] : variationSalePriceInputs[id];
     const numValue = value.trim() === '' ? null : parseFloat(value);
   
     if (field === 'price' && (numValue === null || isNaN(numValue))) {
       toast({ title: "Invalid Price", description: "Base price for a variation cannot be empty.", variant: "destructive" });
+      setVariationPriceInputs(prev => ({...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.price.toString() || '0'}));
       return;
     }
   
     if (value.trim() !== '' && isNaN(numValue as number)) {
+      toast({ title: "Invalid Number", description: "Please enter a valid number for the price.", variant: "destructive" });
+      if (field === 'price') {
+          setVariationPriceInputs(prev => ({...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.price.toString() || '0'}));
+      } else {
+          setVariationSalePriceInputs(prev => ({...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.salePrice?.toString() || ''}));
+      }
       return;
     }
   
@@ -764,7 +797,6 @@ export default function ProductOptionsPage() {
       }
       return { ...prev, nativeVariations: updatedVariations };
     });
-    setHasUnsavedChanges(true);
   };
 
   const handleBulkUpdate = (field: 'price' | 'salePrice') => {
@@ -778,6 +810,20 @@ export default function ProductOptionsPage() {
         toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
         return;
       }
+
+      const updatedPriceInputs = {...variationPriceInputs};
+      const updatedSalePriceInputs = {...variationSalePriceInputs};
+
+      generatedVariations.forEach(genVar => {
+        if(field === 'price' && value !== null) {
+          updatedPriceInputs[genVar.id] = value.toString();
+        } else if (field === 'salePrice') {
+          updatedSalePriceInputs[genVar.id] = value !== null ? value.toString() : '';
+        }
+      });
+      setVariationPriceInputs(updatedPriceInputs);
+      setVariationSalePriceInputs(updatedSalePriceInputs);
+
       setProductOptions(prev => {
         if (!prev) return null;
         const existingVariationsMap = new Map(prev.nativeVariations.map(v => [v.id, v]));
@@ -795,6 +841,37 @@ export default function ProductOptionsPage() {
       setHasUnsavedChanges(true);
       toast({ title: "Prices Updated", description: `All variations' ${field}s have been updated.`});
   };
+
+  const handleBasePriceChange = (value: string) => {
+    if (!productOptions) return;
+    setProductOptions({ ...productOptions, price: value });
+    setHasUnsavedChanges(true);
+  };
+  
+  const handleSalePriceChange = (value: string) => {
+      if (!productOptions) return;
+      setProductOptions({ ...productOptions, salePrice: value });
+      setHasUnsavedChanges(true);
+  };
+
+  const handlePriceBlur = (field: 'price' | 'salePrice') => {
+      if (!productOptions) return;
+      const value = field === 'price' ? productOptions.price : productOptions.salePrice;
+      const numValue = Number(value);
+
+      if (String(value).trim() === '' && field === 'salePrice') {
+          setProductOptions({ ...productOptions, salePrice: null });
+          return;
+      }
+      
+      if (isNaN(numValue)) {
+          const originalValue = field === 'price' ? 0 : null;
+          setProductOptions({ ...productOptions, [field]: originalValue });
+      } else {
+          setProductOptions({ ...productOptions, [field]: numValue });
+      }
+  };
+
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
@@ -857,12 +934,12 @@ export default function ProductOptionsPage() {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="productPrice">Base Price ($)</Label>
-                  <Input id="productPrice" type="number" value={productOptions.price} className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} onChange={(e) => {setProductOptions(prev => prev ? {...prev, price: parseFloat(e.target.value) || 0} : null); setHasUnsavedChanges(true);}} title={isPriceDisabled ? "Managed by variations." : "Base price for simple product."}/>
+                  <Input id="productPrice" type="number" value={productOptions.price} onChange={e => handleBasePriceChange(e.target.value)} onBlur={() => handlePriceBlur('price')} className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Base price for simple product."}/>
                   {isPriceDisabled && <p className="text-xs text-muted-foreground mt-1">Disabled for variable products.</p>}
                 </div>
                  <div>
                   <Label htmlFor="salePrice">Sale Price ($)</Label>
-                  <Input id="salePrice" type="number" value={productOptions.salePrice ?? ''} placeholder="Optional" className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} onChange={(e) => { const value = e.target.value; setProductOptions(prev => prev ? {...prev, salePrice: value === '' ? null : parseFloat(value)} : null); setHasUnsavedChanges(true); }} title={isPriceDisabled ? "Managed by variations." : "Sale price for simple product."} />
+                  <Input id="salePrice" type="number" value={productOptions.salePrice ?? ''} onChange={e => handleSalePriceChange(e.target.value)} onBlur={() => handlePriceBlur('salePrice')} placeholder="Optional" className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Sale price for simple product."} />
                 </div>
                 <div>
                   <Label htmlFor="productType">Type</Label>
@@ -874,12 +951,23 @@ export default function ProductOptionsPage() {
                   )}
                 </div>
               </div>
-               {source === 'customizer-studio' && (<div><Label className="flex items-center"><Gem className="mr-2 h-4 w-4 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)}/><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>)}
             </CardContent>
           </Card>
           <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Customization Settings</CardTitle><CardDescription>Control how this product can be customized.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-3 rounded-md border p-4 bg-muted/20"><Checkbox id="allowCustomization" checked={productOptions.allowCustomization} onCheckedChange={(checked) => { const isChecked = checked as boolean; setProductOptions(prev => prev ? { ...prev, allowCustomization: isChecked } : null); setHasUnsavedChanges(true); }}/><div className="grid gap-1.5 leading-none"><Label htmlFor="allowCustomization" className="text-sm font-medium text-foreground cursor-pointer">Enable Product Customization</Label><p className="text-xs text-muted-foreground">If unchecked, the "Customize" button will not appear for this product.</p></div></div></CardContent></Card>
-          
-          {source === 'customizer-studio' && (<Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Attributes</CardTitle><CardDescription>Define colors and sizes for this native product.</CardDescription></CardHeader><CardContent className="space-y-6"><div className="grid md:grid-cols-2 gap-6"><div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div><div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div></div></CardContent></Card>)}
+
+          {source === 'customizer-studio' && (
+            <Card className="shadow-md">
+              <CardHeader><CardTitle className="font-headline text-lg">Product Attributes &amp; Techniques</CardTitle><CardDescription>Define colors, sizes, and available customization methods for this product.</CardDescription></CardHeader>
+              <CardContent className="space-y-6">
+                 <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)}/><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
+                 <Separator />
+                 <div className="grid md:grid-cols-2 gap-6">
+                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div>
+                    <div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div>
+                 </div>
+              </CardContent>
+            </Card>
+          )}
           
           <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle><CardDescription>Enter shipping details for native store calculations.</CardDescription></CardHeader><CardContent><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div><Label htmlFor="shippingWeight">Weight (lbs)</Label><Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
@@ -889,7 +977,7 @@ export default function ProductOptionsPage() {
             </div></CardContent>
           </Card>
           
-          {(source === 'woocommerce' || source === 'customizer-studio') && productOptions.type === 'variable' && (
+          {productOptions.type === 'variable' && (source === 'woocommerce' || source === 'customizer-studio') && (
             <Card className="shadow-md">
               <CardHeader>
                 <CardTitle className="font-headline text-lg flex items-center gap-2"><ImageIcon /> Variation Images</CardTitle>
@@ -937,7 +1025,7 @@ export default function ProductOptionsPage() {
             </Card>
           )}
 
-          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { const currentVariationData = productOptions.nativeVariations?.find(v => v.id === variation.id); const displayPrice = currentVariationData?.price ?? productOptions.price; return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" value={displayPrice.toFixed(2)} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" placeholder="None" value={currentVariationData?.salePrice ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
         </div>
         <div className="md:col-span-1 space-y-6">
           <ProductViewSetup productOptions={productOptions} activeViewId={activeViewIdForSetup} selectedBoundaryBoxId={selectedBoundaryBoxId} setSelectedBoundaryBoxId={setSelectedBoundaryBoxId} handleSelectView={handleSelectView} handleViewDetailChange={handleViewDetailChange} handleDeleteView={handleDeleteView} handleAddNewView={handleAddNewView} handleAddBoundaryBox={handleAddBoundaryBox} handleRemoveBoundaryBox={handleRemoveBoundaryBox} handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange} imageWrapperRef={imageWrapperRef} handleInteractionStart={handleInteractionStart} activeDrag={activeDrag} isDeleteViewDialogOpen={isDeleteViewDialogOpen} setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} viewIdToDelete={viewIdToDelete} setViewIdToDelete={setViewIdToDelete} confirmDeleteView={confirmDeleteView} />
