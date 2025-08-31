@@ -4,8 +4,12 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
-import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation, SizeAttribute } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
+import type { SizeAttribute } from '@/app/dashboard/products/[productId]/options/page';
 
+interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 'sizes'> {
+  sizes: SizeAttribute[];
+}
 // A more detailed version for the PDP
 interface PublicProductDetail extends PublicProduct {
     salePrice?: number | null; // Allow null to represent no sale price
@@ -14,7 +18,7 @@ interface PublicProductDetail extends PublicProduct {
         name: string;
         imageUrl: string;
     }[];
-    attributes?: ProductAttributeOptions;
+    attributes?: ProductAttributeOptionsForPDP;
     variationImages?: Record<string, VariationImage[]>; // Key: Color Name
     brand?: string;
     sku?: string;
@@ -43,8 +47,8 @@ export async function GET(request: Request, { params }: { params: { productId: s
 
     // Use { cache: 'no-store' } to prevent Next.js from caching the data fetch
     const [productSnap, optionsSnap] = await Promise.all([
-        getDoc(productRef),
-        getDoc(optionsRef)
+        getDoc(productRef, { cache: 'no-store' } as any),
+        getDoc(optionsRef, { cache: 'no-store' } as any)
     ]);
 
     if (!productSnap.exists()) {
@@ -77,7 +81,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
     // Clean nativeVariations to ensure salePrice is either a number or null
     const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => {
       const cleanVariation: any = { ...v };
-      cleanVariation.salePrice = (v.salePrice !== undefined && v.salePrice !== null) ? v.salePrice : null;
+      cleanVariation.salePrice = (v.salePrice !== undefined && v.salePrice !== null && !isNaN(v.salePrice)) ? v.salePrice : null;
       return cleanVariation as NativeProductVariation;
     });
 
@@ -90,7 +94,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       imageUrl: primaryImageUrl,
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,
-      attributes: optionsData?.nativeAttributes,
+      attributes: optionsData?.nativeAttributes as ProductAttributeOptionsForPDP | undefined,
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,

@@ -6,6 +6,8 @@
 // Note: The actual Firestore save/load functions are in client components
 // to correctly use the client's Firebase auth context for security rules.
 
+import type { SizeAttribute } from "@/app/dashboard/products/[productId]/options/page";
+
 interface BoundaryBox {
   id: string;
   name: string;
@@ -39,13 +41,14 @@ interface ColorGroupOptions {
 // New interface for native product attributes
 export interface ProductAttributeOptions {
   colors: { name: string; hex: string }[];
-  sizes: string[];
+  sizes: SizeAttribute[];
 }
 
 export interface NativeProductVariation {
   id: string; // e.g., "color-Red-size-M"
   attributes: Record<string, string>; // e.g., { "Color": "Red", "Size": "M" }
   price: number;
+  salePrice?: number | null; // Make it optional and allow null
 }
 
 export interface ShippingAttributes {
@@ -60,7 +63,7 @@ export interface ProductOptionsFirestoreData {
   name: string;
   description: string;
   price: number;
-  salePrice?: number; // Optional sale price
+  salePrice?: number | null; // Make it optional and allow null
   type: 'simple' | 'variable' | 'grouped' | 'external';
   defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;

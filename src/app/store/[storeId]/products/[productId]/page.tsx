@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
             // Fetch store config and product data in parallel
             const [storeRes, productRes] = await Promise.all([
                 getDoc(doc(db, 'userStores', storeId)),
-                fetch(`/api/store/products/${productId}?configUserId=${storeId}`)
+                fetch(`/api/store/products/${productId}?configUserId=${storeId}`, { cache: 'no-store' }) // Added no-store
             ]);
 
             // Process store config
@@ -201,11 +201,9 @@ export default function ProductDetailPage() {
   const currentPriceInfo = useMemo(() => {
     if (!product) return { price: 0, salePrice: null };
     
-    // Default to base product prices
     let price = product.price;
     let salePrice = product.salePrice;
 
-    // If variations exist, find the matching one
     if (product.nativeVariations && product.nativeVariations.length > 0) {
       const matchingVariation = product.nativeVariations.find(v => {
         const colorMatch = !v.attributes.Color || v.attributes.Color === selectedColor;
@@ -215,18 +213,19 @@ export default function ProductDetailPage() {
 
       if (matchingVariation) {
         price = matchingVariation.price;
-        // A variation's salePrice can be null, indicating no sale for that specific variation
-        salePrice = matchingVariation.salePrice ?? null;
+        salePrice = matchingVariation.salePrice !== undefined ? matchingVariation.salePrice : null;
       }
     }
     
-    // Apply size price modifier if a size is selected
     const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
     
-    return { price: price + sizeModifier, salePrice: salePrice ? salePrice + sizeModifier : null };
+    const finalPrice = price + sizeModifier;
+    const finalSalePrice = salePrice !== null ? salePrice + sizeModifier : null;
+    
+    return { price: finalPrice, salePrice: finalSalePrice };
   }, [product, selectedColor, selectedSize]);
 
-  if (isLoading || !storeConfig) {
+  if (isLoading) {
     return <PDPSkeleton />;
   }
 
@@ -254,7 +253,7 @@ export default function ProductDetailPage() {
   if (!product) {
       return (
         <div className="flex flex-col min-h-screen bg-background">
-          <StoreHeader storeConfig={storeConfig} />
+          <StoreHeader storeConfig={storeConfig!} />
           <main className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-muted-foreground">
                   <AlertTriangle className="mx-auto h-12 w-12" />
@@ -267,7 +266,7 @@ export default function ProductDetailPage() {
                     </Button>
               </div>
           </main>
-          <StoreFooter storeConfig={storeConfig} />
+          <StoreFooter storeConfig={storeConfig!} />
         </div>
       );
   }
@@ -277,7 +276,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-        <StoreHeader storeConfig={storeConfig} />
+        <StoreHeader storeConfig={storeConfig!} />
         <main className="flex-1 py-12 md:py-16">
             <div className="container max-w-7xl mx-auto px-4">
                  <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
