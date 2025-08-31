@@ -437,7 +437,7 @@ export default function ProductOptionsPage() {
     }
     setIsSaving(true);
     
-    // Create a clean object to save, starting with required fields.
+    // Manually reconstruct the object to save to ensure no undefined values are sent to Firestore
     const dataToSave: { [key: string]: any } = {
         id: productOptions.id,
         name: productOptions.name,
@@ -451,21 +451,18 @@ export default function ProductOptionsPage() {
         nativeAttributes: productOptions.nativeAttributes || { colors: [], sizes: [] },
         lastSaved: serverTimestamp(),
     };
-
-    if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && !isNaN(productOptions.salePrice) && String(productOptions.salePrice).trim() !== '') {
-        dataToSave.salePrice = productOptions.salePrice;
-    } else {
-        dataToSave.salePrice = deleteField();
-    }
     
-    // Optional top-level fields
+    if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
+        dataToSave.salePrice = productOptions.salePrice;
+    }
+
     if (productOptions.brand) dataToSave.brand = productOptions.brand;
     if (productOptions.sku) dataToSave.sku = productOptions.sku;
     if (productOptions.category) dataToSave.category = productOptions.category;
     if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
     if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
 
-    // Manually rebuild the nativeVariations array to ensure no `undefined` values and omit salePrice if null/undefined.
+    // Manually rebuild the nativeVariations array to omit salePrice if null/undefined.
     if (Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
             const cleanVariation: { [key: string]: any } = {
@@ -473,8 +470,7 @@ export default function ProductOptionsPage() {
                 attributes: variation.attributes,
                 price: variation.price,
             };
-            // Only include salePrice if it's a valid number.
-            if (variation.salePrice !== null && variation.salePrice !== undefined && !isNaN(variation.salePrice) && String(variation.salePrice).trim() !== '') {
+            if (variation.salePrice !== null && variation.salePrice !== undefined && String(variation.salePrice).trim() !== '') {
                 cleanVariation.salePrice = variation.salePrice;
             }
             return cleanVariation;

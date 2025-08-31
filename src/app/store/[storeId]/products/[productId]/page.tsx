@@ -387,7 +387,7 @@ export default function ProductDetailPage() {
                                             >
                                                 {size.name}
                                                 {size.priceModifier !== 0 && (
-                                                    <span className="text-xs ml-1.5 opacity-80">({size.priceModifier > 0 ? '+' : ''}${size.priceModifier.toFixed(2)})</span>
+                                                    <span className="text-xs ml-1.5 opacity-80">({size.priceModifier > 0 ? '+' : ''}$${size.priceModifier.toFixed(2)})</span>
                                                 )}
                                             </Button>
                                         ))}
