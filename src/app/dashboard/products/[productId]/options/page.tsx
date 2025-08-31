@@ -159,33 +159,40 @@ export default function ProductOptionsPage() {
   }, [user]);
 
   const categoryTree = useMemo(() => {
-    const map: { [key: string]: ProductCategory & { children: ProductCategory[] } } = {};
-    const roots: (ProductCategory & { children: ProductCategory[] })[] = [];
+    type TreeNode = ProductCategory & { children: TreeNode[] };
+    const nodeMap = new Map<string, TreeNode>();
+    const tree: TreeNode[] = [];
 
     categories.forEach(cat => {
-        map[cat.id] = { ...cat, children: [] };
+      nodeMap.set(cat.id, { ...cat, children: [] });
     });
 
-    categories.forEach(cat => {
-        if (cat.parentId && map[cat.parentId]) {
-            map[cat.parentId].children.push(map[cat.id]);
-        } else {
-            roots.push(map[cat.id]);
-        }
+    nodeMap.forEach(node => {
+      if (node.parentId && nodeMap.has(node.parentId)) {
+        nodeMap.get(node.parentId)!.children.push(node);
+      } else {
+        tree.push(node);
+      }
     });
 
-    return roots;
+    nodeMap.forEach(node => {
+      node.children.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    
+    tree.sort((a, b) => a.name.localeCompare(b.name));
+    
+    return tree;
   }, [categories]);
 
-  const renderCategoryOptions = (categories: (ProductCategory & { children: ProductCategory[] })[], level = 0) => {
+  const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
     let options: JSX.Element[] = [];
-    categories.forEach(cat => {
+    categoriesToRender.forEach(cat => {
         options.push(
             <SelectItem key={cat.id} value={cat.id}>
-                <span style={{ paddingLeft: `${level * 1.5}rem` }}>{cat.name}</span>
+                <span style={{ paddingLeft: `${level * 1.5}rem` }}>{level > 0 && '— '}{cat.name}</span>
             </SelectItem>
         );
-        if (cat.children.length > 0) {
+        if (cat.children && cat.children.length > 0) {
             options = options.concat(renderCategoryOptions(cat.children, level + 1));
         }
     });
@@ -510,7 +517,7 @@ export default function ProductOptionsPage() {
         price: Number(productOptions.price) || 0,
         type: productOptions.type,
         allowCustomization: productOptions.allowCustomization,
-        defaultViews: productOptions.defaultViews,
+        defaultViews: productOptions.defaultViews.map(view => ({...view, price: Number(view.price) || 0})), // Remove size price modifier
         optionsByColor: productOptions.optionsByColor || {},
         groupingAttributeName: productOptions.groupingAttributeName || null,
         nativeAttributes: {
@@ -605,7 +612,7 @@ export default function ProductOptionsPage() {
     const newView: ProductView = {
       id: crypto.randomUUID(), name: `View ${productOptions.defaultViews.length + 1}`,
       imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', aiHint: 'product view',
-      boundaryBoxes: []
+      boundaryBoxes: [], price: 0
     };
     setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
