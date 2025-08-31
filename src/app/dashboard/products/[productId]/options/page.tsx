@@ -841,33 +841,40 @@ export default function ProductOptionsPage() {
     setHasUnsavedChanges(true);
   };
   
-  const handleVariantViewImageChange = (
+  const handleVariantViewImageChange = useCallback((
     colorKey: string,
     imageIndex: number,
     newImageInfo: VariationImage | null
   ) => {
     setProductOptions(prev => {
         if (!prev) return null;
+
+        // Deep copy to avoid direct state mutation
         const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+
+        // Ensure the color key exists
         if (!updatedOptionsByColor[colorKey]) {
             updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
         }
-        const variantImages = updatedOptionsByColor[colorKey].variantImages || [];
+        
+        let variantImages = updatedOptionsByColor[colorKey].variantImages || [];
         
         if (newImageInfo) {
-             while (variantImages.length <= imageIndex) {
-                variantImages.push({ imageUrl: '', aiHint: '' });
-            }
+            // Replace or add the image at the specified index
             variantImages[imageIndex] = newImageInfo;
         } else {
+            // Remove the image at the index
             variantImages.splice(imageIndex, 1);
         }
 
+        // Assign the modified array back
         updatedOptionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
+        
         return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
-  };
+  }, []);
+
 
   const handleAiHintChange = (colorKey: string, imageIndex: number, newAiHint: string) => {
     setProductOptions(prev => {
