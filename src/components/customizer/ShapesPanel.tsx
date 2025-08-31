@@ -55,7 +55,7 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
 
   const [fillColorHex, setFillColorHex] = useState(selectedShape?.color || '#468189');
   const [strokeColorHex, setStrokeColorHex] = useState(selectedShape?.strokeColor || '#000000');
-  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(selectedShape?.strokeWidth ?? 0);
+  const [currentStrokeWidth, setCurrentStrokeWidth] = useState<number | string>(selectedShape?.strokeWidth ?? 0);
 
   useEffect(() => {
     if (selectedShape) {
@@ -73,7 +73,7 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
     addCanvasShape(shapeType, activeViewId, {
       color: fillColorHex, 
       strokeColor: strokeColorHex,
-      strokeWidth: currentStrokeWidth,
+      strokeWidth: Number(currentStrokeWidth),
     });
   };
   
@@ -93,12 +93,21 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
     }
   };
 
-  const handleStrokeWidthChange = (value: number) => {
-    const newWidth = Math.max(0, Math.min(value, 20));
-    setCurrentStrokeWidth(newWidth); 
+  const handleStrokeWidthChange = (value: number | string) => {
+    const numValue = Number(value);
+    const newWidth = isNaN(numValue) ? 0 : Math.max(0, Math.min(numValue, 20));
+    setCurrentStrokeWidth(value); // Keep string for direct input, but use numValue for update
     if (selectedCanvasShapeId && selectedShape) {
       updateCanvasShape(selectedCanvasShapeId, { strokeWidth: newWidth });
     }
+  };
+  
+  const handleStrokeWidthInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentStrokeWidth(e.target.value);
+  };
+  
+  const handleStrokeWidthInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    handleStrokeWidthChange(e.target.value);
   };
 
   return (
@@ -201,10 +210,8 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
                     type="number"
                     min={0} max={20} step={0.5}
                     value={currentStrokeWidth}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val)) handleStrokeWidthChange(val);
-                    }}
+                    onChange={handleStrokeWidthInputChange}
+                    onBlur={handleStrokeWidthInputBlur}
                     className="h-8 w-20 text-xs"
                   />
                 </div>
@@ -213,7 +220,7 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
                   min={0}
                   max={20}
                   step={0.5}
-                  value={[currentStrokeWidth]}
+                  value={[Number(currentStrokeWidth)]}
                   onValueChange={([value]) => handleStrokeWidthChange(value)}
                   onPointerDownCapture={startInteractiveOperation}
                   onPointerUpCapture={endInteractiveOperation}

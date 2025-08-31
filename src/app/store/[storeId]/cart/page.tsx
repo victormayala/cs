@@ -154,11 +154,16 @@ export default function CartPage() {
     fetchStoreConfig();
   }, [storeId]);
 
-  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
-    const quantity = Math.max(1, newQuantity); // Ensure quantity is at least 1
-    const updatedItems = cartItems.map(item => 
-        item.id === itemId ? { ...item, quantity } : item
-    );
+  const handleUpdateQuantity = (itemId: string, newQuantityStr: string) => {
+    const newQuantity = parseInt(newQuantityStr, 10);
+    const updatedItems = cartItems.map(item => {
+      if (item.id === itemId) {
+        // Allow empty input, but treat as 1 for calculation
+        const quantityToSave = isNaN(newQuantity) ? item.quantity : Math.max(1, newQuantity);
+        return { ...item, quantity: quantityToSave };
+      }
+      return item;
+    });
     saveCart(updatedItems);
   };
 
@@ -262,7 +267,7 @@ export default function CartPage() {
                                     <Input
                                         type="number"
                                         value={item.quantity}
-                                        onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
+                                        onChange={(e) => handleUpdateQuantity(item.id, e.target.value)}
                                         className="h-8 w-16 text-center"
                                         min="1"
                                     />

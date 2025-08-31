@@ -79,7 +79,7 @@ function CreateStorePageContent() {
 
   // Shipping State
   const [localDeliveryEnabled, setLocalDeliveryEnabled] = useState(false);
-  const [localDeliveryFee, setLocalDeliveryFee] = useState(0);
+  const [localDeliveryFee, setLocalDeliveryFee] = useState<number | string>(0);
   const [localDeliveryText, setLocalDeliveryText] = useState("Available for local delivery");
 
   useEffect(() => {
@@ -129,10 +129,14 @@ function CreateStorePageContent() {
   };
   
   const handleDiscountTierChange = (index: number, field: 'quantity' | 'percentage', value: string) => {
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue) && value !== '') return;
-    
     const newTiers = [...discountTiers];
+    newTiers[index] = { ...newTiers[index], [field]: value };
+    setDiscountTiers(newTiers);
+  };
+
+  const handleDiscountTierBlur = (index: number, field: 'quantity' | 'percentage') => {
+    const newTiers = [...discountTiers];
+    const numValue = parseInt(String(newTiers[index][field]), 10);
     newTiers[index] = { ...newTiers[index], [field]: isNaN(numValue) ? 0 : numValue };
     setDiscountTiers(newTiers);
   };
@@ -174,11 +178,11 @@ function CreateStorePageContent() {
         },
         volumeDiscounts: {
           enabled: discountsEnabled,
-          tiers: discountTiers.filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
+          tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
         },
         shipping: {
           localDeliveryEnabled,
-          localDeliveryFee,
+          localDeliveryFee: Number(localDeliveryFee),
           localDeliveryText,
         },
         deployment: {
@@ -443,7 +447,8 @@ function CreateStorePageContent() {
                             id="delivery-fee"
                             type="number"
                             value={localDeliveryFee}
-                            onChange={(e) => setLocalDeliveryFee(parseFloat(e.target.value) || 0)}
+                            onChange={(e) => setLocalDeliveryFee(e.target.value)}
+                            onBlur={() => setLocalDeliveryFee(Number(localDeliveryFee) || 0)}
                             min="0"
                             step="0.01"
                           />
@@ -500,6 +505,7 @@ function CreateStorePageContent() {
                             placeholder="e.g., 10"
                             value={tier.quantity}
                             onChange={(e) => handleDiscountTierChange(index, 'quantity', e.target.value)}
+                            onBlur={() => handleDiscountTierBlur(index, 'quantity')}
                             min="1"
                           />
                           <Input
@@ -507,6 +513,7 @@ function CreateStorePageContent() {
                             placeholder="e.g., 5"
                             value={tier.percentage}
                             onChange={(e) => handleDiscountTierChange(index, 'percentage', e.target.value)}
+                            onBlur={() => handleDiscountTierBlur(index, 'percentage')}
                             min="0"
                             max="100"
                           />
