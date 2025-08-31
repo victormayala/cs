@@ -58,16 +58,17 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
     
     let categoryName: string | undefined = undefined;
-    if (productData.category) {
+    if (productData.category && typeof productData.category === 'string') {
       try {
-        const categoryRef = doc(db, `users/${configUserId}/productCategories`, productData.category);
-        const categorySnap = await getDoc(categoryRef);
-        if (categorySnap.exists()) {
-          categoryName = categorySnap.data().name;
+        const categoryDocRef = doc(db, `users/${configUserId}/productCategories`, productData.category);
+        const categoryDocSnap = await getDoc(categoryDocRef);
+        if (categoryDocSnap.exists()) {
+          categoryName = categoryDocSnap.data().name;
+        } else {
+          console.warn(`Category document with ID ${productData.category} not found for user ${configUserId}.`);
         }
       } catch (catError) {
-        console.warn(`Could not fetch category name for ID ${productData.category}:`, catError);
-        // Fail gracefully, categoryName will remain undefined
+        console.error(`Error fetching category name for ID ${productData.category}:`, catError);
       }
     }
 
@@ -91,7 +92,6 @@ export async function GET(request: Request, { params }: { params: { productId: s
       }
     }
     
-    // Clean nativeVariations to ensure salePrice is either a number or null
     const cleanNativeVariations = (optionsData?.nativeVariations || []).map(v => {
       const cleanVariation: any = { ...v };
       cleanVariation.salePrice = (v.salePrice !== undefined && v.salePrice !== null && !isNaN(v.salePrice)) ? v.salePrice : null;
@@ -103,7 +103,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       name: productData.name,
       description: productData.description,
       price: optionsData?.price ?? 0,
-      salePrice: optionsData?.salePrice ?? null, // Ensure base sale price is also cleaned
+      salePrice: optionsData?.salePrice ?? null,
       imageUrl: primaryImageUrl,
       productUrl: `/store/${configUserId}/products/${productId}`,
       views: views,
