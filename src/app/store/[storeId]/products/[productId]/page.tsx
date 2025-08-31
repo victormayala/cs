@@ -27,7 +27,6 @@ import { Label } from '@/components/ui/label';
 interface SizeAttribute {
     id: string;
     name: string;
-    priceModifier: number;
 }
 
 interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 'sizes'> {
@@ -201,7 +200,6 @@ export default function ProductDetailPage() {
   const currentPriceInfo = useMemo(() => {
     if (!product) return { price: 0, salePrice: null };
 
-    // 1. Get the price for the selected variation (color + size)
     let variationPrice = product.price;
     let variationSalePrice: number | null = product.salePrice ?? null;
 
@@ -218,12 +216,8 @@ export default function ProductDetailPage() {
       }
     }
 
-    // 2. Get the price modifier for the selected size
-    const sizeModifier = product.attributes?.sizes?.find(s => s.name === selectedSize)?.priceModifier || 0;
-    
-    // 3. ADD the modifier to the variation prices
-    const finalPrice = variationPrice + sizeModifier;
-    const finalSalePrice = variationSalePrice !== null ? variationSalePrice + sizeModifier : null;
+    const finalPrice = variationPrice;
+    const finalSalePrice = variationSalePrice;
 
     return { price: finalPrice, salePrice: finalSalePrice };
   }, [product, selectedColor, selectedSize]);
@@ -379,9 +373,6 @@ export default function ProductDetailPage() {
                                                 className={cn("h-9", selectedSize === size.name && 'bg-primary text-primary-foreground hover:bg-primary/90')}
                                             >
                                                 {size.name}
-                                                {size.priceModifier !== 0 && (
-                                                    <span className="text-xs ml-1.5 opacity-80">({size.priceModifier > 0 ? '+' : ''}$${size.priceModifier.toFixed(2)})</span>
-                                                )}
                                             </Button>
                                         ))}
                                     </div>

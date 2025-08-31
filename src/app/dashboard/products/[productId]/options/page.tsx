@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Image as ImageIcon, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, ImageIcon, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -36,7 +36,6 @@ const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF',
 export interface SizeAttribute {
     id: string;
     name: string;
-    priceModifier: number;
 }
 
 // This is the internal state representation. Note that salePrice can be null.
@@ -133,7 +132,6 @@ export default function ProductOptionsPage() {
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
-  const [sizePriceModifier, setSizePriceModifier] = useState<number>(0);
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
 
@@ -296,7 +294,6 @@ export default function ProductOptionsPage() {
       const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any) => ({
         id: s.id || crypto.randomUUID(),
         name: s.name,
-        priceModifier: s.priceModifier ?? 0,
       }));
 
       // Ensure nativeVariations have salePrice as null if it's missing
@@ -448,12 +445,17 @@ export default function ProductOptionsPage() {
         defaultViews: productOptions.defaultViews,
         optionsByColor: productOptions.optionsByColor || {},
         groupingAttributeName: productOptions.groupingAttributeName || null,
-        nativeAttributes: productOptions.nativeAttributes || { colors: [], sizes: [] },
+        nativeAttributes: {
+          colors: productOptions.nativeAttributes.colors || [],
+          sizes: productOptions.nativeAttributes.sizes.map(s => ({ id: s.id, name: s.name })) || [], // Remove priceModifier on save
+        },
         lastSaved: serverTimestamp(),
     };
     
     if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
         dataToSave.salePrice = productOptions.salePrice;
+    } else {
+        dataToSave.salePrice = deleteField();
     }
 
     if (productOptions.brand) dataToSave.brand = productOptions.brand;
@@ -688,13 +690,12 @@ export default function ProductOptionsPage() {
       setColorInputValue(""); setColorHexValue("#000000");
     } else {
       const sizeName = sizeInputValue.trim();
-      const modifier = sizePriceModifier;
       if (!sizeName) { toast({ title: "Size name is required.", variant: "destructive" }); return; }
       if (productOptions.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) { toast({ title: "Size already exists.", variant: "destructive" }); return; }
-      const newSize: SizeAttribute = { id: crypto.randomUUID(), name: sizeName, priceModifier: modifier };
+      const newSize: SizeAttribute = { id: crypto.randomUUID(), name: sizeName };
       const newSizes = [...productOptions.nativeAttributes.sizes, newSize];
       setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: newSizes } } : null);
-      setSizeInputValue(""); setSizePriceModifier(0);
+      setSizeInputValue("");
     }
     setHasUnsavedChanges(true);
   };
@@ -886,7 +887,7 @@ export default function ProductOptionsPage() {
           </Card>
           <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Customization Settings</CardTitle><CardDescription>Control how this product can be customized.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-3 rounded-md border p-4 bg-muted/20"><Checkbox id="allowCustomization" checked={productOptions.allowCustomization} onCheckedChange={(checked) => { const isChecked = checked as boolean; setProductOptions(prev => prev ? { ...prev, allowCustomization: isChecked } : null); setHasUnsavedChanges(true); }}/><div className="grid gap-1.5 leading-none"><Label htmlFor="allowCustomization" className="text-sm font-medium text-foreground cursor-pointer">Enable Product Customization</Label><p className="text-xs text-muted-foreground">If unchecked, the "Customize" button will not appear for this product.</p></div></div></CardContent></Card>
           
-          {source === 'customizer-studio' && (<Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Attributes</CardTitle><CardDescription>Define colors and sizes for this native product.</CardDescription></CardHeader><CardContent className="space-y-6"><div className="grid md:grid-cols-2 gap-6"><div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div><div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="grid grid-cols-[2fr_1fr_auto] gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/><Input type="number" step="0.01" placeholder="+/- $" value={sizePriceModifier} onChange={(e) => setSizePriceModifier(parseFloat(e.target.value) || 0)} /><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name} {size.priceModifier !== 0 && `(${size.priceModifier > 0 ? '+' : ''}$${size.priceModifier.toFixed(2)})`}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div></div></CardContent></Card>)}
+          {source === 'customizer-studio' && (<Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Product Attributes</CardTitle><CardDescription>Define colors and sizes for this native product.</CardDescription></CardHeader><CardContent className="space-y-6"><div className="grid md:grid-cols-2 gap-6"><div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors');} }}/><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div><div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes');} }}/><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3"/></button></Badge>))}</div></div></div></CardContent></Card>)}
           
           {productOptions.type === 'variable' && (
             <Card className="shadow-md">
@@ -934,7 +935,7 @@ export default function ProductOptionsPage() {
             </Card>
           )}
 
-          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { const sizeModifier = productOptions.nativeAttributes.sizes.find(s => s.name === variation.attributes.Size)?.priceModifier || 0; const currentVariationData = productOptions.nativeVariations?.find(v => v.id === variation.id); const basePriceForVariation = currentVariationData?.price ?? productOptions.price; const displayPrice = basePriceForVariation + sizeModifier; return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" value={displayPrice.toFixed(2)} onChange={e => { const priceWithoutModifier = (parseFloat(e.target.value) || 0) - sizeModifier; handleVariationFieldChange(variation.id, 'price', priceWithoutModifier.toString()); }} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" placeholder="None" value={currentVariationData?.salePrice ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { const currentVariationData = productOptions.nativeVariations?.find(v => v.id === variation.id); const displayPrice = currentVariationData?.price ?? productOptions.price; return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" value={displayPrice.toFixed(2)} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="number" placeholder="None" value={currentVariationData?.salePrice ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
         </div>
         <div className="md:col-span-1 space-y-6">
           <ProductViewSetup productOptions={productOptions} activeViewId={activeViewIdForSetup} selectedBoundaryBoxId={selectedBoundaryBoxId} setSelectedBoundaryBoxId={setSelectedBoundaryBoxId} handleSelectView={handleSelectView} handleViewDetailChange={handleViewDetailChange} handleDeleteView={handleDeleteView} handleAddNewView={handleAddNewView} handleAddBoundaryBox={handleAddBoundaryBox} handleRemoveBoundaryBox={handleRemoveBoundaryBox} handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange} imageWrapperRef={imageWrapperRef} handleInteractionStart={handleInteractionStart} activeDrag={activeDrag} isDeleteViewDialogOpen={isDeleteViewDialogOpen} setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} viewIdToDelete={viewIdToDelete} setViewIdToDelete={setViewIdToDelete} confirmDeleteView={confirmDeleteView} />

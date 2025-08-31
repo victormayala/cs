@@ -6,7 +6,11 @@
 // Note: The actual Firestore save/load functions are in client components
 // to correctly use the client's Firebase auth context for security rules.
 
-import type { SizeAttribute } from "@/app/dashboard/products/[productId]/options/page";
+// Size attribute no longer has a price modifier
+export interface SizeAttribute {
+  id: string;
+  name: string;
+}
 
 interface BoundaryBox {
   id: string;
