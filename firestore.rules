@@ -1,33 +1,53 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write their own product options, credentials, and store configurations
+
+    // --- USER DATA ---
+    // General rule: Allow logged-in users to read/write their own user-specific documents.
+    // This covers collections like userWooCommerceCredentials, userShopifyCredentials, etc.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    match /userProductOptions/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // --- PUBLIC STOREFRONT DATA ---
+    // Allow PUBLIC read access to a user's native products for their storefront.
+    // Write access remains restricted to the owner.
+    match /users/{userId}/products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
-     match /userWooCommerceCredentials/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Allow PUBLIC read access to product customization options.
+    // Write access is restricted to the owner.
+    match /userProductOptions/{userId}/products/{productId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
     }
-     match /userShopifyCredentials/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /userStores/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Allow PUBLIC read access to a user's store configuration (for store header/footer/theming).
+    // Write access is restricted to the owner.
+    match /userStores/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Public read access for generated store data
-    match /userStores/{userId} {
-       allow get: if true;
+    // Allow PUBLIC read access to product categories for display on the store.
+    // Write/delete access is restricted to the owner.
+    match /productCategories/{userId}/{categoryId} {
+        allow read: if true;
+        allow write, delete: if request.auth != null && request.auth.uid == userId;
     }
-     match /users/{userId}/products/{productId} {
-       allow get: if true;
+
+    // --- SECURE CREDENTIALS (Dashboard-only) ---
+    // These should NOT be publicly readable.
+    match /userWooCommerceCredentials/{userId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
-     match /userProductOptions/{userId}/products/{productId} {
-       allow get: if true;
+    
+    match /userShopifyCredentials/{userId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
