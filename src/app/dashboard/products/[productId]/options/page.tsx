@@ -33,7 +33,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
-interface SizeAttribute {
+export interface SizeAttribute {
     id: string;
     name: string;
     priceModifier: number;
@@ -438,7 +438,8 @@ export default function ProductOptionsPage() {
     setIsSaving(true);
   
     try {
-      // 1. Create a base object with guaranteed fields
+      // Create a clean object with only the properties that should be saved to Firestore.
+      // This is a more robust approach than trying to delete 'undefined' keys.
       const dataToSave: any = {
         id: productOptions.id,
         name: productOptions.name,
@@ -447,31 +448,34 @@ export default function ProductOptionsPage() {
         type: productOptions.type,
         allowCustomization: productOptions.allowCustomization,
         defaultViews: productOptions.defaultViews,
-        optionsByColor: productOptions.optionsByColor,
-        groupingAttributeName: productOptions.groupingAttributeName,
-        nativeAttributes: productOptions.nativeAttributes,
+        optionsByColor: productOptions.optionsByColor || {},
+        groupingAttributeName: productOptions.groupingAttributeName || null,
+        nativeAttributes: productOptions.nativeAttributes || {},
         lastSaved: serverTimestamp(),
       };
-      
-      // 2. Conditionally add optional fields, deleting them if they are null/undefined
-      if (productOptions.salePrice) {
+  
+      // Explicitly handle optional fields to avoid 'undefined'
+      if (productOptions.salePrice !== null && productOptions.salePrice !== undefined) {
         dataToSave.salePrice = productOptions.salePrice;
-      } else {
-        dataToSave.salePrice = deleteField();
       }
-
       if (productOptions.brand) dataToSave.brand = productOptions.brand;
       if (productOptions.sku) dataToSave.sku = productOptions.sku;
       if (productOptions.category) dataToSave.category = productOptions.category;
       if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
       if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
   
-      // 3. Sanitize the nativeVariations array
+      // Sanitize the nativeVariations array. This is critical.
+      // We will create new objects, only including salePrice if it's a valid number.
       if (Array.isArray(productOptions.nativeVariations)) {
         dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
-          const cleanVariation: any = { ...variation };
-          if (cleanVariation.salePrice === null || cleanVariation.salePrice === undefined || isNaN(cleanVariation.salePrice) || cleanVariation.salePrice === '') {
-             cleanVariation.salePrice = deleteField();
+          const cleanVariation: any = {
+            id: variation.id,
+            attributes: variation.attributes,
+            price: variation.price,
+          };
+          // Only add salePrice to the object if it is a valid number.
+          if (variation.salePrice !== null && variation.salePrice !== undefined && !isNaN(variation.salePrice)) {
+            cleanVariation.salePrice = variation.salePrice;
           }
           return cleanVariation;
         });
@@ -734,7 +738,8 @@ export default function ProductOptionsPage() {
       return;
     }
   
-    if (numValue !== null && isNaN(numValue)) {
+    if (value.trim() !== '' && isNaN(numValue as number)) {
+      // Allow empty string to clear value, but don't proceed if it's not a valid number
       return;
     }
   
@@ -771,7 +776,7 @@ export default function ProductOptionsPage() {
           return;
       }
       const value = valueStr.trim() === '' ? null : parseFloat(valueStr);
-      if (value !== null && isNaN(value)) {
+      if (valueStr.trim() !== '' && isNaN(value as number)) {
         toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
         return;
       }
