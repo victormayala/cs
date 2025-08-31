@@ -142,7 +142,7 @@ function VariantImageUploader({ userId, imageInfo, onImageChange, onAiHintChange
             },
             () => {
                 getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    onImageChange({ imageUrl: downloadURL, aiHint: imageInfo.aiHint });
+                    onImageChange({ imageUrl: downloadURL, aiHint: imageInfo.aiHint || '' });
                     setIsUploading(false);
                 });
             }
@@ -154,7 +154,6 @@ function VariantImageUploader({ userId, imageInfo, onImageChange, onAiHintChange
             try {
                 const imageRef = ref(storage, imageInfo.imageUrl);
                 deleteObject(imageRef).catch(err => {
-                    // It's okay if it fails (e.g., file not found), as the URL will be removed from Firestore anyway.
                     if (err.code !== 'storage/object-not-found') {
                         console.warn("Could not delete old image from storage:", err);
                     }
@@ -616,61 +615,61 @@ export default function ProductOptionsPage() {
       return;
     }
     setIsSaving(true);
-
+  
+    // Deep clone the object to avoid direct state mutation.
+    const productOptionsToSave = JSON.parse(JSON.stringify(productOptions));
+  
+    // Clean the optionsByColor structure before saving.
     const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
-    if (productOptions.optionsByColor) {
-        for (const colorKey in productOptions.optionsByColor) {
-            const group = productOptions.optionsByColor[colorKey];
-            const cleanImages = (group.variantImages || [])
-                .map(img => ({
-                    imageUrl: img.imageUrl,
-                    aiHint: img.aiHint || '',
-                }))
-                .filter(img => img && img.imageUrl); // Ensure only images with a URL are saved
-
-            cleanOptionsByColor[colorKey] = {
-                selectedVariationIds: group.selectedVariationIds || [],
-                variantImages: cleanImages,
-            };
-        }
+    for (const colorKey in productOptionsToSave.optionsByColor) {
+      const group = productOptionsToSave.optionsByColor[colorKey];
+      // Filter out any image objects that don't have a valid imageUrl.
+      const cleanImages = (group.variantImages || []).filter((img: VariationImage) => img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '');
+      
+      // Only add the color group if it has selected variations or valid images.
+      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || cleanImages.length > 0) {
+          cleanOptionsByColor[colorKey] = {
+              selectedVariationIds: group.selectedVariationIds || [],
+              variantImages: cleanImages,
+          };
+      }
     }
-    
-    // Manually reconstruct the object to save to ensure no undefined values are sent to Firestore
+  
     const dataToSave: { [key: string]: any } = {
-        id: productOptions.id,
-        name: productOptions.name,
-        description: productOptions.description,
-        price: Number(productOptions.price) || 0,
-        type: productOptions.type,
-        allowCustomization: productOptions.allowCustomization,
-        defaultViews: productOptions.defaultViews.map(view => ({...view, price: Number(view.price) || 0})),
+        id: productOptionsToSave.id,
+        name: productOptionsToSave.name,
+        description: productOptionsToSave.description,
+        price: Number(productOptionsToSave.price) || 0,
+        type: productOptionsToSave.type,
+        allowCustomization: productOptionsToSave.allowCustomization,
+        defaultViews: productOptionsToSave.defaultViews.map((view: any) => ({ ...view, price: Number(view.price) || 0 })),
         optionsByColor: cleanOptionsByColor,
-        groupingAttributeName: productOptions.groupingAttributeName || null,
+        groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
         nativeAttributes: {
-          colors: productOptions.nativeAttributes.colors || [],
-          sizes: productOptions.nativeAttributes.sizes.map(s => ({ id: s.id, name: s.name })) || [],
+          colors: productOptionsToSave.nativeAttributes.colors || [],
+          sizes: productOptionsToSave.nativeAttributes.sizes.map((s: any) => ({ id: s.id, name: s.name })) || [],
         },
         lastSaved: serverTimestamp(),
     };
-    
-    if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
-        dataToSave.salePrice = Number(productOptions.salePrice);
+  
+    if (productOptionsToSave.salePrice !== null && productOptionsToSave.salePrice !== undefined && String(productOptionsToSave.salePrice).trim() !== '') {
+        dataToSave.salePrice = Number(productOptionsToSave.salePrice);
     } else {
         dataToSave.salePrice = deleteField();
     }
-
-    if (productOptions.brand) dataToSave.brand = productOptions.brand;
-    if (productOptions.sku) dataToSave.sku = productOptions.sku;
-    if (productOptions.category) {
-      dataToSave.category = productOptions.category;
+  
+    if (productOptionsToSave.brand) dataToSave.brand = productOptionsToSave.brand;
+    if (productOptionsToSave.sku) dataToSave.sku = productOptionsToSave.sku;
+    if (productOptionsToSave.category) {
+        dataToSave.category = productOptionsToSave.category;
     } else {
-      dataToSave.category = deleteField();
+        dataToSave.category = deleteField();
     }
-    if (productOptions.shipping) dataToSave.shipping = productOptions.shipping;
-    if (productOptions.customizationTechniques) dataToSave.customizationTechniques = productOptions.customizationTechniques;
-
-    if (Array.isArray(productOptions.nativeVariations)) {
-        dataToSave.nativeVariations = productOptions.nativeVariations.map(variation => {
+    if (productOptionsToSave.shipping) dataToSave.shipping = productOptionsToSave.shipping;
+    if (productOptionsToSave.customizationTechniques) dataToSave.customizationTechniques = productOptionsToSave.customizationTechniques;
+  
+    if (Array.isArray(productOptionsToSave.nativeVariations)) {
+        dataToSave.nativeVariations = productOptionsToSave.nativeVariations.map((variation: any) => {
             const cleanVariation: { [key: string]: any } = {
                 id: variation.id,
                 attributes: variation.attributes,
@@ -689,7 +688,6 @@ export default function ProductOptionsPage() {
         const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
         await setDoc(docRef, dataToSave, { merge: true });
   
-        // For native products, also update the base product document.
         if (productOptions.source === 'customizer-studio') {
             const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
             const nativeProductData: { [key: string]: any } = {
@@ -859,43 +857,26 @@ export default function ProductOptionsPage() {
     setHasUnsavedChanges(true);
   };
   
-  const handleVariantViewImageChange = useCallback((
-    colorKey: string,
-    imageIndex: number,
-    newImageInfo: VariationImage | null
-  ) => {
+  const handleVariantViewImageChange = useCallback((colorKey: string, imageIndex: number, newImageInfo: VariationImage | null) => {
     setProductOptions(prev => {
       if (!prev) return null;
-
-      // Deep copy to prevent state mutation issues
       const newOptions = JSON.parse(JSON.stringify(prev));
-      
-      // Ensure the color key and variantImages array exist
-      if (!newOptions.optionsByColor[colorKey]) {
-        newOptions.optionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
-      }
-      if (!newOptions.optionsByColor[colorKey].variantImages) {
-        newOptions.optionsByColor[colorKey].variantImages = [];
-      }
-
-      let variantImages = newOptions.optionsByColor[colorKey].variantImages;
+      const colorGroup = newOptions.optionsByColor[colorKey] || { selectedVariationIds: [], variantImages: [] };
+      let updatedImages = [...(colorGroup.variantImages || [])];
       
       if (newImageInfo) {
-        // Replace or add the image at the specified index
-        variantImages[imageIndex] = newImageInfo;
+        updatedImages[imageIndex] = newImageInfo;
       } else {
-        // Remove the image at the index
-        variantImages.splice(imageIndex, 1);
+        updatedImages.splice(imageIndex, 1);
       }
       
-      // Ensure we don't exceed the max number of images
-      newOptions.optionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
-
+      colorGroup.variantImages = updatedImages.slice(0, MAX_VARIATION_IMAGES);
+      newOptions.optionsByColor[colorKey] = colorGroup;
+      
       return newOptions;
     });
     setHasUnsavedChanges(true);
   }, []);
-
 
   const handleAiHintChange = (colorKey: string, imageIndex: number, newAiHint: string) => {
     setProductOptions(prev => {
