@@ -10,15 +10,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
@@ -32,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Image as ImageIcon } from 'lucide-react';
 import type { ProductCategory } from '@/app/dashboard/categories/page';
+import { Progress } from '@/components/ui/progress';
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
@@ -99,6 +101,112 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     return { error: errorMessage };
   }
 }
+
+interface ImageUploaderProps {
+    userId: string;
+    imageInfo: VariationImage;
+    onImageChange: (newImageInfo: VariationImage | null) => void;
+    onAiHintChange: (newAiHint: string) => void;
+}
+
+function VariantImageUploader({ userId, imageInfo, onImageChange, onAiHintChange }: ImageUploaderProps) {
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { toast } = useToast();
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+            return;
+        }
+
+        const storageRef = ref(storage, `${userId}/variant_images/${Date.now()}_${file.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+            },
+            (error) => {
+                console.error("Upload error:", error);
+                toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+                setIsUploading(false);
+            },
+            () => {
+                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                    onImageChange({ imageUrl: downloadURL, aiHint: imageInfo.aiHint });
+                    setIsUploading(false);
+                });
+            }
+        );
+    };
+
+    const handleRemoveImage = () => {
+        if (imageInfo.imageUrl) {
+            try {
+                const imageRef = ref(storage, imageInfo.imageUrl);
+                deleteObject(imageRef).catch(err => {
+                    // It's okay if it fails (e.g., file not found), as the URL will be removed from Firestore anyway.
+                    if (err.code !== 'storage/object-not-found') {
+                        console.warn("Could not delete old image from storage:", err);
+                    }
+                });
+            } catch (error) {
+                console.error("Error creating storage reference for deletion:", error);
+            }
+        }
+        onImageChange(null);
+    };
+
+    return (
+        <div className="space-y-2">
+            <div className="flex gap-2">
+                <div className="relative w-20 h-20 bg-muted/50 rounded-md border flex items-center justify-center flex-shrink-0">
+                    {imageInfo.imageUrl ? (
+                        <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md" />
+                    ) : (
+                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                    )}
+                </div>
+                <div className="flex-grow space-y-1.5">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        <UploadCloud className="mr-2 h-4 w-4" /> {imageInfo.imageUrl ? 'Change' : 'Upload'}
+                    </Button>
+                    {imageInfo.imageUrl && (
+                        <Button type="button" variant="destructive" size="sm" className="w-full" onClick={handleRemoveImage} disabled={isUploading}>
+                            <Trash className="mr-2 h-4 w-4" /> Remove
+                        </Button>
+                    )}
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+                </div>
+            </div>
+            {isUploading && <Progress value={uploadProgress} className="w-full h-2 mt-1" />}
+            <Input
+                placeholder="AI Hint (e.g., 'red shirt')"
+                value={imageInfo.aiHint || ''}
+                onChange={e => onAiHintChange(e.target.value)}
+                className="h-8 text-xs"
+                disabled={!imageInfo.imageUrl}
+            />
+        </div>
+    );
+}
+
 
 export default function ProductOptionsPage() {
   const router = useRouter();
@@ -270,6 +378,7 @@ export default function ProductOptionsPage() {
           };
       } else if (source === 'woocommerce') {
           const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
+          const credDocSnap = await getDoc(credDocRef);
            if (!credDocSnap.exists()) {
             setCredentialsExist(false);
             throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
@@ -735,8 +844,7 @@ export default function ProductOptionsPage() {
   const handleVariantViewImageChange = (
     colorKey: string,
     imageIndex: number,
-    field: 'imageUrl' | 'aiHint',
-    value: string
+    newImageInfo: VariationImage | null
   ) => {
     setProductOptions(prev => {
         if (!prev) return null;
@@ -745,18 +853,33 @@ export default function ProductOptionsPage() {
             updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
         }
         const variantImages = updatedOptionsByColor[colorKey].variantImages || [];
-        while (variantImages.length <= imageIndex) {
-            variantImages.push({ imageUrl: '', aiHint: '' });
+        
+        if (newImageInfo) {
+             while (variantImages.length <= imageIndex) {
+                variantImages.push({ imageUrl: '', aiHint: '' });
+            }
+            variantImages[imageIndex] = newImageInfo;
+        } else {
+            variantImages.splice(imageIndex, 1);
         }
-        variantImages[imageIndex] = { ...variantImages[imageIndex], [field]: value };
-        if (field === 'imageUrl' && !value) {
-            variantImages[imageIndex].aiHint = '';
-        }
+
         updatedOptionsByColor[colorKey].variantImages = variantImages.slice(0, MAX_VARIATION_IMAGES);
         return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
   };
+
+  const handleAiHintChange = (colorKey: string, imageIndex: number, newAiHint: string) => {
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+        if (updatedOptionsByColor[colorKey]?.variantImages?.[imageIndex]) {
+            updatedOptionsByColor[colorKey].variantImages[imageIndex].aiHint = newAiHint;
+        }
+        return { ...prev, optionsByColor: updatedOptionsByColor };
+    });
+    setHasUnsavedChanges(true);
+  }
   
   const handleAddAttribute = (type: 'colors' | 'sizes') => {
     if (!productOptions) return;
@@ -1089,18 +1212,15 @@ export default function ProductOptionsPage() {
                           </div>
                           {editingImagesForColor === groupKey && (
                               <div className="p-4 border border-t-0 rounded-b-md space-y-4">
-                                  {productOptions.defaultViews.map((view, i) => (
-                                      <div key={view.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                          <div className="space-y-1">
-                                              <Label htmlFor={`var-img-${groupKey}-${i}`} className="text-xs">{view.name} Image URL</Label>
-                                              <Input id={`var-img-${groupKey}-${i}`} value={productOptions.optionsByColor?.[groupKey]?.variantImages?.[i]?.imageUrl || ''} onChange={(e) => handleVariantViewImageChange(groupKey, i, 'imageUrl', e.target.value)} placeholder="https://..." />
-                                          </div>
-                                          <div className="space-y-1">
-                                               <Label htmlFor={`var-hint-${groupKey}-${i}`} className="text-xs">AI Hint</Label>
-                                               <Input id={`var-hint-${groupKey}-${i}`} value={productOptions.optionsByColor?.[groupKey]?.variantImages?.[i]?.aiHint || ''} onChange={(e) => handleVariantViewImageChange(groupKey, i, 'aiHint', e.target.value)} placeholder="red shirt" />
-                                          </div>
-                                      </div>
-                                  ))}
+                                {Array.from({ length: MAX_VARIATION_IMAGES }).map((_, i) => (
+                                    <VariantImageUploader
+                                        key={i}
+                                        userId={user.uid}
+                                        imageInfo={productOptions.optionsByColor?.[groupKey]?.variantImages?.[i] || { imageUrl: '', aiHint: '' }}
+                                        onImageChange={(newImageInfo) => handleVariantViewImageChange(groupKey, i, newImageInfo)}
+                                        onAiHintChange={(newAiHint) => handleAiHintChange(groupKey, i, newAiHint)}
+                                    />
+                                ))}
                               </div>
                           )}
                       </div>

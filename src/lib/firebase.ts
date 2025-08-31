@@ -2,6 +2,7 @@
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,6 +16,7 @@ const firebaseConfig: FirebaseOptions = {
 let app;
 let auth: any;
 let db: any; 
+let storage: any;
 
 if (!firebaseConfig.apiKey) {
   console.error(
@@ -23,6 +25,7 @@ if (!firebaseConfig.apiKey) {
   app = undefined;
   auth = undefined;
   db = undefined;
+  storage = undefined;
 } else {
   if (!getApps().length) {
     try {
@@ -34,6 +37,7 @@ if (!firebaseConfig.apiKey) {
       app = undefined;
       auth = undefined;
       db = undefined;
+      storage = undefined;
     }
   } else {
     app = getApp();
@@ -54,13 +58,20 @@ if (!firebaseConfig.apiKey) {
       console.error(`Firebase getFirestore() error: ${error.message}.`);
       db = undefined;
     }
+    try {
+      storage = getStorage(app);
+    } catch (error: any) {
+      console.error(`Firebase getStorage() error: ${error.message}.`);
+      storage = undefined;
+    }
   } else {
     auth = undefined;
     db = undefined;
+    storage = undefined;
     if (firebaseConfig.apiKey) {
-        console.error("Firebase app object is undefined after initialization attempt, even though API key was present. Cannot initialize auth or db. Check for earlier Firebase initialization errors.");
+        console.error("Firebase app object is undefined after initialization attempt, even though API key was present. Cannot initialize auth, db, or storage. Check for earlier Firebase initialization errors.");
     }
   }
 }
 
-export { app, auth, db };
+export { app, auth, db, storage };
