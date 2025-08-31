@@ -1,57 +1,33 @@
-rules_version = '2';
 
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Allow users to manage their own product configurations, credentials, and store settings
-    match /users/{userId}/{path=**} {
-      // This single rule covers:
-      // - /users/{userId} (profile)
-      // - /users/{userId}/products/{productId} (native products)
-      // - /users/{userId}/productCategories/{categoryId} (categories)
-      allow read, write: if request.auth.uid == userId;
+    // Allow users to read and write their own product options, credentials, and store configurations
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /userProductOptions/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+     match /userWooCommerceCredentials/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+     match /userShopifyCredentials/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /userStores/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    match /userProductOptions/{userId}/{path=**} {
-        allow read, write: if request.auth.uid == userId;
-    }
-
-    match /userWooCommerceCredentials/{userId} {
-        allow read, write: if request.auth.uid == userId;
-    }
-
-    match /userShopifyCredentials/{userId} {
-        allow read, write: if request.auth.uid == userId;
-    }
-    
+    // Public read access for generated store data
     match /userStores/{userId} {
-        allow read, write: if request.auth.uid == userId;
+       allow get: if true;
     }
-
-    // --- Public Access Rules for Generated Stores ---
-
-    // Allow public read for a specific user's native products
-    // Used by the store's Product Listing Page (PLP)
-    match /users/{userId}/products/{productId} {
-      allow get: if true;
-      // Keep write access restricted to the owner
-      allow list, create, update, delete: if request.auth.uid == userId;
+     match /users/{userId}/products/{productId} {
+       allow get: if true;
     }
-
-    // Allow public read for a specific user's product options
-    // Used by the store's Product Detail Page (PDP)
-    match /userProductOptions/{userId}/products/{productId} {
-        allow get: if true;
-        // Keep write access restricted to the owner
-        allow list, create, update, delete: if request.auth.uid == userId;
-    }
-
-    // Allow public read for a user's store configuration
-    // Used by the store's header, footer, and layout components
-    match /userStores/{userId} {
-        allow get: if true;
-         // Keep write access restricted to the owner
-        allow list, create, update, delete: if request.auth.uid == userId;
+     match /userProductOptions/{userId}/products/{productId} {
+       allow get: if true;
     }
   }
 }
