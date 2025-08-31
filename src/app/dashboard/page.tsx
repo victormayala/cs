@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, PlugZap, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -58,7 +58,7 @@ interface DisplayProduct {
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
-type ActiveDashboardTab = 'products' | 'storeIntegration' | 'settings' | 'profile';
+type ActiveDashboardTab = 'products' | 'categories' | 'storeIntegration' | 'settings' | 'profile';
 
 interface ProductToDelete {
   id: string;
@@ -74,7 +74,7 @@ function DashboardPageContent() {
   const { user, isLoading: authIsLoading, signOut: authSignOut } = useAuth();
   const { toast } = useToast(); 
 
-  const [activeTab, setActiveTab] = useState<ActiveDashboardTab>('storeIntegration');
+  const [activeTab, setActiveTab] = useState<ActiveDashboardTab>('products');
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -582,6 +582,11 @@ function DashboardPageContent() {
                     <SidebarMenuItem>
                       <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} className="w-full justify-start">
                         <PackageIcon className="mr-2 h-5 w-5" /> Products
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                     <SidebarMenuItem>
+                      <SidebarMenuButton onClick={() => router.push('/dashboard/categories')} className="w-full justify-start">
+                        <FolderIcon className="mr-2 h-5 w-5" /> Categories
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>

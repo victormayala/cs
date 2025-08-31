@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy } from 'firebase/firestore';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
@@ -31,6 +31,7 @@ import type { NativeProduct, CustomizationTechnique } from '@/app/actions/produc
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Image as ImageIcon } from 'lucide-react';
+import type { ProductCategory } from '@/app/dashboard/categories/page';
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
@@ -135,10 +136,61 @@ export default function ProductOptionsPage() {
   const [sizeInputValue, setSizeInputValue] = useState("");
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+
 
   // NEW: State for variation price input fields
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
   const [variationSalePriceInputs, setVariationSalePriceInputs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchCategories = async () => {
+        const catRef = collection(db, `users/${user.uid}/productCategories`);
+        const q = query(catRef, orderBy("name"));
+        const snapshot = await getDocs(q);
+        const fetchedCategories: ProductCategory[] = [];
+        snapshot.forEach(doc => {
+            fetchedCategories.push({ id: doc.id, ...doc.data() } as ProductCategory);
+        });
+        setCategories(fetchedCategories);
+    };
+    fetchCategories();
+  }, [user]);
+
+  const categoryTree = useMemo(() => {
+    const map: { [key: string]: ProductCategory & { children: ProductCategory[] } } = {};
+    const roots: (ProductCategory & { children: ProductCategory[] })[] = [];
+
+    categories.forEach(cat => {
+        map[cat.id] = { ...cat, children: [] };
+    });
+
+    categories.forEach(cat => {
+        if (cat.parentId && map[cat.parentId]) {
+            map[cat.parentId].children.push(map[cat.id]);
+        } else {
+            roots.push(map[cat.id]);
+        }
+    });
+
+    return roots;
+  }, [categories]);
+
+  const renderCategoryOptions = (categories: (ProductCategory & { children: ProductCategory[] })[], level = 0) => {
+    let options: JSX.Element[] = [];
+    categories.forEach(cat => {
+        options.push(
+            <SelectItem key={cat.id} value={cat.id}>
+                <span style={{ paddingLeft: `${level * 1.5}rem` }}>{cat.name}</span>
+            </SelectItem>
+        );
+        if (cat.children.length > 0) {
+            options = options.concat(renderCategoryOptions(cat.children, level + 1));
+        }
+    });
+    return options;
+  };
 
   const generatedVariations = useMemo(() => {
     if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
@@ -152,7 +204,7 @@ export default function ProductOptionsPage() {
         colors.forEach(color => {
             if (sizes.length > 0) {
                 sizes.forEach(size => {
-                    const id = `color-${color.name}-size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
+                    const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
                     const existing = productOptions.nativeVariations?.find(v => v.id === id);
                     variations.push({
                         id,
@@ -169,7 +221,7 @@ export default function ProductOptionsPage() {
         });
     } else {
         sizes.forEach(size => {
-            const id = `size-${size.id}`.toLowerCase().replace(/\s+/g, '-');
+            const id = `size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
             variations.push({ id, attributes: { "Size": size.name }, price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), salePrice: existing?.salePrice ?? null });
         });
@@ -283,7 +335,7 @@ export default function ProductOptionsPage() {
       const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id' | 'boundaryBoxes' | 'price'>[] = [
+      const baseDefaultViews: Omit<ProductView, 'id' | 'boundaryBoxes'>[] = [
         { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view" },
         { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view" },
         { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view" },
@@ -292,7 +344,7 @@ export default function ProductOptionsPage() {
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
         const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing, price: existing.price ?? 0 } : { ...baseView, id: crypto.randomUUID(), price: 0, boundaryBoxes: [] };
+        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID(), boundaryBoxes: [] };
       }).slice(0, MAX_PRODUCT_VIEWS);
       const nativeAttributesFromFS = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
       if (!nativeAttributesFromFS.colors) nativeAttributesFromFS.colors = [];
@@ -553,7 +605,7 @@ export default function ProductOptionsPage() {
     const newView: ProductView = {
       id: crypto.randomUUID(), name: `View ${productOptions.defaultViews.length + 1}`,
       imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', aiHint: 'product view',
-      boundaryBoxes: [], price: 0
+      boundaryBoxes: []
     };
     setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
@@ -925,21 +977,41 @@ export default function ProductOptionsPage() {
             <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store {source !== 'customizer-studio' && '(Read-only)'}.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
               <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, name: e.target.value} : null); setHasUnsavedChanges(true);}} /></div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label htmlFor="productBrand">Brand</Label><Input id="productBrand" value={productOptions.brand || ''} placeholder="e.g., Gildan" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, brand: e.target.value} : null); setHasUnsavedChanges(true);}} /></div>
                 <div><Label htmlFor="productSku">SKU</Label><Input id="productSku" value={productOptions.sku || ''} placeholder="e.g., G5000-WHT-LG" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, sku: e.target.value} : null); setHasUnsavedChanges(true);}} /></div>
-                <div><Label htmlFor="productCategory">Category</Label><Input id="productCategory" value={productOptions.category || ''} placeholder="e.g., T-Shirts" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, category: e.target.value} : null); setHasUnsavedChanges(true);}} /></div>
+              </div>
+              <div>
+                <Label htmlFor="productCategory">Category</Label>
+                <Select
+                  value={productOptions.category || ''}
+                  onValueChange={(value) => {
+                    if (source === 'customizer-studio') {
+                      setProductOptions(prev => prev ? {...prev, category: value} : null);
+                      setHasUnsavedChanges(true);
+                    }
+                  }}
+                  disabled={source !== 'customizer-studio'}
+                >
+                  <SelectTrigger id="productCategory" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")}>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value=""><em>Uncategorized</em></SelectItem>
+                      {renderCategoryOptions(categoryTree)}
+                  </SelectContent>
+                </Select>
               </div>
               <div><Label htmlFor="productDescription">Description</Label><Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => {setProductOptions(prev => prev ? {...prev, description: e.target.value} : null); setHasUnsavedChanges(true);}} /></div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="productPrice">Base Price ($)</Label>
-                  <Input id="productPrice" type="number" value={productOptions.price} onChange={e => handleBasePriceChange(e.target.value)} onBlur={() => handlePriceBlur('price')} className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Base price for simple product."}/>
+                  <Input id="productPrice" type="text" value={productOptions.price} onChange={e => handleBasePriceChange(e.target.value)} onBlur={() => handlePriceBlur('price')} className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Base price for simple product."}/>
                   {isPriceDisabled && <p className="text-xs text-muted-foreground mt-1">Disabled for variable products.</p>}
                 </div>
                  <div>
                   <Label htmlFor="salePrice">Sale Price ($)</Label>
-                  <Input id="salePrice" type="number" value={productOptions.salePrice ?? ''} onChange={e => handleSalePriceChange(e.target.value)} onBlur={() => handlePriceBlur('salePrice')} placeholder="Optional" className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Sale price for simple product."} />
+                  <Input id="salePrice" type="text" value={productOptions.salePrice ?? ''} onChange={e => handleSalePriceChange(e.target.value)} onBlur={() => handlePriceBlur('salePrice')} placeholder="Optional" className={cn("mt-1", (source !== 'customizer-studio' || isPriceDisabled) ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio' || isPriceDisabled} title={isPriceDisabled ? "Managed by variations." : "Sale price for simple product."} />
                 </div>
                 <div>
                   <Label htmlFor="productType">Type</Label>
@@ -954,8 +1026,7 @@ export default function ProductOptionsPage() {
             </CardContent>
           </Card>
           <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Customization Settings</CardTitle><CardDescription>Control how this product can be customized.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-3 rounded-md border p-4 bg-muted/20"><Checkbox id="allowCustomization" checked={productOptions.allowCustomization} onCheckedChange={(checked) => { const isChecked = checked as boolean; setProductOptions(prev => prev ? { ...prev, allowCustomization: isChecked } : null); setHasUnsavedChanges(true); }}/><div className="grid gap-1.5 leading-none"><Label htmlFor="allowCustomization" className="text-sm font-medium text-foreground cursor-pointer">Enable Product Customization</Label><p className="text-xs text-muted-foreground">If unchecked, the "Customize" button will not appear for this product.</p></div></div></CardContent></Card>
-
-          {source === 'customizer-studio' && (
+           {source === 'customizer-studio' && (
             <Card className="shadow-md">
               <CardHeader><CardTitle className="font-headline text-lg">Product Attributes &amp; Techniques</CardTitle><CardDescription>Define colors, sizes, and available customization methods for this product.</CardDescription></CardHeader>
               <CardContent className="space-y-6">
@@ -970,10 +1041,10 @@ export default function ProductOptionsPage() {
           )}
           
           <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle><CardDescription>Enter shipping details for native store calculations.</CardDescription></CardHeader><CardContent><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div><Label htmlFor="shippingWeight">Weight (lbs)</Label><Input id="shippingWeight" type="number" step="0.01" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
-              <div><Label htmlFor="shippingLength">Length (in)</Label><Input id="shippingLength" type="number" step="0.01" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
-              <div><Label htmlFor="shippingWidth">Width (in)</Label><Input id="shippingWidth" type="number" step="0.01" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
-              <div><Label htmlFor="shippingHeight">Height (in)</Label><Input id="shippingHeight" type="number" step="0.01" value={productOptions.shipping?.height || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), height: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
+              <div><Label htmlFor="shippingWeight">Weight (lbs)</Label><Input id="shippingWeight" type="text" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
+              <div><Label htmlFor="shippingLength">Length (in)</Label><Input id="shippingLength" type="text" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
+              <div><Label htmlFor="shippingWidth">Width (in)</Label><Input id="shippingWidth" type="text" value={productOptions.shipping?.width || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), width: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
+              <div><Label htmlFor="shippingHeight">Height (in)</Label><Input id="shippingHeight" type="text" value={productOptions.shipping?.height || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), height: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
             </div></CardContent>
           </Card>
           
@@ -1025,7 +1096,7 @@ export default function ProductOptionsPage() {
             </Card>
           )}
 
-          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="number" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="number" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+          {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
         </div>
         <div className="md:col-span-1 space-y-6">
           <ProductViewSetup productOptions={productOptions} activeViewId={activeViewIdForSetup} selectedBoundaryBoxId={selectedBoundaryBoxId} setSelectedBoundaryBoxId={setSelectedBoundaryBoxId} handleSelectView={handleSelectView} handleViewDetailChange={handleViewDetailChange} handleDeleteView={handleDeleteView} handleAddNewView={handleAddNewView} handleAddBoundaryBox={handleAddBoundaryBox} handleRemoveBoundaryBox={handleRemoveBoundaryBox} handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange} imageWrapperRef={imageWrapperRef} handleInteractionStart={handleInteractionStart} activeDrag={activeDrag} isDeleteViewDialogOpen={isDeleteViewDialogOpen} setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} viewIdToDelete={viewIdToDelete} setViewIdToDelete={setViewIdToDelete} confirmDeleteView={confirmDeleteView} />
@@ -1035,7 +1106,7 @@ export default function ProductOptionsPage() {
               <div className="text-sm text-muted-foreground">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span></div>
               <div className="text-sm text-muted-foreground">Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge></div>
               <div className="text-sm text-muted-foreground">Total Default Views: <span className="font-semibold text-foreground">{productOptions.defaultViews.length}</span></div>
-              <div className="text-sm text-muted-foreground">Active Setup View: <span className="font-semibold text-foreground">{currentView?.name || "N/A"}</span></div>
+              <div className="text-sm text-muted-foreground">Active Setup View: <span className="font-semibold text-primary">{currentView?.name || "N/A"}</span></div>
               {currentView && (<div className="text-sm text-muted-foreground">Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span></div>)}
               {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
             </CardContent>
