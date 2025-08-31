@@ -1,39 +1,57 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Secure user-specific credentials. 
-    // Only the logged-in user can read or write their own document.
+    // Allow users to manage their own product configurations, credentials, and store settings
+    match /users/{userId}/{path=**} {
+      // This single rule covers:
+      // - /users/{userId} (profile)
+      // - /users/{userId}/products/{productId} (native products)
+      // - /users/{userId}/productCategories/{categoryId} (categories)
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    match /userProductOptions/{userId}/{path=**} {
+        allow read, write: if request.auth.uid == userId;
+    }
+
     match /userWooCommerceCredentials/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth.uid == userId;
     }
 
     match /userShopifyCredentials/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth.uid == userId;
     }
-
-    // Product options configuration.
-    // ANYONE can read these settings (for public storefront plugins).
-    // ONLY the authenticated owner can write/update them from the dashboard.
-    match /userProductOptions/{userId}/products/{productId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // User-generated store configurations
+    
     match /userStores/{userId} {
-      allow read: if true; // Public read for storefronts
-      allow write: if request.auth != null && request.auth.uid == userId && request.resource.data.userId == userId;
+        allow read, write: if request.auth.uid == userId;
     }
 
-    // Native products created within Customizer Studio
-    // Public can read product details for storefronts.
-    // Only the authenticated owner can create/update/delete their own products.
+    // --- Public Access Rules for Generated Stores ---
+
+    // Allow public read for a specific user's native products
+    // Used by the store's Product Listing Page (PLP)
     match /users/{userId}/products/{productId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow get: if true;
+      // Keep write access restricted to the owner
+      allow list, create, update, delete: if request.auth.uid == userId;
+    }
+
+    // Allow public read for a specific user's product options
+    // Used by the store's Product Detail Page (PDP)
+    match /userProductOptions/{userId}/products/{productId} {
+        allow get: if true;
+        // Keep write access restricted to the owner
+        allow list, create, update, delete: if request.auth.uid == userId;
+    }
+
+    // Allow public read for a user's store configuration
+    // Used by the store's header, footer, and layout components
+    match /userStores/{userId} {
+        allow get: if true;
+         // Keep write access restricted to the owner
+        allow list, create, update, delete: if request.auth.uid == userId;
     }
   }
 }
