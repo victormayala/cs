@@ -58,24 +58,25 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
     
-    // --- New Category Name Fetching Logic ---
+    // --- Corrected Category Name Fetching Logic ---
     let categoryName: string | undefined = undefined;
     if (productData.category && typeof productData.category === 'string') {
         const categoryId = productData.category;
         try {
-            const categoryRef = doc(db, `users/${configUserId}/productCategories`, categoryId);
-            const categorySnap = await getDoc(categoryRef);
-            if (categorySnap.exists()) {
-                const categoryData = categorySnap.data() as ProductCategory;
+            const categoryDocRef = doc(db, 'users', configUserId, 'productCategories', categoryId);
+            const categoryDocSnap = await getDoc(categoryDocRef);
+            if (categoryDocSnap.exists()) {
+                const categoryData = categoryDocSnap.data() as ProductCategory;
                 categoryName = categoryData.name;
             } else {
-                console.warn(`Category with ID "${categoryId}" not found for product "${productId}".`);
+                console.warn(`Category document with ID "${categoryId}" not found for user "${configUserId}".`);
             }
         } catch (catError) {
             console.error(`Error fetching category "${categoryId}" for product "${productId}":`, catError);
+            // Don't block the request if category fetch fails, just log it.
         }
     }
-    // --- End New Logic ---
+    // --- End Corrected Logic ---
     
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
