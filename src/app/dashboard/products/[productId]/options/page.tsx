@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -93,7 +94,7 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     }
     return { options: undefined };
   } catch (error: any) {
-    let errorMessage = `Failed to load options: ${error.message}`;
+    let errorMessage = `Failed to load options: ${'error'}.message`;
     if (error.code === 'permission-denied') {
         errorMessage = "Permission denied. Please check your Firestore security rules to allow reads on 'userProductOptions' for authenticated users.";
     }
@@ -1256,5 +1257,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-
-    
