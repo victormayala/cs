@@ -5,8 +5,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -19,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
@@ -30,7 +29,6 @@ import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import ProductViewSetup from '@/components/product-options/ProductViewSetup';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -53,7 +51,6 @@ interface ProductOptionsData {
   salePrice: number | string | null;
   shipping: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
-  defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes: Omit<ProductAttributeOptions, 'sizes'> & { sizes: SizeAttribute[] };
@@ -341,18 +338,6 @@ export default function ProductOptionsPage() {
       }
       const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
-      const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
-      const baseDefaultViews: Omit<ProductView, 'id' | 'boundaryBoxes'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", price: 0 },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", price: 0 },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", price: 0 },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", price: 0 },
-      ];
-      const existingViews = firestoreOptions?.defaultViews || [];
-      const finalDefaultViews = baseDefaultViews.map(baseView => {
-        const existing = existingViews.find(ev => ev.name === baseView.name);
-        return existing ? {...existing } : { ...baseView, id: crypto.randomUUID(), boundaryBoxes: [] };
-      }).slice(0, MAX_PRODUCT_VIEWS);
       const nativeAttributesFromFS = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
       if (!nativeAttributesFromFS.colors) nativeAttributesFromFS.colors = [];
       const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any) => ({
@@ -373,7 +358,6 @@ export default function ProductOptionsPage() {
         salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
         shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
         type: firestoreOptions?.type ?? baseProduct.type,
-        defaultViews: finalDefaultViews,
         optionsByColor: firestoreOptions?.optionsByColor || {},
         groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
         nativeAttributes: { colors: nativeAttributesFromFS.colors, sizes: validatedSizes },
@@ -391,7 +375,15 @@ export default function ProductOptionsPage() {
       setVariationPriceInputs(priceInputs);
       setVariationSalePriceInputs(salePriceInputs);
 
-      setActiveViewIdForSetup(finalDefaultViews[0]?.id || null);
+      // Determine initial active view
+      const firstColor = Object.keys(firestoreOptions?.optionsByColor || {})[0];
+      const firstViewId = firstColor 
+        ? firestoreOptions?.optionsByColor[firstColor].views?.[0]?.id
+        : baseProduct.imageUrl ? `default_view_${baseProduct.id}` : null;
+      
+      if (firstColor) setVariationViewOverrideColor(firstColor);
+
+      setActiveViewIdForSetup(firstViewId);
       setSelectedBoundaryBoxId(null);
       setHasUnsavedChanges(isRefresh ? hasUnsavedChanges : false);
       if (isRefresh) toast({ title: "Product Data Refreshed", description: "Details updated from your store."});
@@ -444,9 +436,7 @@ export default function ProductOptionsPage() {
     let currentView: ProductView | undefined;
     if (variationViewOverrideColor) {
         currentView = productOptions.optionsByColor?.[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
-    } else {
-        currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
-    }
+    } 
 
     const currentBox = currentView?.boundaryBoxes.find(b => b.id === boxId);
     if (!currentBox || !imageWrapperRef.current) return;
@@ -498,9 +488,8 @@ export default function ProductOptionsPage() {
                   newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
               }
               return { ...prev, optionsByColor: newOptions };
-          } else {
-              return { ...prev, defaultViews: prev.defaultViews.map(updater) };
-          }
+          } 
+          return prev;
       });
       setHasUnsavedChanges(true);
     });
@@ -544,8 +533,7 @@ export default function ProductOptionsPage() {
       if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || hasOverrides) {
           cleanOptionsByColor[colorKey] = {
               selectedVariationIds: group.selectedVariationIds || [],
-              variantViewImages: {}, // Deprecated, clear on save
-              views: group.views || [],
+              views: (group.views || []).map((view: any) => ({...view, price: Number(view.price) || 0})),
           };
       }
     }
@@ -557,7 +545,6 @@ export default function ProductOptionsPage() {
         price: Number(productOptionsToSave.price) || 0,
         type: productOptionsToSave.type,
         allowCustomization: productOptionsToSave.allowCustomization,
-        defaultViews: productOptionsToSave.defaultViews.map((view: any) => ({ ...view, price: Number(view.price) || 0 })),
         optionsByColor: cleanOptionsByColor,
         groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
         nativeAttributes: {
@@ -649,7 +636,12 @@ export default function ProductOptionsPage() {
   const handleAddNewView = () => {
     if (!productOptions) return;
 
-    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : productOptions.defaultViews;
+    if (!variationViewOverrideColor) {
+      toast({ title: "Select a Color", description: "Please select a color group before adding a view.", variant: "default" });
+      return;
+    }
+
+    const viewsList = productOptions.optionsByColor[variationViewOverrideColor]?.views || [];
 
     if (viewsList.length >= MAX_PRODUCT_VIEWS) {
       toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
@@ -663,14 +655,10 @@ export default function ProductOptionsPage() {
 
     setProductOptions(prev => {
         if (!prev) return null;
-        if (variationViewOverrideColor) {
-            const newOptions = {...prev.optionsByColor};
-            if (!newOptions[variationViewOverrideColor]) newOptions[variationViewOverrideColor] = { selectedVariationIds: [], variantViewImages: {}, views: []};
-            newOptions[variationViewOverrideColor].views = [...(newOptions[variationViewOverrideColor].views || []), newView];
-            return { ...prev, optionsByColor: newOptions };
-        } else {
-            return { ...prev, defaultViews: [...prev.defaultViews, newView] };
-        }
+        const newOptions = {...prev.optionsByColor};
+        if (!newOptions[variationViewOverrideColor]) newOptions[variationViewOverrideColor] = { selectedVariationIds: [], views: []};
+        newOptions[variationViewOverrideColor].views = [...(newOptions[variationViewOverrideColor].views || []), newView];
+        return { ...prev, optionsByColor: newOptions };
     });
 
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
@@ -687,18 +675,17 @@ export default function ProductOptionsPage() {
                  newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
              }
              return { ...prev, optionsByColor: newOptions };
-        } else {
-            return { ...prev, defaultViews: prev.defaultViews.map(updater) };
         }
+        return prev;
     });
     setHasUnsavedChanges(true);
   };
 
   const handleDeleteView = (viewId: string) => {
     if (!productOptions) return;
-    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : productOptions.defaultViews;
-    if (viewsList.length <= 1 && !variationViewOverrideColor) { // Don't allow deleting last default view
-      toast({ title: "Cannot Delete", description: "At least one default view must remain.", variant: "default" });
+    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : [];
+    if (viewsList.length <= 1) { // Don't allow deleting last view in an override
+      toast({ title: "Cannot Delete", description: "At least one view must remain for a variation override.", variant: "default" });
       return;
     }
     setViewIdToDelete(viewId); setIsDeleteViewDialogOpen(true);
@@ -718,13 +705,8 @@ export default function ProductOptionsPage() {
                 setActiveViewIdForSetup(newOptions[variationViewOverrideColor].views?.[0]?.id || null);
              }
              return { ...prev, optionsByColor: newOptions };
-        } else {
-            const updatedViews = prev.defaultViews.filter(v => v.id !== viewIdToDelete);
-            if(activeViewIdForSetup === viewIdToDelete) {
-                setActiveViewIdForSetup(updatedViews[0]?.id || null);
-            }
-            return { ...prev, defaultViews: updatedViews };
         }
+        return prev;
     });
     
     setSelectedBoundaryBoxId(null);
@@ -738,8 +720,6 @@ export default function ProductOptionsPage() {
     let currentView: ProductView | undefined;
     if (variationViewOverrideColor) {
         currentView = productOptions.optionsByColor[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
-    } else {
-        currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
     }
     
     if (!currentView || currentView.boundaryBoxes.length >= 3) {
@@ -761,9 +741,8 @@ export default function ProductOptionsPage() {
                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
-        } else {
-            return { ...prev, defaultViews: prev.defaultViews.map(updater) };
         }
+        return prev;
     });
 
     setSelectedBoundaryBoxId(newBox.id); setHasUnsavedChanges(true);
@@ -780,9 +759,8 @@ export default function ProductOptionsPage() {
                  newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
              }
              return { ...prev, optionsByColor: newOptions };
-        } else {
-             return { ...prev, defaultViews: prev.defaultViews.map(updater) };
-        }
+        } 
+        return prev;
     });
     if (selectedBoundaryBoxId === boxId) setSelectedBoundaryBoxId(null);
     setHasUnsavedChanges(true);
@@ -799,9 +777,8 @@ export default function ProductOptionsPage() {
                  newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
              }
              return { ...prev, optionsByColor: newOptions };
-        } else {
-             return { ...prev, defaultViews: prev.defaultViews.map(updater) };
-        }
+        } 
+        return prev;
     });
     setHasUnsavedChanges(true);
   };
@@ -837,9 +814,8 @@ export default function ProductOptionsPage() {
           newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
         }
         return { ...prev, optionsByColor: newOptions };
-      } else {
-        return { ...prev, defaultViews: prev.defaultViews.map(updater) };
-      }
+      } 
+      return prev;
     });
     setHasUnsavedChanges(true);
   };
@@ -1028,8 +1004,6 @@ export default function ProductOptionsPage() {
   useEffect(() => {
     if (variationViewOverrideColor && productOptions?.optionsByColor?.[variationViewOverrideColor]?.views?.length) {
       setActiveViewIdForSetup(productOptions.optionsByColor[variationViewOverrideColor].views![0].id);
-    } else if (!variationViewOverrideColor && productOptions?.defaultViews.length) {
-      setActiveViewIdForSetup(productOptions.defaultViews[0].id);
     } else {
       setActiveViewIdForSetup(null);
     }
@@ -1064,7 +1038,7 @@ export default function ProductOptionsPage() {
 
   const currentView = (variationViewOverrideColor 
     ? productOptions.optionsByColor?.[variationViewOverrideColor]?.views 
-    : productOptions.defaultViews)?.find(v => v.id === activeViewIdForSetup);
+    : [])?.find(v => v.id === activeViewIdForSetup);
     
   const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
@@ -1238,35 +1212,12 @@ export default function ProductOptionsPage() {
           {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
         </div>
         <div className="md:col-span-1 space-y-6">
-          <ProductViewSetup 
-            productOptions={{ defaultViews: productOptions.defaultViews }} 
-            activeViewId={activeViewIdForSetup} 
-            selectedBoundaryBoxId={selectedBoundaryBoxId} 
-            setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-            handleSelectView={handleSelectView} 
-            handleViewDetailChange={handleViewDetailChange} 
-            handleDeleteView={handleDeleteView} 
-            handleAddNewView={handleAddNewView} 
-            handleAddBoundaryBox={handleAddBoundaryBox} 
-            handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
-            handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
-            handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
-            imageWrapperRef={imageWrapperRef} 
-            handleInteractionStart={handleInteractionStart} 
-            activeDrag={activeDrag} 
-            isDeleteViewDialogOpen={isDeleteViewDialogOpen}
-            setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
-            viewIdToDelete={viewIdToDelete} 
-            setViewIdToDelete={setViewIdToDelete} 
-            confirmDeleteView={confirmDeleteView} 
-            viewType="Default"
-          />
           <Card className="shadow-md sticky top-8">
             <CardHeader><CardTitle className="font-headline text-lg">Summary & Actions</CardTitle><CardDescription>Review your setup and save changes.</CardDescription></CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span></div>
               <div className="text-sm text-muted-foreground">Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge></div>
-              <div className="text-sm text-muted-foreground">Total Default Views: <span className="font-semibold text-foreground">{productOptions.defaultViews.length}</span></div>
+              <div className="text-sm text-muted-foreground">Views in selected variation: <span className="font-semibold text-foreground">{productOptions.optionsByColor[variationViewOverrideColor]?.views?.length || 0}</span></div>
               <div className="text-sm text-muted-foreground">Active Setup View: <span className="font-semibold text-primary">{currentView?.name || "N/A"}</span></div>
               {currentView && (<div className="text-sm text-muted-foreground">Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span></div>)}
               {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
@@ -1282,4 +1233,3 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
-

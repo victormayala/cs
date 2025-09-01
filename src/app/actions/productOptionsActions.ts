@@ -39,9 +39,6 @@ export interface VariationImage {
 
 export interface ColorGroupOptions {
   selectedVariationIds: string[];
-  // variantViewImages is now deprecated in favor of the more flexible `views` array.
-  // It will be cleared on the next save in options/page.tsx.
-  variantViewImages: Record<string, VariationImage>; 
   // NEW: Allow overriding views for this specific color group
   views?: ProductView[]; 
 }
@@ -73,7 +70,8 @@ export interface ProductOptionsFirestoreData {
   price: number;
   salePrice?: number | null; // Make it optional and allow null
   type: 'simple' | 'variable' | 'grouped' | 'external';
-  defaultViews: ProductView[];
+  // defaultViews is now deprecated. Views are managed per variation.
+  defaultViews?: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes?: ProductAttributeOptions; // Made optional for backwards compatibility
@@ -86,4 +84,3 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox };
-
