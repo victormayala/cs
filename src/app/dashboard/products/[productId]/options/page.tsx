@@ -243,6 +243,8 @@ export default function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  
+  const [variationViewOverrideColor, setVariationViewOverrideColor] = useState<string>('');
 
   // NEW: State for variation price input fields
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
@@ -448,10 +450,10 @@ export default function ProductOptionsPage() {
       if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
       const defaultPlaceholder = "https://placehold.co/600x600/eee/ccc.png?text=";
       const baseDefaultViews: Omit<ProductView, 'id' | 'boundaryBoxes'>[] = [
-        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view" },
-        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view" },
-        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view" },
-        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view" },
+        { name: "Front", imageUrl: baseProduct.imageUrl || `${defaultPlaceholder}Front`, aiHint: baseProduct.imageAlt.split(" ").slice(0,2).join(" ") || "front view", price: 0 },
+        { name: "Back", imageUrl: `${defaultPlaceholder}Back`, aiHint: "back view", price: 0 },
+        { name: "Left Side", imageUrl: `${defaultPlaceholder}Left`, aiHint: "left side view", price: 0 },
+        { name: "Right Side", imageUrl: `${defaultPlaceholder}Right`, aiHint: "right side view", price: 0 },
       ];
       const existingViews = firestoreOptions?.defaultViews || [];
       const finalDefaultViews = baseDefaultViews.map(baseView => {
@@ -653,11 +655,14 @@ export default function ProductOptionsPage() {
       // Filter out any image objects that don't have a valid imageUrl.
       const cleanImages = (group.variantImages || []).filter((img: VariationImage | null): img is VariationImage => img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '');
       
-      // Only add the color group if it has selected variations or valid images.
-      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || cleanImages.length > 0) {
+      const hasOverrides = (group.views && group.views.length > 0);
+
+      // Only add the color group if it has selected variations, valid images, or view overrides
+      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || cleanImages.length > 0 || hasOverrides) {
           cleanOptionsByColor[colorKey] = {
               selectedVariationIds: group.selectedVariationIds || [],
               variantImages: cleanImages,
+              views: group.views || [],
           };
       }
     }
@@ -1096,6 +1101,9 @@ export default function ProductOptionsPage() {
   const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
   const imageSlots = Array.from({ length: MAX_VARIATION_IMAGES });
+  const colorGroupsForSelect = source === 'customizer-studio' 
+  ? productOptions.nativeAttributes.colors.map(c => c.name) 
+  : Object.keys(groupedVariations || {});
 
 
   return (
@@ -1202,7 +1210,7 @@ export default function ProductOptionsPage() {
                 : variationsError ? (<ShadCnAlert variant="destructive"><AlertTriangle className="h-4 w-4" /><ShadCnAlertTitle>Error Loading Variations</ShadCnAlertTitle><ShadCnAlertDescription>{variationsError}</ShadCnAlertDescription></ShadCnAlert>)
                 : (source === 'woocommerce' && !groupedVariations) ? (<p className="text-sm text-muted-foreground">No variations with a clear grouping attribute (like 'Color') were found for this product.</p>)
                 : (<div className="space-y-4">
-                    {Object.keys(source === 'customizer-studio' ? (productOptions.nativeAttributes?.colors || []).reduce((acc, c) => ({...acc, [c.name]:[]}), {}) : groupedVariations || {}).map((groupKey) => (
+                    {colorGroupsForSelect.map((groupKey) => (
                       <div key={groupKey}>
                           <div className="flex justify-between items-center bg-muted/50 p-2 rounded-t-md border">
                             <h4 className="text-sm font-semibold text-foreground">Color: {groupKey}</h4>
@@ -1235,7 +1243,29 @@ export default function ProductOptionsPage() {
           {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
         </div>
         <div className="md:col-span-1 space-y-6">
-          <ProductViewSetup productOptions={productOptions} activeViewId={activeViewIdForSetup} selectedBoundaryBoxId={selectedBoundaryBoxId} setSelectedBoundaryBoxId={setSelectedBoundaryBoxId} handleSelectView={handleSelectView} handleViewDetailChange={handleViewDetailChange} handleDeleteView={handleDeleteView} handleAddNewView={handleAddNewView} handleAddBoundaryBox={handleAddBoundaryBox} handleRemoveBoundaryBox={handleRemoveBoundaryBox} handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange} imageWrapperRef={imageWrapperRef} handleInteractionStart={handleInteractionStart} activeDrag={activeDrag} isDeleteViewDialogOpen={isDeleteViewDialogOpen} setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} viewIdToDelete={viewIdToDelete} setViewIdToDelete={setViewIdToDelete} confirmDeleteView={confirmDeleteView} />
+          <ProductViewSetup 
+            productOptions={{ defaultViews: productOptions.defaultViews }} 
+            activeViewId={activeViewIdForSetup} 
+            selectedBoundaryBoxId={selectedBoundaryBoxId} 
+            setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
+            handleSelectView={handleSelectView} 
+            handleViewDetailChange={handleViewDetailChange} 
+            handleDeleteView={handleDeleteView} 
+            handleAddNewView={handleAddNewView} 
+            handleAddBoundaryBox={handleAddBoundaryBox} 
+            handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
+            handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
+            handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
+            imageWrapperRef={imageWrapperRef} 
+            handleInteractionStart={handleInteractionStart} 
+            activeDrag={activeDrag} 
+            isDeleteViewDialogOpen={isDeleteViewDialogOpen}
+            setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
+            viewIdToDelete={viewIdToDelete} 
+            setViewIdToDelete={setViewIdToDelete} 
+            confirmDeleteView={confirmDeleteView} 
+            viewType="Default"
+          />
           <Card className="shadow-md sticky top-8">
             <CardHeader><CardTitle className="font-headline text-lg">Summary & Actions</CardTitle><CardDescription>Review your setup and save changes.</CardDescription></CardHeader>
             <CardContent>

@@ -21,7 +21,7 @@ interface BoundaryBox {
   height: number;
 }
 
-interface ProductView {
+export interface ProductView {
   id: string;
   name: string;
   imageUrl: string;
@@ -36,7 +36,7 @@ export interface VariationImage {
   aiHint?: string;
 }
 
-interface ColorGroupOptions {
+export interface ColorGroupOptions {
   selectedVariationIds: string[];
   // Replaced variantViewImages with a simple array for a gallery
   variantImages: VariationImage[];
@@ -83,4 +83,4 @@ export interface ProductOptionsFirestoreData {
 }
 
 // These types are also used on the client, so we export them.
-export type { BoundaryBox, ProductView, ColorGroupOptions };
+export type { BoundaryBox };
