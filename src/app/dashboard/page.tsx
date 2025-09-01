@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -33,7 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AppHeader from "@/components/layout/AppHeader";
 import { UploadProvider } from "@/contexts/UploadContext";
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -895,26 +895,30 @@ function DashboardPageContent() {
         <AppHeader />
         <SidebarProvider defaultOpen>
           <div className="flex flex-1">
-            <Sidebar side="left" className="h-full shadow-md border-r">
-              <SidebarHeader className="p-4 border-b">
+            <Sidebar side="left" className="h-full shadow-md border-r" collapsible="icon">
+              <SidebarHeader className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-headline text-lg font-semibold text-foreground">Navigation</h2>
+                <SidebarTrigger />
               </SidebarHeader>
               <SidebarContent className="flex flex-col p-0">
                 <div className="p-2">
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="lg" className="w-full justify-start">
-                        <PackageIcon className="mr-2 h-5 w-5" /> Products
+                        <PackageIcon className="mr-2 h-5 w-5" />
+                        <span>Products</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                      <SidebarMenuItem>
                       <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="lg" className="w-full justify-start">
-                        <FolderIcon className="mr-2 h-5 w-5" /> Categories
+                        <FolderIcon className="mr-2 h-5 w-5" />
+                        <span>Categories</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="lg" className="w-full justify-start">
-                        <Server className="mr-2 h-5 w-5" /> Store Integration
+                        <Server className="mr-2 h-5 w-5" />
+                        <span>Store Integration</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   </SidebarMenu>
@@ -924,12 +928,14 @@ function DashboardPageContent() {
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="lg" className="w-full justify-start">
-                      <Settings className="mr-2 h-5 w-5" /> Settings
+                      <Settings className="mr-2 h-5 w-5" />
+                      <span>Settings</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton onClick={() => setActiveTab('profile')} isActive={activeTab === 'profile'} size="lg" className="w-full justify-start">
-                      <UserCircle className="mr-2 h-5 w-5" /> Profile
+                      <UserCircle className="mr-2 h-5 w-5" />
+                      <span>Profile</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
