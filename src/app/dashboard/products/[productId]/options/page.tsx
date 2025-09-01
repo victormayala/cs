@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil, Redo } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil, Redo, Image as ImageIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -24,11 +24,10 @@ import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupO
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Image as ImageIcon } from 'lucide-react';
 import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import ProductViewSetup from '@/components/product-options/ProductViewSetup';
+import { ProductViewSetup } from '@/components/product-options/ProductViewSetup';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -379,7 +378,7 @@ export default function ProductOptionsPage() {
       const firstColor = Object.keys(firestoreOptions?.optionsByColor || {})[0];
       const firstViewId = firstColor 
         ? firestoreOptions?.optionsByColor[firstColor].views?.[0]?.id
-        : baseProduct.imageUrl ? `default_view_${baseProduct.id}` : null;
+        : null;
       
       if (firstColor) setVariationViewOverrideColor(firstColor);
 
@@ -560,15 +559,19 @@ export default function ProductOptionsPage() {
         dataToSave.salePrice = deleteField();
     }
   
-    if (productOptionsToSave.brand) dataToSave.brand = productOptionsToSave.brand;
-    if (productOptionsToSave.sku) dataToSave.sku = productOptionsToSave.sku;
-    if (productOptionsToSave.category) {
-        dataToSave.category = productOptionsToSave.category;
-    } else {
-        dataToSave.category = deleteField();
+    if (productOptions.source === 'customizer-studio') {
+        const productBaseData: Partial<NativeProduct> = {
+            name: productOptionsToSave.name,
+            description: productOptionsToSave.description,
+            brand: productOptionsToSave.brand || undefined,
+            sku: productOptionsToSave.sku || undefined,
+            category: productOptionsToSave.category || undefined,
+            customizationTechniques: productOptionsToSave.customizationTechniques || [],
+            lastModified: serverTimestamp()
+        };
+        const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
+        await setDoc(productBaseRef, productBaseData, { merge: true });
     }
-    if (productOptionsToSave.shipping) dataToSave.shipping = productOptionsToSave.shipping;
-    if (productOptionsToSave.customizationTechniques) dataToSave.customizationTechniques = productOptionsToSave.customizationTechniques;
   
     if (Array.isArray(productOptionsToSave.nativeVariations)) {
         dataToSave.nativeVariations = productOptionsToSave.nativeVariations.map((variation: any) => {
@@ -589,20 +592,6 @@ export default function ProductOptionsPage() {
     try {
         const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
         await setDoc(docRef, dataToSave, { merge: true });
-  
-        if (productOptions.source === 'customizer-studio') {
-            const productBaseRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
-            const nativeProductData: { [key: string]: any } = {
-                name: productOptions.name,
-                description: productOptions.description,
-                brand: productOptions.brand || deleteField(),
-                sku: productOptions.sku || deleteField(),
-                category: productOptions.category || deleteField(),
-                customizationTechniques: productOptions.customizationTechniques || [],
-                lastModified: serverTimestamp()
-            };
-            await setDoc(productBaseRef, nativeProductData, { merge: true });
-        }
   
         toast({ title: "Saved", description: "Your product configurations have been saved." });
         setHasUnsavedChanges(false);
@@ -684,7 +673,7 @@ export default function ProductOptionsPage() {
   const handleDeleteView = (viewId: string) => {
     if (!productOptions) return;
     const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : [];
-    if (viewsList.length <= 1) { // Don't allow deleting last view in an override
+    if (viewsList.length <= 1 && viewType !== 'Default') {
       toast({ title: "Cannot Delete", description: "At least one view must remain for a variation override.", variant: "default" });
       return;
     }
@@ -1061,8 +1050,8 @@ export default function ProductOptionsPage() {
       </div>
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
       <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {firestoreDocId})</div>
-      {!credentialsExist && (<Card><CardContent><Alert variant="destructive" className="my-6"><PlugZap className="h-4 w-4" /><AlertTitle>Store Not Connected</AlertTitle><AlertDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</AlertDescription></Alert></CardContent></Card>)}
-      {error && credentialsExist && <Card><CardContent><Alert variant="destructive" className="my-6"><AlertTriangle className="h-4 w-4" /><AlertTitle>Product Data Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert></CardContent></Card>}
+      {!credentialsExist && (<Card><CardContent><AlertTriangle className="h-4 w-4" /><AlertTitle>Store Not Connected</AlertTitle><AlertDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</AlertDescription></CardContent></Card>)}
+      {error && credentialsExist && <Card><CardContent><AlertTriangle className="h-4 w-4" /><AlertTitle>Product Data Error</AlertTitle><AlertDescription>{error}</AlertDescription></CardContent></Card>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
           <Card className="shadow-md">
@@ -1141,72 +1130,31 @@ export default function ProductOptionsPage() {
           </Card>
           
           {productOptions.type === 'variable' && (
-            <Card className="shadow-md">
-              <CardHeader>
-                <CardTitle className="font-headline text-lg">Variation-Specific Views</CardTitle>
-                <CardDescription>
-                  For each color, you can define a unique set of views that will override the default views.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="variation-override-select">Select a Color Group to Configure</Label>
-                  <Select
-                      value={variationViewOverrideColor}
-                      onValueChange={setVariationViewOverrideColor}
-                  >
-                    <SelectTrigger id="variation-override-select" className="mt-1">
-                      <SelectValue placeholder="Select a color..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {colorGroupsForSelect.map(color => (
-                        <SelectItem key={color} value={color}>{color}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {variationViewOverrideColor && (
-                  <div className="border p-4 rounded-md bg-muted/20">
-                     <ProductViewSetup 
-                        productOptions={{ defaultViews: productOptions.optionsByColor[variationViewOverrideColor]?.views || [] }}
-                        activeViewId={activeViewIdForSetup} 
-                        selectedBoundaryBoxId={selectedBoundaryBoxId} 
-                        setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-                        handleSelectView={handleSelectView} 
-                        handleViewDetailChange={handleViewDetailChange}
-                        handleDeleteView={handleDeleteView} 
-                        handleAddNewView={handleAddNewView} 
-                        handleAddBoundaryBox={handleAddBoundaryBox} 
-                        handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
-                        handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
-                        handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
-                        imageWrapperRef={imageWrapperRef} 
-                        handleInteractionStart={handleInteractionStart} 
-                        activeDrag={activeDrag} 
-                        isDeleteViewDialogOpen={isDeleteViewDialogOpen}
-                        setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
-                        viewIdToDelete={viewIdToDelete} 
-                        setViewIdToDelete={setViewIdToDelete} 
-                        confirmDeleteView={confirmDeleteView}
-                        viewType="Variation Override"
-                        onResetToDefault={() => {
-                          setProductOptions(prev => {
-                            if (!prev) return null;
-                            const newOptions = { ...prev.optionsByColor };
-                            if (newOptions[variationViewOverrideColor]) {
-                              delete newOptions[variationViewOverrideColor].views;
-                            }
-                            return { ...prev, optionsByColor: newOptions };
-                          });
-                          setHasUnsavedChanges(true);
-                          toast({ title: 'Override Removed', description: `Views for "${variationViewOverrideColor}" will now use the default settings. Remember to save.`});
-                        }}
-                      />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ProductViewSetup 
+              productOptions={productOptions} 
+              activeViewId={activeViewIdForSetup} 
+              selectedBoundaryBoxId={selectedBoundaryBoxId} 
+              setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
+              handleSelectView={handleSelectView} 
+              handleViewDetailChange={handleViewDetailChange}
+              handleDeleteView={handleDeleteView} 
+              handleAddNewView={handleAddNewView} 
+              handleAddBoundaryBox={handleAddBoundaryBox} 
+              handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
+              handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
+              handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
+              imageWrapperRef={imageWrapperRef} 
+              handleInteractionStart={handleInteractionStart} 
+              activeDrag={activeDrag} 
+              isDeleteViewDialogOpen={isDeleteViewDialogOpen}
+              setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
+              viewIdToDelete={viewIdToDelete} 
+              setViewIdToDelete={setViewIdToDelete} 
+              confirmDeleteView={confirmDeleteView}
+              variationViewOverrideColor={variationViewOverrideColor}
+              setVariationViewOverrideColor={setVariationViewOverrideColor}
+              colorGroupsForSelect={colorGroupsForSelect}
+            />
           )}
 
           {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
