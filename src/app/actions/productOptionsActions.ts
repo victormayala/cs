@@ -40,6 +40,8 @@ interface ColorGroupOptions {
   selectedVariationIds: string[];
   // Replaced variantViewImages with a simple array for a gallery
   variantImages: VariationImage[];
+  // NEW: Allow overriding views for this specific color group
+  views?: ProductView[]; 
 }
 
 // New interface for native product attributes
