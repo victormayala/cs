@@ -38,8 +38,8 @@ export interface VariationImage {
 
 export interface ColorGroupOptions {
   selectedVariationIds: string[];
-  // Replaced variantViewImages with a simple array for a gallery
-  variantImages: VariationImage[];
+  // Renamed variantImages to variantViewImages to match customizer expectations
+  variantViewImages: Record<string, VariationImage>; 
   // NEW: Allow overriding views for this specific color group
   views?: ProductView[]; 
 }

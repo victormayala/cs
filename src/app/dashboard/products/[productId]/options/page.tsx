@@ -29,6 +29,7 @@ import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import ProductViewSetup from '@/components/product-options/ProductViewSetup';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -532,28 +533,28 @@ export default function ProductOptionsPage() {
   }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
   // NEW: UPLOAD HANDLING LOGIC
-  const handleUploadComplete = useCallback((colorKey: string, index: number, newImageUrl: string) => {
+  const handleUploadComplete = useCallback((colorKey: string, viewId: string, newImageUrl: string) => {
     setProductOptions(prev => {
         if (!prev) return null;
         const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
         if (!updatedOptionsByColor[colorKey]) {
-            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [], views: [] };
+            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {}, views: [] };
         }
-        const newImages = [...(updatedOptionsByColor[colorKey].variantImages || [])];
-        newImages[index] = { imageUrl: newImageUrl, aiHint: '' };
-        updatedOptionsByColor[colorKey].variantImages = newImages;
+        if (!updatedOptionsByColor[colorKey].variantViewImages) {
+          updatedOptionsByColor[colorKey].variantViewImages = {};
+        }
+        updatedOptionsByColor[colorKey].variantViewImages[viewId] = { imageUrl: newImageUrl, aiHint: '' };
         return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
   }, []);
 
-  const handleImageRemove = useCallback((colorKey: string, index: number) => {
+  const handleImageRemove = useCallback((colorKey: string, viewId: string) => {
     setProductOptions(prev => {
         if (!prev) return null;
         const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
-        if (updatedOptionsByColor[colorKey]?.variantImages?.[index]) {
-            // Instead of splicing, we set it to null to keep the slot
-            updatedOptionsByColor[colorKey].variantImages[index] = null;
+        if (updatedOptionsByColor[colorKey]?.variantViewImages?.[viewId]) {
+            delete updatedOptionsByColor[colorKey].variantViewImages[viewId];
         }
         return { ...prev, optionsByColor: updatedOptionsByColor };
     });
@@ -663,16 +664,25 @@ export default function ProductOptionsPage() {
     const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
     for (const colorKey in productOptionsToSave.optionsByColor) {
       const group = productOptionsToSave.optionsByColor[colorKey];
-      // Filter out any image objects that don't have a valid imageUrl.
-      const cleanImages = (group.variantImages || []).filter((img: VariationImage | null): img is VariationImage => img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '');
       
+      const cleanImages: Record<string, VariationImage> = {};
+      if (group.variantViewImages) {
+        for (const viewId in group.variantViewImages) {
+          const img = group.variantViewImages[viewId];
+          if (img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '') {
+            cleanImages[viewId] = { imageUrl: img.imageUrl, aiHint: img.aiHint || '' };
+          }
+        }
+      }
+
       const hasOverrides = (group.views && group.views.length > 0);
+      const hasImages = Object.keys(cleanImages).length > 0;
 
       // Only add the color group if it has selected variations, valid images, or view overrides
-      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || cleanImages.length > 0 || hasOverrides) {
+      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || hasImages || hasOverrides) {
           cleanOptionsByColor[colorKey] = {
               selectedVariationIds: group.selectedVariationIds || [],
-              variantImages: cleanImages,
+              variantViewImages: cleanImages,
               views: group.views || [],
           };
       }
@@ -891,7 +901,7 @@ export default function ProductOptionsPage() {
           }
       }
       if (!updatedOptionsByColor[groupKey]) {
-          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantImages: [], views: [] };
+          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantViewImages: {}, views: [] };
       } else {
           updatedOptionsByColor[groupKey].selectedVariationIds = variationIdsToSet;
       }
@@ -1232,16 +1242,19 @@ export default function ProductOptionsPage() {
                             </div>
                           </div>
                           {editingImagesForColor === groupKey && (
-                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {imageSlots.map((_, index) => (
-                                    <VariantImageUploader
-                                        key={`${groupKey}-${index}`}
-                                        userId={user?.uid}
-                                        imageInfo={productOptions.optionsByColor?.[groupKey]?.variantImages?.[index] || null}
-                                        onUploadComplete={(url) => handleUploadComplete(groupKey, index, url)}
-                                        onRemove={() => handleImageRemove(groupKey, index)}
-                                        slotNumber={index + 1}
-                                    />
+                            <div className="p-4 border border-t-0 rounded-b-md">
+                                {productOptions.defaultViews.map((view, index) => (
+                                    <div key={view.id} className="mb-4">
+                                        <Label className="text-xs font-semibold text-muted-foreground">{view.name} View Image</Label>
+                                        <VariantImageUploader
+                                            key={`${groupKey}-${view.id}`}
+                                            userId={user?.uid}
+                                            imageInfo={productOptions.optionsByColor?.[groupKey]?.variantViewImages?.[view.id] || null}
+                                            onUploadComplete={(url) => handleUploadComplete(groupKey, view.id, url)}
+                                            onRemove={() => handleImageRemove(groupKey, view.id)}
+                                            slotNumber={index + 1}
+                                        />
+                                    </div>
                                 ))}
                             </div>
                           )}
@@ -1289,7 +1302,7 @@ export default function ProductOptionsPage() {
                         handleAddNewView={() => {}} 
                         handleAddBoundaryBox={() => {}} 
                         handleRemoveBoundaryBox={() => {}} 
-                        handleBoundaryBoxNameChange={() => {}}
+                        handleBoundaryBoxNameChange={() => {}} 
                         handleBoundaryBoxPropertyChange={() => {}}
                         imageWrapperRef={imageWrapperRef} 
                         handleInteractionStart={handleInteractionStart} 
