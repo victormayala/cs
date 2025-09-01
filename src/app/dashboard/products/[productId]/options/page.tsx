@@ -308,30 +308,30 @@ export default function ProductOptionsPage() {
     if (colors.length === 0 && sizes.length === 0) return [];
     
     if (colors.length > 0) {
-        colors.forEach(color => {
-            if (sizes.length > 0) {
-                sizes.forEach(size => {
-                    const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
-                    const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                    variations.push({
-                        id,
-                        attributes: { "Color": color.name, "Size": size.name },
-                        price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0),
-                        salePrice: existing?.salePrice ?? null,
-                    });
-                });
-            } else {
-                const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
-                const existing = productOptions.nativeVariations?.find(v => v.id === id);
-                variations.push({ 
-                    id, 
-                    attributes: { "Color": color.name }, 
-                    price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), 
-                    salePrice: existing?.salePrice ?? null 
-                });
-            }
-        });
-    } else { // Only sizes exist
+      colors.forEach(color => {
+        if (sizes.length > 0) {
+          sizes.forEach(size => {
+            const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
+            const existing = productOptions.nativeVariations?.find(v => v.id === id);
+            variations.push({
+              id,
+              attributes: { "Color": color.name, "Size": size.name },
+              price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0),
+              salePrice: existing?.salePrice ?? null,
+            });
+          });
+        } else {
+          const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
+          const existing = productOptions.nativeVariations?.find(v => v.id === id);
+          variations.push({ 
+            id, 
+            attributes: { "Color": color.name }, 
+            price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), 
+            salePrice: existing?.salePrice ?? null 
+          });
+        }
+      });
+    } else if (sizes.length > 0) {
         sizes.forEach(size => {
             const id = `size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
@@ -1195,12 +1195,7 @@ export default function ProductOptionsPage() {
 
                     {productOptions.type === 'variable' && (
                         <Card className="shadow-md">
-                            <CardHeader>
-                                <CardTitle className="font-headline text-lg">Images &amp; Customization</CardTitle>
-                                <CardDescription>
-                                    For each color, you can define a unique set of views (images) and customization areas.
-                                </CardDescription>
-                            </CardHeader>
+                            <CardHeader><CardTitle className="font-headline text-lg">Images &amp; Customization</CardTitle><CardDescription>For each color, you can define a unique set of views (images) and customization areas.</CardDescription></CardHeader>
                             <CardContent className="space-y-2">
                                 {colorGroupsForSelect.map(color => (
                                     <Card key={color} className="bg-muted/40">
@@ -1348,4 +1343,5 @@ export default function ProductOptionsPage() {
     );
 }
 
+    
     
