@@ -898,7 +898,7 @@ function DashboardPageContent() {
         </header>
         <div className="flex flex-1">
           <Sidebar className="sticky top-16 h-[calc(100vh-4rem)]">
-            <SidebarContent className="px-4">
+            <SidebarContent className="px-4 pt-6">
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="lg" className="w-full justify-start">
@@ -1179,4 +1179,3 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
-
