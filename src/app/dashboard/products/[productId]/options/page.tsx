@@ -102,86 +102,108 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
   }
 }
 
-// NEW, SIMPLIFIED UPLOADER COMPONENT
+// NEW, SELF-CONTAINED UPLOADER COMPONENT
 interface VariantImageUploaderProps {
-    imageInfo: VariationImage | null;
-    isUploading: boolean;
-    uploadProgress: number;
-    onSelectFile: () => void;
-    onRemove: () => void;
+  userId: string | undefined;
+  imageInfo: VariationImage | null;
+  onUploadComplete: (newImageUrl: string) => void;
+  onRemove: () => void;
 }
 
-function VariantImageUploader({ imageInfo, isUploading, uploadProgress, onSelectFile, onRemove }: VariantImageUploaderProps) {
-    const [isDeleting, setIsDeleting] = useState(false);
-    const { toast } = useToast();
+function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove }: VariantImageUploaderProps) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleRemoveImage = async () => {
-        if (!imageInfo?.imageUrl) {
-            onRemove();
-            return;
-        }
-        setIsDeleting(true);
-        try {
-            if (imageInfo.imageUrl.includes('firebasestorage.googleapis.com')) {
-                const imageStorageRef = ref(storage, imageInfo.imageUrl);
-                await deleteObject(imageStorageRef);
-            }
-            toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
-            onRemove();
-        } catch (storageError: any) {
-            if (storageError.code !== 'storage/object-not-found') {
-                console.warn("Could not delete image from storage:", storageError);
-                toast({ title: "Deletion Warning", description: "Could not remove from cloud storage, but removed from view.", variant: "default" });
-            } else {
-                toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
-            }
-            onRemove();
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-    
-    const isLoading = isUploading || isDeleting;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !userId) return;
+    const file = e.target.files[0];
 
-    return (
-        <div className="relative p-2 border rounded-md bg-muted/20">
-            {isLoading && (
-                 <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 rounded-md">
-                     <Loader2 className="h-6 w-6 animate-spin mb-2" />
-                     <p className="text-xs text-muted-foreground">{isDeleting ? 'Deleting...' : 'Uploading...'}</p>
-                     {isUploading && <Progress value={uploadProgress} className="w-2/3 h-1.5 mt-1" />}
-                 </div>
-            )}
-            <div className={cn("flex gap-2", isLoading && "opacity-40 pointer-events-none")}>
-                <div className="relative w-20 h-20 bg-muted/50 rounded-md border flex items-center justify-center flex-shrink-0">
-                    {imageInfo?.imageUrl ? (
-                        <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md" />
-                    ) : (
-                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                    )}
-                </div>
-                <div className="flex-grow space-y-1.5">
-                    {imageInfo?.imageUrl ? (
-                         <Button type="button" variant="destructive" size="sm" className="w-full" onClick={handleRemoveImage} disabled={isLoading}>
-                             <Trash className="mr-2 h-4 w-4" /> Remove
-                         </Button>
-                    ) : (
-                       <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full bg-background"
-                            onClick={onSelectFile}
-                            disabled={isLoading}
-                        >
-                            <UploadCloud className="mr-2 h-4 w-4" /> Upload
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </div>
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const storageRef = ref(storage, `${userId}/variant_images/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed',
+      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+      (error) => {
+        console.error("Upload error:", error);
+        toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+        setIsUploading(false);
+      },
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        toast({ title: "Upload Complete", description: "Image is ready. Don't forget to save your changes." });
+        onUploadComplete(downloadURL);
+        setIsUploading(false);
+      }
     );
+  };
+  
+  const handleRemoveImage = async () => {
+    if (!imageInfo?.imageUrl) { onRemove(); return; }
+    setIsDeleting(true);
+    try {
+      if (imageInfo.imageUrl.includes('firebasestorage.googleapis.com')) {
+        const imageStorageRef = ref(storage, imageInfo.imageUrl);
+        await deleteObject(imageStorageRef);
+      }
+      toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
+      onRemove();
+    } catch (storageError: any) {
+      if (storageError.code !== 'storage/object-not-found') {
+        console.warn("Could not delete image from storage:", storageError);
+        toast({ title: "Deletion Warning", description: "Could not remove from cloud storage, but removed from view.", variant: "default" });
+      }
+      onRemove();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const isLoading = isUploading || isDeleting;
+
+  return (
+    <div className="relative p-2 border rounded-md bg-muted/20">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+      {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 rounded-md">
+          <Loader2 className="h-6 w-6 animate-spin mb-2" />
+          <p className="text-xs text-muted-foreground">{isDeleting ? 'Deleting...' : 'Uploading...'}</p>
+          {isUploading && <Progress value={uploadProgress} className="w-2/3 h-1.5 mt-1" />}
+        </div>
+      )}
+      <div className={cn("flex gap-2", isLoading && "opacity-40 pointer-events-none")}>
+        <div className="relative w-20 h-20 bg-muted/50 rounded-md border flex items-center justify-center flex-shrink-0">
+          {imageInfo?.imageUrl ? (
+            <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md" />
+          ) : (
+            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+          )}
+        </div>
+        <div className="flex-grow space-y-1.5">
+          {imageInfo?.imageUrl ? (
+            <Button type="button" variant="destructive" size="sm" className="w-full" onClick={handleRemoveImage} disabled={isLoading}>
+              <Trash className="mr-2 h-4 w-4" /> Remove
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" className="w-full bg-background" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+              <UploadCloud className="mr-2 h-4 w-4" /> Upload
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
+
 
 export default function ProductOptionsPage() {
   const router = useRouter();
@@ -208,7 +230,6 @@ export default function ProductOptionsPage() {
   
   const [selectedBoundaryBoxId, setSelectedBoundaryBoxId] = useState<string | null>(null);
   const imageWrapperRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveDragState | null>(null);
   const dragUpdateRef = useRef(0);
   const [isDeleteViewDialogOpen, setIsDeleteViewDialogOpen] = useState(false);
@@ -221,10 +242,6 @@ export default function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
   const [categories, setCategories] = useState<ProductCategory[]>([]);
-
-  // UPLOAD STATE MANAGED BY PARENT
-  const [uploadingImageIndex, setUploadingImageIndex] = useState<{colorKey: string, index: number} | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // NEW: State for variation price input fields
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
@@ -501,74 +518,32 @@ export default function ProductOptionsPage() {
   }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
   // NEW: UPLOAD HANDLING LOGIC
-  const handleFileChangeAndUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, colorKey: string, imageIndex: number) => {
-    if (!e.target.files || !e.target.files[0] || !user?.uid) return;
-    const file = e.target.files[0];
-
-    if (file.size > 5 * 1024 * 1024) {
-        toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
-        return;
-    }
-
-    setUploadingImageIndex({ colorKey, index: imageIndex });
-    setUploadProgress(0);
-
-    const storageRef = ref(storage, `${user.uid}/variant_images/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on('state_changed',
-        (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
-        },
-        (error) => {
-            console.error("Upload error:", error);
-            toast({ title: "Upload failed", description: error.message, variant: "destructive" });
-            setUploadingImageIndex(null);
-            setUploadProgress(0);
-        },
-        async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            toast({ title: "Upload Complete", description: "Image is ready. Don't forget to save your changes." });
-
-            setProductOptions(prev => {
-                if (!prev) return null;
-                const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
-                if (!updatedOptionsByColor[colorKey]) {
-                    updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
-                }
-                const currentImages = updatedOptionsByColor[colorKey].variantImages || [];
-                const newImages = [...currentImages];
-                newImages[imageIndex] = { imageUrl: downloadURL, aiHint: '' };
-                updatedOptionsByColor[colorKey].variantImages = newImages;
-                return { ...prev, optionsByColor: updatedOptionsByColor };
-            });
-
-            setHasUnsavedChanges(true);
-            setUploadingImageIndex(null);
-            setUploadProgress(0);
-        }
-    );
-  }, [user?.uid, toast]);
-
-  const triggerFileInput = (colorKey: string, imageIndex: number) => {
-    if (fileInputRef.current) {
-        fileInputRef.current.onchange = (e) => handleFileChangeAndUpload(e as React.ChangeEvent<HTMLInputElement>, colorKey, imageIndex);
-        fileInputRef.current.click();
-    }
-  };
-
-  const handleVariantImageRemove = useCallback((colorKey: string, imageIndex: number) => {
+  const handleUploadComplete = useCallback((colorKey: string, index: number, newImageUrl: string) => {
     setProductOptions(prev => {
         if (!prev) return null;
         const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
-        if (updatedOptionsByColor[colorKey]?.variantImages?.[imageIndex]) {
-            updatedOptionsByColor[colorKey].variantImages.splice(imageIndex, 1);
-            setHasUnsavedChanges(true);
-            return { ...prev, optionsByColor: updatedOptionsByColor };
+        if (!updatedOptionsByColor[colorKey]) {
+            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
         }
-        return prev;
+        const newImages = [...(updatedOptionsByColor[colorKey].variantImages || [])];
+        newImages[index] = { imageUrl: newImageUrl, aiHint: '' };
+        updatedOptionsByColor[colorKey].variantImages = newImages;
+        return { ...prev, optionsByColor: updatedOptionsByColor };
     });
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const handleImageRemove = useCallback((colorKey: string, index: number) => {
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+        if (updatedOptionsByColor[colorKey]?.variantImages?.[index]) {
+            // Instead of splicing, we set it to null to keep the slot
+            updatedOptionsByColor[colorKey].variantImages[index] = null;
+        }
+        return { ...prev, optionsByColor: updatedOptionsByColor };
+    });
+    setHasUnsavedChanges(true);
   }, []);
   
   const handleRefreshData = () => {
@@ -675,7 +650,7 @@ export default function ProductOptionsPage() {
     for (const colorKey in productOptionsToSave.optionsByColor) {
       const group = productOptionsToSave.optionsByColor[colorKey];
       // Filter out any image objects that don't have a valid imageUrl.
-      const cleanImages = (group.variantImages || []).filter((img: VariationImage) => img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '');
+      const cleanImages = (group.variantImages || []).filter((img: VariationImage | null): img is VariationImage => img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '');
       
       // Only add the color group if it has selected variations or valid images.
       if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || cleanImages.length > 0) {
@@ -1124,7 +1099,6 @@ export default function ProductOptionsPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" />
       <div className="mb-6 flex justify-between items-center">
         <Button variant="outline" asChild className="hover:bg-accent hover:text-accent-foreground">
           <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Dashboard</Link>
@@ -1239,20 +1213,15 @@ export default function ProductOptionsPage() {
                           </div>
                           {editingImagesForColor === groupKey && (
                             <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {imageSlots.map((_, index) => {
-                                    const imageInfo = productOptions.optionsByColor?.[groupKey]?.variantImages?.[index] || null;
-                                    const isCurrentlyUploading = uploadingImageIndex?.colorKey === groupKey && uploadingImageIndex?.index === index;
-                                    return (
-                                        <VariantImageUploader
-                                            key={imageInfo?.imageUrl || index}
-                                            imageInfo={imageInfo}
-                                            isUploading={isCurrentlyUploading}
-                                            uploadProgress={isCurrentlyUploading ? uploadProgress : 0}
-                                            onSelectFile={() => triggerFileInput(groupKey, index)}
-                                            onRemove={() => handleVariantImageRemove(groupKey, index)}
-                                        />
-                                    );
-                                })}
+                                {imageSlots.map((_, index) => (
+                                    <VariantImageUploader
+                                        key={`${groupKey}-${index}`}
+                                        userId={user?.uid}
+                                        imageInfo={productOptions.optionsByColor?.[groupKey]?.variantImages?.[index] || null}
+                                        onUploadComplete={(url) => handleUploadComplete(groupKey, index, url)}
+                                        onRemove={() => handleImageRemove(groupKey, index)}
+                                    />
+                                ))}
                             </div>
                           )}
                       </div>
@@ -1287,3 +1256,5 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
+    
