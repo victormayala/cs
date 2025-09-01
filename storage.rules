@@ -3,13 +3,20 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow users to read and write to their own folder.
-    // This allows users to upload variant images and other assets for their products.
+    // User-specific files
     match /{userId}/{allPaths=**} {
-      allow read; // Public read access for images is generally needed.
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024 // 5MB limit
-                   && request.resource.contentType.matches('image/.*'); // Only allow images
+      // Anyone can read the files (e.g., for public product images)
+      allow read;
+
+      // Only the authenticated owner of the folder can write files.
+      // - Check if the user is authenticated.
+      // - Check if the {userId} in the path matches the user's own UID.
+      // - Check the file size is less than 5MB.
+      // - Check if the file is an image.
+      allow write: if request.auth != null && 
+                      request.auth.uid == userId &&
+                      request.resource.size < 5 * 1024 * 1024 &&
+                      request.resource.contentType.matches('image/.*');
     }
   }
 }
