@@ -895,8 +895,9 @@ function DashboardPageContent() {
       <div className="flex flex-col min-h-screen">
         <AppHeader />
         <div className="flex flex-1">
-          <Sidebar>
+          <Sidebar className="sticky top-16 h-[calc(100vh-4rem)]">
             <SidebarHeader>
+              <Logo />
             </SidebarHeader>
             <SidebarContent className="px-4">
               <SidebarMenu>

@@ -61,7 +61,7 @@ const SidebarFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col gap-2 p-4 border-t mt-auto", className)}
+    className={cn("flex flex-col gap-2 p-4 mt-auto", className)}
     {...props}
   />
 ))
