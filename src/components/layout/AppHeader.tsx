@@ -96,12 +96,14 @@ export default function AppHeader() {
             </Link>
           </Button>
         )}
-        <Button asChild variant="outline" className="hover:bg-accent hover:text-accent-foreground">
-          <Link href="/dashboard">
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            Dashboard
-          </Link>
-        </Button>
+        {!pathname.startsWith('/dashboard') && (
+          <Button asChild variant="outline" className="hover:bg-accent hover:text-accent-foreground">
+            <Link href="/dashboard">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              Dashboard
+            </Link>
+          </Button>
+        )}
         {user && showCustomizerSpecificButtons && (
           <Button
             onClick={handleAttemptCloseCustomizer}
