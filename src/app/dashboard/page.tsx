@@ -892,8 +892,10 @@ function DashboardPageContent() {
 
   return (
     <UploadProvider>
-      <div className="flex flex-col min-h-screen">
-        <AppHeader />
+      <div className="flex flex-col min-h-screen bg-background">
+        <header className="sticky top-0 z-50">
+          <AppHeader />
+        </header>
         <div className="flex flex-1">
           <Sidebar className="sticky top-16 h-[calc(100vh-4rem)]">
             <SidebarContent className="px-4">
@@ -1178,4 +1180,3 @@ export default function DashboardPage() {
   );
 }
 
-    

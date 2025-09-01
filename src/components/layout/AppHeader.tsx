@@ -74,7 +74,7 @@ export default function AppHeader() {
   return (
     <header className="flex items-center justify-between h-16 border-b bg-card shadow-sm px-4 md:px-6 w-full flex-shrink-0">
       <div className="flex items-center gap-4">
-        {pathname.startsWith('/dashboard') ? <Logo /> : null}
+        <Logo />
       </div>
       <div className="flex items-center gap-2">
         {showCustomizerSpecificButtons && (
