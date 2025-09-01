@@ -9,6 +9,7 @@ import { CodeXml, LayoutDashboard, Settings, X as CloseIcon, LogOut } from "luci
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast'; // Added useToast
+import { Logo } from '../icons/Logo';
 
 export default function AppHeader() {
   const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
@@ -73,7 +74,7 @@ export default function AppHeader() {
   return (
     <header className="flex items-center justify-between h-16 border-b bg-card shadow-sm px-4 md:px-6 w-full flex-shrink-0">
       <div className="flex items-center gap-4">
-        {/* Logo is removed from here as requested */}
+        {pathname.startsWith('/dashboard') ? <Logo /> : null}
       </div>
       <div className="flex items-center gap-2">
         {showCustomizerSpecificButtons && (
