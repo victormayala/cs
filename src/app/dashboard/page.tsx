@@ -1018,7 +1018,7 @@ function DashboardPageContent() {
               )}
 
               {activeTab === 'storeIntegration' && (
-                <div className="space-y-8 max-w-2xl mx-auto">
+                <div className="space-y-8">
                   {/* Custom Store Card */}
                   <Card className="shadow-lg border-border bg-card">
                     <CardHeader>
