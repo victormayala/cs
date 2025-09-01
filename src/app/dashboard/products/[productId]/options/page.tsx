@@ -1,17 +1,16 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil, Redo, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil, Redo, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +26,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { ProductViewSetup } from '@/components/product-options/ProductViewSetup';
+import Image from 'next/image';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -133,7 +152,8 @@ export default function ProductOptionsPage() {
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   
-  const [variationViewOverrideColor, setVariationViewOverrideColor] = useState<string>('');
+  const [activeEditingColor, setActiveEditingColor] = useState<string>('');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // NEW: State for variation price input fields
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
@@ -248,7 +268,7 @@ export default function ProductOptionsPage() {
           const credDocSnap = await getDoc(credDocRef);
           if (!credDocSnap.exists()) {
             setCredentialsExist(false);
-            throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
+            throw new Error("Shopify store not connected. Please go to Dashboard &gt; 'Store Integration'.");
           }
           setCredentialsExist(true);
           const creds = credDocSnap.data() as UserShopifyCredentials;
@@ -269,7 +289,7 @@ export default function ProductOptionsPage() {
           const credDocSnap = await getDoc(credDocRef);
            if (!credDocSnap.exists()) {
             setCredentialsExist(false);
-            throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
+            throw new Error("WooCommerce store not connected. Please go to Dashboard &gt; 'Store Integration'.");
           }
           setCredentialsExist(true);
           const credsData = credDocSnap.data() as UserWooCommerceCredentials;
@@ -374,16 +394,6 @@ export default function ProductOptionsPage() {
       setVariationPriceInputs(priceInputs);
       setVariationSalePriceInputs(salePriceInputs);
 
-      // Determine initial active view
-      const firstColor = Object.keys(firestoreOptions?.optionsByColor || {})[0];
-      const firstViewId = firstColor 
-        ? firestoreOptions?.optionsByColor[firstColor].views?.[0]?.id
-        : null;
-      
-      if (firstColor) setVariationViewOverrideColor(firstColor);
-
-      setActiveViewIdForSetup(firstViewId);
-      setSelectedBoundaryBoxId(null);
       setHasUnsavedChanges(isRefresh ? hasUnsavedChanges : false);
       if (isRefresh) toast({ title: "Product Data Refreshed", description: "Details updated from your store."});
     } catch (e: any) {
@@ -430,13 +440,9 @@ export default function ProductOptionsPage() {
     type: ActiveDragState['type']
   ) => {
     e.preventDefault(); e.stopPropagation();
-    if (!productOptions || !activeViewIdForSetup) return;
+    if (!productOptions || !activeEditingColor || !activeViewIdForSetup) return;
     
-    let currentView: ProductView | undefined;
-    if (variationViewOverrideColor) {
-        currentView = productOptions.optionsByColor?.[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
-    } 
-
+    let currentView: ProductView | undefined = productOptions.optionsByColor?.[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup);
     const currentBox = currentView?.boundaryBoxes.find(b => b.id === boxId);
     if (!currentBox || !imageWrapperRef.current) return;
     setSelectedBoundaryBoxId(boxId);
@@ -448,10 +454,10 @@ export default function ProductOptionsPage() {
       initialBoxWidth: currentBox.width, initialBoxHeight: currentBox.height,
       containerWidthPx: containerRect.width, containerHeightPx: containerRect.height,
     });
-  }, [productOptions, activeViewIdForSetup, variationViewOverrideColor]);
+  }, [productOptions, activeViewIdForSetup, activeEditingColor]);
 
   const handleDragging = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!activeDrag || !productOptions || !activeViewIdForSetup || !imageWrapperRef.current) return;
+    if (!activeDrag || !productOptions || !activeEditingColor || !activeViewIdForSetup || !imageWrapperRef.current) return;
     e.preventDefault();
     cancelAnimationFrame(dragUpdateRef.current);
     dragUpdateRef.current = requestAnimationFrame(() => {
@@ -481,18 +487,16 @@ export default function ProductOptionsPage() {
       setProductOptions(prev => {
           if (!prev) return null;
           const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(b => b.id === activeDrag.boxId ? { ...b, x: newX, y: newY, width: newWidth, height: newHeight } : b)} : view;
-          if (variationViewOverrideColor) {
-              const newOptions = {...prev.optionsByColor};
-              if (newOptions[variationViewOverrideColor]?.views) {
-                  newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-              }
-              return { ...prev, optionsByColor: newOptions };
-          } 
-          return prev;
+          
+          const newOptions = {...prev.optionsByColor};
+          if (newOptions[activeEditingColor]?.views) {
+              newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+          }
+          return { ...prev, optionsByColor: newOptions };
       });
       setHasUnsavedChanges(true);
     });
-  }, [activeDrag, productOptions, activeViewIdForSetup, variationViewOverrideColor]);
+  }, [activeDrag, productOptions, activeViewIdForSetup, activeEditingColor]);
 
   const handleInteractionEnd = useCallback(() => {
     cancelAnimationFrame(dragUpdateRef.current);
@@ -623,14 +627,8 @@ export default function ProductOptionsPage() {
   const handleSelectView = (viewId: string) => { setActiveViewIdForSetup(viewId); setSelectedBoundaryBoxId(null); };
 
   const handleAddNewView = () => {
-    if (!productOptions) return;
-
-    if (!variationViewOverrideColor) {
-      toast({ title: "Select a Color", description: "Please select a color group before adding a view.", variant: "default" });
-      return;
-    }
-
-    const viewsList = productOptions.optionsByColor[variationViewOverrideColor]?.views || [];
+    if (!productOptions || !activeEditingColor) return;
+    const viewsList = productOptions.optionsByColor[activeEditingColor]?.views || [];
 
     if (viewsList.length >= MAX_PRODUCT_VIEWS) {
       toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
@@ -645,8 +643,8 @@ export default function ProductOptionsPage() {
     setProductOptions(prev => {
         if (!prev) return null;
         const newOptions = {...prev.optionsByColor};
-        if (!newOptions[variationViewOverrideColor]) newOptions[variationViewOverrideColor] = { selectedVariationIds: [], views: []};
-        newOptions[variationViewOverrideColor].views = [...(newOptions[variationViewOverrideColor].views || []), newView];
+        if (!newOptions[activeEditingColor]) newOptions[activeEditingColor] = { selectedVariationIds: [], views: []};
+        newOptions[activeEditingColor].views = [...(newOptions[activeEditingColor].views || []), newView];
         return { ...prev, optionsByColor: newOptions };
     });
 
@@ -654,26 +652,23 @@ export default function ProductOptionsPage() {
   };
   
   const handleViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id' | 'boundaryBoxes'>, value: string | number) => {
-    if (!productOptions) return;
+    if (!productOptions || !activeEditingColor) return;
     setProductOptions(prev => {
         if (!prev) return null;
         const updater = (v: ProductView) => v.id === viewId ? { ...v, [field]: value } : v;
-        if (variationViewOverrideColor) {
-             const newOptions = {...prev.optionsByColor};
-             if (newOptions[variationViewOverrideColor]?.views) {
-                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-             }
-             return { ...prev, optionsByColor: newOptions };
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[activeEditingColor]?.views) {
+            newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
         }
-        return prev;
+        return { ...prev, optionsByColor: newOptions };
     });
     setHasUnsavedChanges(true);
   };
 
   const handleDeleteView = (viewId: string) => {
-    if (!productOptions) return;
-    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : [];
-    if (viewsList.length <= 1 && viewType !== 'Default') {
+    if (!productOptions || !activeEditingColor) return;
+    const viewsList = productOptions.optionsByColor[activeEditingColor]?.views || [];
+    if (viewsList.length <= 1) {
       toast({ title: "Cannot Delete", description: "At least one view must remain for a variation override.", variant: "default" });
       return;
     }
@@ -681,21 +676,18 @@ export default function ProductOptionsPage() {
   };
 
   const confirmDeleteView = () => {
-    if (!productOptions || !viewIdToDelete) return;
+    if (!productOptions || !viewIdToDelete || !activeEditingColor) return;
     
     setProductOptions(prev => {
         if (!prev) return null;
-        if (variationViewOverrideColor) {
-             const newOptions = {...prev.optionsByColor};
-             if (newOptions[variationViewOverrideColor]?.views) {
-                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.filter(v => v.id !== viewIdToDelete);
-             }
-             if(activeViewIdForSetup === viewIdToDelete) {
-                setActiveViewIdForSetup(newOptions[variationViewOverrideColor].views?.[0]?.id || null);
-             }
-             return { ...prev, optionsByColor: newOptions };
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[activeEditingColor]?.views) {
+            newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.filter(v => v.id !== viewIdToDelete);
         }
-        return prev;
+        if(activeViewIdForSetup === viewIdToDelete) {
+           setActiveViewIdForSetup(newOptions[activeEditingColor].views?.[0]?.id || null);
+        }
+        return { ...prev, optionsByColor: newOptions };
     });
     
     setSelectedBoundaryBoxId(null);
@@ -704,12 +696,8 @@ export default function ProductOptionsPage() {
   };
 
   const handleAddBoundaryBox = () => {
-    if (!productOptions || !activeViewIdForSetup) return;
-
-    let currentView: ProductView | undefined;
-    if (variationViewOverrideColor) {
-        currentView = productOptions.optionsByColor[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
-    }
+    if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
+    let currentView: ProductView | undefined = productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup);
     
     if (!currentView || currentView.boundaryBoxes.length >= 3) {
       toast({ title: "Limit Reached", description: "Max 3 areas per view.", variant: "destructive" });
@@ -724,56 +712,47 @@ export default function ProductOptionsPage() {
     setProductOptions(prev => {
         if (!prev) return null;
         const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] } : v;
-        if (variationViewOverrideColor) {
-            const newOptions = {...prev.optionsByColor};
-            if (newOptions[variationViewOverrideColor]?.views) {
-                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-            }
-            return { ...prev, optionsByColor: newOptions };
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[activeEditingColor]?.views) {
+            newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
         }
-        return prev;
+        return { ...prev, optionsByColor: newOptions };
     });
 
     setSelectedBoundaryBoxId(newBox.id); setHasUnsavedChanges(true);
   };
 
   const handleRemoveBoundaryBox = (boxId: string) => {
-    if (!productOptions || !activeViewIdForSetup) return;
+    if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
     setProductOptions(prev => {
         if (!prev) return null;
         const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v;
-        if (variationViewOverrideColor) {
-             const newOptions = {...prev.optionsByColor};
-             if (newOptions[variationViewOverrideColor]?.views) {
-                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-             }
-             return { ...prev, optionsByColor: newOptions };
-        } 
-        return prev;
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[activeEditingColor]?.views) {
+            newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+        }
+        return { ...prev, optionsByColor: newOptions };
     });
     if (selectedBoundaryBoxId === boxId) setSelectedBoundaryBoxId(null);
     setHasUnsavedChanges(true);
   };
 
   const handleBoundaryBoxNameChange = (boxId: string, newName: string) => {
-    if (!productOptions || !activeViewIdForSetup) return;
+    if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
     setProductOptions(prev => {
         if (!prev) return null;
         const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(box => box.id === boxId ? { ...box, name: newName } : box) } : view;
-        if (variationViewOverrideColor) {
-             const newOptions = {...prev.optionsByColor};
-             if (newOptions[variationViewOverrideColor]?.views) {
-                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-             }
-             return { ...prev, optionsByColor: newOptions };
-        } 
-        return prev;
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[activeEditingColor]?.views) {
+            newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+        }
+        return { ...prev, optionsByColor: newOptions };
     });
     setHasUnsavedChanges(true);
   };
 
   const handleBoundaryBoxPropertyChange = (boxId: string, property: keyof Pick<BoundaryBox, 'x' | 'y' | 'width' | 'height'>, value: string) => {
-    if (!productOptions || !activeViewIdForSetup) return;
+    if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
     setProductOptions(prev => {
       if (!prev || !activeViewIdForSetup) return null;
       const updater = (view: ProductView) => {
@@ -797,14 +776,11 @@ export default function ProductOptionsPage() {
         } return view;
       };
 
-      if (variationViewOverrideColor) {
-        const newOptions = {...prev.optionsByColor};
-        if (newOptions[variationViewOverrideColor]?.views) {
-          newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
-        }
-        return { ...prev, optionsByColor: newOptions };
-      } 
-      return prev;
+      const newOptions = {...prev.optionsByColor};
+      if (newOptions[activeEditingColor]?.views) {
+        newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+      }
+      return { ...prev, optionsByColor: newOptions };
     });
     setHasUnsavedChanges(true);
   };
@@ -989,14 +965,13 @@ export default function ProductOptionsPage() {
       }
   };
 
-  // When selected variation override color changes, update the active view
-  useEffect(() => {
-    if (variationViewOverrideColor && productOptions?.optionsByColor?.[variationViewOverrideColor]?.views?.length) {
-      setActiveViewIdForSetup(productOptions.optionsByColor[variationViewOverrideColor].views![0].id);
-    } else {
-      setActiveViewIdForSetup(null);
-    }
-  }, [variationViewOverrideColor, productOptions]);
+  const openEditModal = (color: string) => {
+    setActiveEditingColor(color);
+    const firstViewId = productOptions?.optionsByColor?.[color]?.views?.[0]?.id || null;
+    setActiveViewIdForSetup(firstViewId);
+    setIsEditModalOpen(true);
+  };
+
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
@@ -1024,10 +999,6 @@ export default function ProductOptionsPage() {
         </div>
     );
   }
-
-  const currentView = (variationViewOverrideColor 
-    ? productOptions.optionsByColor?.[variationViewOverrideColor]?.views 
-    : [])?.find(v => v.id === activeViewIdForSetup);
     
   const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
@@ -1130,31 +1101,32 @@ export default function ProductOptionsPage() {
           </Card>
           
           {productOptions.type === 'variable' && (
-            <ProductViewSetup 
-              productOptions={productOptions} 
-              activeViewId={activeViewIdForSetup} 
-              selectedBoundaryBoxId={selectedBoundaryBoxId} 
-              setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
-              handleSelectView={handleSelectView} 
-              handleViewDetailChange={handleViewDetailChange}
-              handleDeleteView={handleDeleteView} 
-              handleAddNewView={handleAddNewView} 
-              handleAddBoundaryBox={handleAddBoundaryBox} 
-              handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
-              handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
-              handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
-              imageWrapperRef={imageWrapperRef} 
-              handleInteractionStart={handleInteractionStart} 
-              activeDrag={activeDrag} 
-              isDeleteViewDialogOpen={isDeleteViewDialogOpen}
-              setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
-              viewIdToDelete={viewIdToDelete} 
-              setViewIdToDelete={setViewIdToDelete} 
-              confirmDeleteView={confirmDeleteView}
-              variationViewOverrideColor={variationViewOverrideColor}
-              setVariationViewOverrideColor={setVariationViewOverrideColor}
-              colorGroupsForSelect={colorGroupsForSelect}
-            />
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="font-headline text-lg">Images &amp; Customization</CardTitle>
+                <CardDescription>
+                  For each color, you can define a unique set of views (images) and customization areas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {colorGroupsForSelect.map(color => (
+                  <Card key={color} className="bg-muted/40">
+                    <div className="p-4 flex justify-between items-center">
+                      <h4 className="font-semibold text-foreground">{color}</h4>
+                      <Button variant="ghost" size="sm" onClick={() => openEditModal(color)}>
+                        <Edit3 className="mr-2 h-4 w-4" />
+                        Edit Views & Areas
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+                {colorGroupsForSelect.length === 0 && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p>Add color attributes above to begin configuring variation-specific images and design areas.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right"/></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right"/></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
@@ -1165,9 +1137,6 @@ export default function ProductOptionsPage() {
             <CardContent>
               <div className="text-sm text-muted-foreground">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span></div>
               <div className="text-sm text-muted-foreground">Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge></div>
-              <div className="text-sm text-muted-foreground">Views in selected variation: <span className="font-semibold text-foreground">{productOptions.optionsByColor[variationViewOverrideColor]?.views?.length || 0}</span></div>
-              <div className="text-sm text-muted-foreground">Active Setup View: <span className="font-semibold text-primary">{currentView?.name || "N/A"}</span></div>
-              {currentView && (<div className="text-sm text-muted-foreground">Areas in <span className="font-semibold text-primary">{currentView.name}</span>: <span className="font-semibold text-foreground">{currentView.boundaryBoxes.length}</span></div>)}
               {hasUnsavedChanges && (<div className="mt-3 text-sm text-yellow-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-1.5 text-yellow-500" />You have unsaved changes.</div>)}
             </CardContent>
             <CardFooter className="flex-col items-stretch gap-3">
@@ -1178,6 +1147,77 @@ export default function ProductOptionsPage() {
           </Card>
         </div>
       </div>
+      
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-4xl h-[90svh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit Views for <span className="text-primary">{activeEditingColor}</span></DialogTitle>
+            <DialogDescription>
+                Define the images and customization areas for this specific product variation.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div className="md:col-span-1 flex flex-col">
+                  <div ref={imageWrapperRef} className="relative w-full flex-1 aspect-square border rounded-md overflow-hidden group bg-background select-none" onMouseDown={(e) => { if (e.target === imageWrapperRef.current) setSelectedBoundaryBoxId(null); }}>
+                    {activeViewIdForSetup && productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.imageUrl ? (
+                        <Image src={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.imageUrl} alt={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.aiHint || "product view"} priority />
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <ImageIcon className="w-16 h-16 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.<br/>Select or add a view.</p>
+                        </div>
+                    )}
+                    {activeViewIdForSetup && productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.boundaryBoxes.map((box) => (
+                        <div key={box.id} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
+                            {selectedBoundaryBoxId === box.id && (<>
+                                <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                            </>)}
+                            <div className={cn("absolute top-0.5 left-0.5 text-[8px] px-1 py-0.5 rounded-br-sm opacity-0 group-hover/box:opacity-100 group-[.is-selected]/box:opacity-100 transition-opacity select-none pointer-events-none", selectedBoundaryBoxId === box.id ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>{box.name}</div>
+                        </div>
+                    ))}
+                  </div>
+              </div>
+              <div className="md:col-span-1 flex flex-col min-h-0">
+                  <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
+                             <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdForSetup === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background')}>
+                                <Label htmlFor={`viewName-${view.id}`}>View {index + 1} Name</Label>
+                                <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
+                                
+                                <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block">Image URL</Label>
+                                <Input id={`viewImageUrl-${view.id}`} value={view.imageUrl} onChange={(e) => handleViewDetailChange(view.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8"/>
+                                 
+                                <div className="flex gap-2 mt-3">
+                                  <Button onClick={() => handleSelectView(view.id)} variant="outline" size="sm" className="flex-1">
+                                    <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteView(view.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                             </div>
+                        ))}
+                    </div>
+                    {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
+                        <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
+                     )}
+                  </div>
+              </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">Done</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+    
