@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -21,13 +21,6 @@ import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db, storage } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
-import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
-import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
-import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
-import type { ShopifyProduct } from '@/types/shopify';
-import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
-import ProductViewSetup from '@/components/product-options/ProductViewSetup';
-import { Separator } from '@/components/ui/separator';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -109,9 +102,10 @@ interface VariantImageUploaderProps {
   imageInfo: VariationImage | null;
   onUploadComplete: (newImageUrl: string) => void;
   onRemove: () => void;
+  slotNumber: number;
 }
 
-function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove }: VariantImageUploaderProps) {
+function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove, slotNumber }: VariantImageUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -172,31 +166,46 @@ function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove }:
   const isLoading = isUploading || isDeleting;
 
   return (
-    <div className="relative p-2 border rounded-md bg-muted/20">
+    <div className="relative border rounded-lg bg-card p-4 space-y-3">
+       <Label className="text-xs font-semibold text-muted-foreground">Image Slot {slotNumber}</Label>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
       {isLoading && (
-        <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 rounded-md">
+        <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 rounded-lg">
           <Loader2 className="h-6 w-6 animate-spin mb-2" />
           <p className="text-xs text-muted-foreground">{isDeleting ? 'Deleting...' : 'Uploading...'}</p>
           {isUploading && <Progress value={uploadProgress} className="w-2/3 h-1.5 mt-1" />}
         </div>
       )}
-      <div className={cn("flex gap-2", isLoading && "opacity-40 pointer-events-none")}>
-        <div className="relative w-20 h-20 bg-muted/50 rounded-md border flex items-center justify-center flex-shrink-0">
+       <div className={cn("space-y-3", isLoading && "opacity-40 pointer-events-none")}>
+        <div 
+            onClick={() => !imageInfo?.imageUrl && fileInputRef.current?.click()}
+            className={cn(
+                "relative w-full aspect-square bg-muted/50 rounded-md border-2 border-dashed flex items-center justify-center flex-shrink-0",
+                !imageInfo?.imageUrl && "cursor-pointer hover:border-primary hover:bg-muted/70 transition-colors"
+            )}
+        >
           {imageInfo?.imageUrl ? (
-            <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md" />
+            <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md p-2" />
           ) : (
-            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+            <div className="text-center text-muted-foreground">
+                <UploadCloud className="h-8 w-8 mx-auto" />
+                <p className="text-xs mt-1">Click to upload</p>
+            </div>
           )}
         </div>
-        <div className="flex-grow space-y-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {imageInfo?.imageUrl ? (
-            <Button type="button" variant="destructive" size="sm" className="w-full" onClick={handleRemoveImage} disabled={isLoading}>
-              <Trash className="mr-2 h-4 w-4" /> Remove
+            <>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+              <Pencil className="mr-2 h-3 w-3" /> Change
             </Button>
+            <Button type="button" variant="destructive" size="sm" onClick={handleRemoveImage} disabled={isLoading}>
+              <Trash className="mr-2 h-3 w-3" /> Remove
+            </Button>
+            </>
           ) : (
-            <Button type="button" variant="outline" size="sm" className="w-full bg-background" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-              <UploadCloud className="mr-2 h-4 w-4" /> Upload
+             <Button type="button" variant="outline" size="sm" className="w-full col-span-2" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                <UploadCloud className="mr-2 h-4 w-4" /> Upload Image
             </Button>
           )}
         </div>
@@ -1221,7 +1230,7 @@ export default function ProductOptionsPage() {
                             </div>
                           </div>
                           {editingImagesForColor === groupKey && (
-                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {imageSlots.map((_, index) => (
                                     <VariantImageUploader
                                         key={`${groupKey}-${index}`}
@@ -1229,6 +1238,7 @@ export default function ProductOptionsPage() {
                                         imageInfo={productOptions.optionsByColor?.[groupKey]?.variantImages?.[index] || null}
                                         onUploadComplete={(url) => handleUploadComplete(groupKey, index, url)}
                                         onRemove={() => handleImageRemove(groupKey, index)}
+                                        slotNumber={index + 1}
                                     />
                                 ))}
                             </div>
