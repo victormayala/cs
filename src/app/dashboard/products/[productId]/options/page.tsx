@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash, Pencil, Redo } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +20,6 @@ import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type Wo
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db, storage } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,6 +27,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Image as ImageIcon } from 'lucide-react';
 import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import ProductViewSetup from '@/components/product-options/ProductViewSetup';
+
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
@@ -535,7 +537,7 @@ export default function ProductOptionsPage() {
         if (!prev) return null;
         const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
         if (!updatedOptionsByColor[colorKey]) {
-            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
+            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [], views: [] };
         }
         const newImages = [...(updatedOptionsByColor[colorKey].variantImages || [])];
         newImages[index] = { imageUrl: newImageUrl, aiHint: '' };
@@ -889,7 +891,7 @@ export default function ProductOptionsPage() {
           }
       }
       if (!updatedOptionsByColor[groupKey]) {
-          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantImages: [] };
+          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantImages: [], views: [] };
       } else {
           updatedOptionsByColor[groupKey].selectedVariationIds = variationIdsToSet;
       }
@@ -1129,8 +1131,8 @@ export default function ProductOptionsPage() {
       </div>
       <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
       <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {firestoreDocId})</div>
-      {!credentialsExist && (<ShadCnAlert variant="destructive" className="mb-6"><PlugZap className="h-4 w-4" /><ShadCnAlertTitle>Store Not Connected</ShadCnAlertTitle><ShadCnAlertDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</ShadCnAlertDescription></ShadCnAlert>)}
-      {error && credentialsExist && <ShadCnAlert variant="destructive" className="mb-6"><AlertTriangle className="h-4 w-4" /><ShadCnAlertTitle>Product Data Error</ShadCnAlertTitle><ShadCnAlertDescription>{error}</ShadCnAlertDescription></ShadCnAlert>}
+      {!credentialsExist && (<Card><CardContent><Alert variant="destructive" className="my-6"><PlugZap className="h-4 w-4" /><AlertTitle>Store Not Connected</AlertTitle><AlertDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</AlertDescription></Alert></CardContent></Card>)}
+      {error && credentialsExist && <Card><CardContent><Alert variant="destructive" className="my-6"><AlertTriangle className="h-4 w-4" /><AlertTitle>Product Data Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert></CardContent></Card>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
           <Card className="shadow-md">
@@ -1216,7 +1218,7 @@ export default function ProductOptionsPage() {
               </CardHeader>
               <CardContent>
                 {isLoadingVariations ? (<div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>)
-                : variationsError ? (<ShadCnAlert variant="destructive"><AlertTriangle className="h-4 w-4" /><ShadCnAlertTitle>Error Loading Variations</ShadCnAlertTitle><ShadCnAlertDescription>{variationsError}</ShadCnAlertDescription></ShadCnAlert>)
+                : variationsError ? (<Card><CardContent><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading Variations</AlertTitle><AlertDescription>{variationsError}</AlertDescription></Alert></CardContent></Card>)
                 : (source === 'woocommerce' && !groupedVariations) ? (<p className="text-sm text-muted-foreground">No variations with a clear grouping attribute (like 'Color') were found for this product.</p>)
                 : (<div className="space-y-4">
                     {colorGroupsForSelect.map((groupKey) => (
@@ -1246,6 +1248,74 @@ export default function ProductOptionsPage() {
                       </div>
                     ))}
                   </div>)}
+              </CardContent>
+            </Card>
+          )}
+
+          {productOptions.type === 'variable' && source === 'customizer-studio' && (
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="font-headline text-lg">Variation View Overrides</CardTitle>
+                <CardDescription>Define completely different views for a specific variation color.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="variation-override-select">Select a Color to Override Views</Label>
+                   <Select
+                      value={variationViewOverrideColor}
+                      onValueChange={setVariationViewOverrideColor}
+                   >
+                     <SelectTrigger id="variation-override-select" className="mt-1">
+                       <SelectValue placeholder="Select a color..." />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {colorGroupsForSelect.map(color => (
+                         <SelectItem key={color} value={color}>{color}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                </div>
+
+                {variationViewOverrideColor && (
+                  <div className="border p-4 rounded-md bg-muted/20">
+                     <ProductViewSetup 
+                        productOptions={{ defaultViews: productOptions.optionsByColor[variationViewOverrideColor]?.views || [] }}
+                        activeViewId={activeViewIdForSetup} 
+                        selectedBoundaryBoxId={selectedBoundaryBoxId} 
+                        setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
+                        handleSelectView={handleSelectView} 
+                        handleViewDetailChange={() => {}}
+                        handleDeleteView={() => {}} 
+                        handleAddNewView={() => {}} 
+                        handleAddBoundaryBox={() => {}} 
+                        handleRemoveBoundaryBox={() => {}} 
+                        handleBoundaryBoxNameChange={() => {}}
+                        handleBoundaryBoxPropertyChange={() => {}}
+                        imageWrapperRef={imageWrapperRef} 
+                        handleInteractionStart={handleInteractionStart} 
+                        activeDrag={activeDrag} 
+                        isDeleteViewDialogOpen={isDeleteViewDialogOpen}
+                        setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
+                        viewIdToDelete={viewIdToDelete} 
+                        setViewIdToDelete={setViewIdToDelete} 
+                        confirmDeleteView={() => {}}
+                        viewType="Variation Override"
+                        onResetToDefault={() => {
+                          setProductOptions(prev => {
+                            if (!prev) return null;
+                            const newOptions = { ...prev.optionsByColor };
+                            if (newOptions[variationViewOverrideColor]) {
+                              delete newOptions[variationViewOverrideColor].views;
+                            }
+                            return { ...prev, optionsByColor: newOptions };
+                          });
+                          setHasUnsavedChanges(true);
+                          toast({ title: 'Override Removed', description: `Views for "${variationViewOverrideColor}" will now use the default settings. Remember to save.`});
+                        }}
+                      />
+                  </div>
+                )}
+
               </CardContent>
             </Card>
           )}
