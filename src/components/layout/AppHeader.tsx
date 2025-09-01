@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/icons/Logo";
 import { EmbedCodeModal } from "@/components/customizer/EmbedCodeModal";
 import { CodeXml, LayoutDashboard, Settings, X as CloseIcon, LogOut } from "lucide-react"; // Added LogOut
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,9 +73,7 @@ export default function AppHeader() {
   return (
     <header className="flex items-center justify-between h-16 border-b bg-card shadow-sm px-4 md:px-6 w-full flex-shrink-0">
       <div className="flex items-center gap-4">
-        <Link href={user ? "/dashboard" : "/"} aria-label="Go to main app page">
-            <Logo />
-        </Link>
+        {/* Logo is removed from here as requested */}
       </div>
       <div className="flex items-center gap-2">
         {showCustomizerSpecificButtons && (

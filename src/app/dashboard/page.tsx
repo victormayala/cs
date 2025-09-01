@@ -47,6 +47,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
 import { FaShopify, FaWordpress } from 'react-icons/fa';
+import { Logo } from "@/components/icons/Logo";
 
 
 interface DisplayProduct {
@@ -897,7 +898,7 @@ function DashboardPageContent() {
           <div className="flex flex-1">
             <Sidebar side="left" className="h-full shadow-md border-r" collapsible="icon">
               <SidebarHeader className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-headline text-lg font-semibold text-foreground">Navigation</h2>
+                <Logo />
                 <SidebarTrigger />
               </SidebarHeader>
               <SidebarContent className="flex flex-col p-0">
