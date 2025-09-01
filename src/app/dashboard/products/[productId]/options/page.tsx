@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -17,8 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -50,6 +51,7 @@ import {
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
+const MAX_PRODUCT_VIEWS = 4;
 
 export interface SizeAttribute {
     id: string;
@@ -91,7 +93,7 @@ interface ActiveDragState {
 }
 
 const MIN_BOX_SIZE_PERCENT = 5;
-const MAX_PRODUCT_VIEWS = 4;
+
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -114,6 +116,87 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
   }
 }
 
+function VariantImageView({
+    view,
+    index,
+    onViewDetailChange,
+    onDeleteView,
+    onSelectView,
+    isActive,
+    onImageUpload,
+    isUploading
+}: {
+    view: ProductView;
+    index: number;
+    onViewDetailChange: (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint'>, value: string) => void;
+    onDeleteView: (viewId: string) => void;
+    onSelectView: (viewId: string) => void;
+    isActive: boolean;
+    onImageUpload: (viewId: string, file: File) => void;
+    isUploading: string | null;
+}) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            onImageUpload(view.id, e.target.files[0]);
+        }
+    };
+
+    return (
+        <div key={view.id} className={cn("p-4 border rounded-lg", isActive ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/30')}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept="image/png, image/jpeg, image/webp, image/gif"
+                    />
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className={cn(
+                            "relative aspect-square w-full rounded-md border-2 border-dashed flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer",
+                            isUploading === view.id && "cursor-wait opacity-50"
+                        )}
+                    >
+                        {view.imageUrl && !view.imageUrl.includes('placehold.co') ? (
+                            <Image src={view.imageUrl} alt={view.name || `View ${index + 1}`} fill className="object-contain p-1" />
+                        ) : (
+                            <div className="text-center">
+                                <UploadCloud className="mx-auto h-8 w-8" />
+                                <p className="text-xs mt-1">Click to upload</p>
+                            </div>
+                        )}
+                        {isUploading === view.id && <Loader2 className="absolute h-6 w-6 animate-spin text-primary" />}
+                    </div>
+                </div>
+                <div className="md:col-span-2 space-y-3">
+                    <div>
+                        <Label htmlFor={`viewName-${view.id}`}>View Name</Label>
+                        <Input
+                            id={`viewName-${view.id}`}
+                            value={view.name}
+                            onChange={(e) => onViewDetailChange(view.id, 'name', e.target.value)}
+                            className="mt-1 h-9"
+                            placeholder={`e.g., Front View`}
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <Button onClick={() => onSelectView(view.id)} variant="outline" size="sm" className="flex-1">
+                            <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => onDeleteView(view.id)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function ProductOptionsPage() {
   const router = useRouter();
   const params = useParams();
@@ -132,8 +215,7 @@ export default function ProductOptionsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [credentialsExist, setCredentialsExist] = useState(true);
-  const [variations, setVariations] = useState<WCVariation[]>([]);
-  const [isLoadingVariations, setIsLoadingVariations] = useState(false);
+  
   const [variationsError, setVariationsError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
@@ -143,7 +225,6 @@ export default function ProductOptionsPage() {
   const dragUpdateRef = useRef(0);
   const [isDeleteViewDialogOpen, setIsDeleteViewDialogOpen] = useState(false);
   const [viewIdToDelete, setViewIdToDelete] = useState<string | null>(null);
-  const [groupedVariations, setGroupedVariations] = useState<Record<string, WCVariation[]> | null>(null);
   
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
@@ -154,6 +235,8 @@ export default function ProductOptionsPage() {
   
   const [activeEditingColor, setActiveEditingColor] = useState<string>('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState<string | null>(null);
+
 
   // NEW: State for variation price input fields
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
@@ -268,7 +351,7 @@ export default function ProductOptionsPage() {
           const credDocSnap = await getDoc(credDocRef);
           if (!credDocSnap.exists()) {
             setCredentialsExist(false);
-            throw new Error("Shopify store not connected. Please go to Dashboard &gt; 'Store Integration'.");
+            throw new Error("Shopify store not connected. Please go to Dashboard > 'Store Integration'.");
           }
           setCredentialsExist(true);
           const creds = credDocSnap.data() as UserShopifyCredentials;
@@ -289,7 +372,7 @@ export default function ProductOptionsPage() {
           const credDocSnap = await getDoc(credDocRef);
            if (!credDocSnap.exists()) {
             setCredentialsExist(false);
-            throw new Error("WooCommerce store not connected. Please go to Dashboard &gt; 'Store Integration'.");
+            throw new Error("WooCommerce store not connected. Please go to Dashboard > 'Store Integration'.");
           }
           setCredentialsExist(true);
           const credsData = credDocSnap.data() as UserWooCommerceCredentials;
@@ -310,28 +393,6 @@ export default function ProductOptionsPage() {
             imageAlt: product.images?.[0]?.alt || product.name,
             shipping: { weight: 0, length: 0, width: 0, height: 0 },
           };
-          if (product.type === 'variable') {
-            setIsLoadingVariations(true);
-            try {
-                const { variations: fetchedVars, error: varsError } = await fetchWooCommerceProductVariations(firestoreDocId, userCredentialsToUse);
-                if (varsError) setVariationsError(varsError);
-                else if (fetchedVars?.length) {
-                  setVariations(fetchedVars);
-                  const firstVarAttributes = fetchedVars[0].attributes;
-                  const colorAttr = firstVarAttributes.find(attr => attr.name.toLowerCase() === 'color' || attr.name.toLowerCase() === 'colour');
-                  let identifiedGroupingAttr = colorAttr ? colorAttr.name : (firstVarAttributes.find(attr => !['size', 'talla'].includes(attr.name.toLowerCase()))?.name || firstVarAttributes[0]?.name);
-                  if (identifiedGroupingAttr) {
-                      const groups: Record<string, WCVariation[]> = {};
-                      fetchedVars.forEach(v => {
-                          const groupKey = v.attributes.find(a => a.name === identifiedGroupingAttr)?.option || 'Other';
-                          if (!groups[groupKey]) groups[groupKey] = [];
-                          groups[groupKey].push(v);
-                      });
-                      setGroupedVariations(groups);
-                  }
-                }
-            } finally { setIsLoadingVariations(false); }
-          }
       } else { // source === 'customizer-studio'
         const productDocRef = doc(db, `users/${user.uid}/products`, firestoreDocId);
         const productDocSnap = await getDoc(productDocRef);
@@ -533,7 +594,7 @@ export default function ProductOptionsPage() {
       const hasOverrides = (group.views && group.views.length > 0);
 
       // Only add the color group if it has selected variations or view overrides
-      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || hasOverrides) {
+      if (hasOverrides) {
           cleanOptionsByColor[colorKey] = {
               selectedVariationIds: group.selectedVariationIds || [],
               views: (group.views || []).map((view: any) => ({...view, price: Number(view.price) || 0})),
@@ -666,12 +727,6 @@ export default function ProductOptionsPage() {
   };
 
   const handleDeleteView = (viewId: string) => {
-    if (!productOptions || !activeEditingColor) return;
-    const viewsList = productOptions.optionsByColor[activeEditingColor]?.views || [];
-    if (viewsList.length <= 1) {
-      toast({ title: "Cannot Delete", description: "At least one view must remain for a variation override.", variant: "default" });
-      return;
-    }
     setViewIdToDelete(viewId); setIsDeleteViewDialogOpen(true);
   };
 
@@ -972,6 +1027,35 @@ export default function ProductOptionsPage() {
     setIsEditModalOpen(true);
   };
 
+  const handleImageUpload = async (viewId: string, file: File) => {
+        if (!user || !productOptions) return;
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            toast({ title: "File too large", description: "Please upload images under 5MB.", variant: "destructive" });
+            return;
+        }
+
+        setIsUploadingImage(viewId);
+        try {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async (e) => {
+                const dataUrl = e.target?.result as string;
+                const storageRef = ref(storage, `users/${user.uid}/product_view_images/${firestoreDocId}/${viewId}-${Date.now()}`);
+                const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
+                const downloadURL = await getDownloadURL(snapshot.ref);
+
+                handleViewDetailChange(viewId, 'imageUrl', downloadURL);
+                handleViewDetailChange(viewId, 'aiHint', 'product view');
+                toast({ title: "Image Uploaded", description: "The view image has been updated." });
+            };
+        } catch (error: any) {
+            console.error("Error uploading image:", error);
+            toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsUploadingImage(null);
+        }
+    };
+
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
@@ -1004,7 +1088,7 @@ export default function ProductOptionsPage() {
 
   const colorGroupsForSelect = source === 'customizer-studio' 
   ? productOptions.nativeAttributes.colors.map(c => c.name) 
-  : Object.keys(groupedVariations || {});
+  : [];
 
 
   return (
@@ -1182,31 +1266,60 @@ export default function ProductOptionsPage() {
                   </div>
               </div>
               <div className="md:col-span-1 flex flex-col min-h-0">
-                  <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
-                             <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdForSetup === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background')}>
-                                <Label htmlFor={`viewName-${view.id}`}>View {index + 1} Name</Label>
-                                <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
-                                
-                                <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block">Image URL</Label>
-                                <Input id={`viewImageUrl-${view.id}`} value={view.imageUrl} onChange={(e) => handleViewDetailChange(view.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8"/>
-                                 
-                                <div className="flex gap-2 mt-3">
-                                  <Button onClick={() => handleSelectView(view.id)} variant="outline" size="sm" className="flex-1">
-                                    <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteView(view.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                             </div>
-                        ))}
-                    </div>
-                    {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
-                        <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
+                  <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
+                    {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
+                        <VariantImageView
+                            key={view.id}
+                            view={view}
+                            index={index}
+                            isActive={activeViewIdForSetup === view.id}
+                            onViewDetailChange={handleViewDetailChange}
+                            onDeleteView={handleDeleteView}
+                            onSelectView={handleSelectView}
+                            onImageUpload={handleImageUpload}
+                            isUploading={isUploadingImage}
+                        />
+                    ))}
+                     {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
+                        <Button onClick={handleAddNewView} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
                      )}
                   </div>
+                   <div className="mt-4 pt-4 border-t">
+                        <Tabs defaultValue="areas">
+                            <TabsList className="grid w-full grid-cols-1"><TabsTrigger value="areas" disabled={!activeViewIdForSetup}>Customization Areas</TabsTrigger></TabsList>
+                            <TabsContent value="areas" className="mt-4">
+                                {!activeViewIdForSetup || !productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup) ? (
+                                    <div className="text-center py-6 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" /><p>Select a view to manage its areas.</p></div>
+                                ) : (<>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-base font-semibold text-foreground">Areas for: <span className="text-primary">{productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.name}</span></h4>
+                                        {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length < 3 ? (
+                                            <Button onClick={handleAddBoundaryBox} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground" disabled={!activeViewIdForSetup}>
+                                                <PlusCircle className="mr-1.5 h-4 w-4" />Add Area
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                    {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length > 0 ? (
+                                    <div className="space-y-3">
+                                    {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.map((box) => (
+                                    <div key={box.id} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
+                                        <div className="flex justify-between items-center mb-1.5"><Input value={box.name} onChange={(e) => handleBoundaryBoxNameChange(box.id, e.target.value)} className="text-sm font-semibold text-foreground h-8 flex-grow mr-2 bg-transparent border-0 focus-visible:ring-1 focus-visible:ring-ring p-1" onClick={(e) => e.stopPropagation()} /><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBox(box.id);}} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7" title="Remove Area"><Trash2 className="h-4 w-4" /></Button></div>
+                                        {selectedBoundaryBoxId === box.id ? (
+                                        <div className="mt-3 pt-3 border-t border-border/50"><h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Edit Dimensions (%):</h4>
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                                            <div><Label htmlFor={`box-x-${box.id}`} className="text-xs mb-1 block">X</Label><Input type="number" step="0.1" min="0" max="100" id={`box-x-${box.id}`} value={box.x.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'x', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                            <div><Label htmlFor={`box-y-${box.id}`} className="text-xs mb-1 block">Y</Label><Input type="number" step="0.1" min="0" max="100" id={`box-y-${box.id}`} value={box.y.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'y', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                            <div><Label htmlFor={`box-w-${box.id}`} className="text-xs mb-1 block">Width</Label><Input type="number" step="0.1" min="5" max="100" id={`box-w-${box.id}`} value={box.width.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'width', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                            <div><Label htmlFor={`box-h-${box.id}`} className="text-xs mb-1 block">Height</Label><Input type="number" step="0.1" min="5" max="100" id={`box-h-${box.id}`} value={box.height.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'height', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                        </div>
+                                        </div>) : (<div className="text-xs text-muted-foreground space-y-0.5"><p><strong>X:</strong> {box.x.toFixed(1)}% | <strong>Y:</strong> {box.y.toFixed(1)}%</p><p><strong>W:</strong> {box.width.toFixed(1)}% | <strong>H:</strong> {box.height.toFixed(1)}%</p></div>)}
+                                    </div>))}
+                                    </div>) : (<p className="text-sm text-muted-foreground text-center py-2">No areas. Click "Add Area".</p>)}
+                                    {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length >= 3 && (<p className="text-sm text-muted-foreground text-center py-2">Max 3 areas for this view.</p>)}
+                                </>)}
+                            </TabsContent>
+                        </Tabs>
+                    </div>
               </div>
           </div>
           <DialogFooter>
@@ -1216,10 +1329,12 @@ export default function ProductOptionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={isDeleteViewDialogOpen} onOpenChange={setIsDeleteViewDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete this view?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. It will permanently delete the view and its customization areas for this variation.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel onClick={() => { setIsDeleteViewDialogOpen(false); setViewIdToDelete(null);}}>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteView} className={cn(buttonVariants({variant: "destructive"}))}>Delete View</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-
-
-    
