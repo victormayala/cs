@@ -72,7 +72,7 @@ export default function SignInPage() {
     try {
       await signInWithGoogle();
       // Navigation is handled by AuthContext
-    } catch (error: any) {
+    } catch (error: any) => {
       // AuthContext's signInWithGoogle method already toasts.
       setLocalError(error.message || "Google sign-in failed. Please try again.");
     } finally {
