@@ -14,7 +14,7 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase'; 
+import { auth, firebaseInitializationError } from '@/lib/firebase'; 
 import { clearAccessCookie } from '@/app/access-login/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -52,6 +52,10 @@ function AuthLogicHandler({
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!auth) {
+        setAuthProviderIsLoading(false);
+        return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         setAuthProviderUser({
@@ -96,6 +100,7 @@ function AuthLogicHandler({
   }, [auth, router, pathname, searchParams, setAuthProviderUser, setAuthProviderIsLoading, toast]);
 
   const handleSignOut = useCallback(async () => {
+    if (!auth) return;
     setAuthProviderIsLoading(true);
     try {
       await firebaseSignOut(auth);
@@ -150,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const { toast } = useToast();
 
-  if (!auth) {
+  if (firebaseInitializationError) {
     const errorPageStyles: React.CSSProperties = {
       display: 'flex',
       flexDirection: 'column',
@@ -183,27 +188,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-        <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#9f1239' }}>Firebase Configuration Error</h1>
-        <p style={{ maxWidth: '600px', lineHeight: '1.5' }}>
-            The application cannot connect to Firebase. This usually happens when the
-            Firebase environment variables are missing or invalid.
-        </p>
-        <p style={{ marginTop: '1rem', maxWidth: '600px', lineHeight: '1.5' }}>
-            Please check your <code style={codeStyle}>.env.local</code> file and ensure all <code style={codeStyle}>NEXT_PUBLIC_FIREBASE_...</code> variables are present and correct.
-        </p>
-        <p style={{ marginTop: '1rem', fontWeight: 'bold' }}>
-            After saving changes to <code style={codeStyle}>.env.local</code>, you must restart the development server for them to take effect.
+        <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#9f1239' }}>Application Configuration Error</h1>
+        <p style={{ marginTop: '1rem', maxWidth: '700px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+            {firebaseInitializationError}
         </p>
       </div>
     );
   }
 
   const signIn = useCallback(async (email: string, pass: string) => {
+    if (!auth) throw new Error("Authentication service is not available.");
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (error: any) {
-      // Don't log expected user errors like invalid credentials to the console
-      // to prevent the Next.js error overlay from appearing for normal user actions.
       if (error.code !== 'auth/invalid-credential') {
         console.error("Firebase sign in error in AuthContext:", error);
       }
@@ -212,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [auth]);
 
   const signUp = useCallback(async (email: string, pass: string) => {
+    if (!auth) throw new Error("Authentication service is not available.");
     try {
       await createUserWithEmailAndPassword(auth, email, pass);
       toast({ title: "Sign Up Successful", description: "Welcome! Your account has been created." });
@@ -240,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [auth, toast]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!auth) throw new Error("Authentication service is not available.");
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
@@ -276,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={contextValue}>
-      <Suspense fallback={null}> {/* Simple fallback, can be a spinner */}
+      <Suspense fallback={null}>
         <AuthLogicHandler 
           setAuthProviderUser={setUser} 
           setAuthProviderIsLoading={setIsLoading}
