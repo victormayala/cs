@@ -102,16 +102,15 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
   }
 }
 
-// NEW, SELF-CONTAINED UPLOADER COMPONENT
+// SELF-CONTAINED UPLOADER COMPONENT (NEW ARCHITECTURE)
 interface VariantImageUploaderProps {
     userId: string;
-    productId: string;
-    colorKey: string;
     imageInfo: VariationImage | null;
-    onUploadComplete: () => void; // Simple callback to trigger a data refresh
+    onUploadComplete: (newUrl: string) => void;
+    onRemove: () => void;
 }
 
-function VariantImageUploader({ userId, productId, colorKey, imageInfo, onUploadComplete }: VariantImageUploaderProps) {
+function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove }: VariantImageUploaderProps) {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -145,49 +144,36 @@ function VariantImageUploader({ userId, productId, colorKey, imageInfo, onUpload
             },
             async () => {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                const newImageInfo: VariationImage = { imageUrl: downloadURL, aiHint: '' };
-                const docRef = doc(db, 'userProductOptions', userId, 'products', productId);
-                
-                try {
-                    await updateDoc(docRef, {
-                        [`optionsByColor.${colorKey}.variantImages`]: arrayUnion(newImageInfo)
-                    });
-                    toast({ title: "Image Uploaded & Saved", description: "The new image has been saved." });
-                    onUploadComplete();
-                } catch (dbError: any) {
-                    console.error("Firestore update error:", dbError);
-                    toast({ title: "Save Failed", description: "Could not save the new image to the database.", variant: "destructive" });
-                } finally {
-                    setIsUploading(false);
-                }
+                toast({ title: "Upload Complete", description: "Image is ready. Don't forget to save your changes." });
+                onUploadComplete(downloadURL);
+                setIsUploading(false);
             }
         );
     };
 
     const handleRemoveImage = async () => {
-      if (!imageInfo?.imageUrl) return;
+      if (!imageInfo?.imageUrl) {
+        // If there's no URL, it's an empty slot, so just call the onRemove callback
+        onRemove();
+        return;
+      }
       setIsDeleting(true);
-      const docRef = doc(db, 'userProductOptions', userId, 'products', productId);
       try {
-          // Remove from Firestore
-          await updateDoc(docRef, {
-              [`optionsByColor.${colorKey}.variantImages`]: arrayRemove(imageInfo)
-          });
-
-          // Delete from Storage
-          try {
-              const imageStorageRef = ref(storage, imageInfo.imageUrl);
-              await deleteObject(imageStorageRef);
-          } catch (storageError: any) {
-              if (storageError.code !== 'storage/object-not-found') {
-                  console.warn("Could not delete image from storage, it may have already been removed:", storageError);
-              }
+          // You only need to delete from storage if the URL is a firebase storage URL
+          if (imageInfo.imageUrl.includes('firebasestorage.googleapis.com')) {
+            const imageStorageRef = ref(storage, imageInfo.imageUrl);
+            await deleteObject(imageStorageRef);
           }
-          toast({ title: "Image Removed", description: "The image has been successfully deleted." });
-          onUploadComplete();
-      } catch (dbError: any) {
-          console.error("Firestore deletion error:", dbError);
-          toast({ title: "Deletion Failed", description: "Could not remove the image from the database.", variant: "destructive" });
+          toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
+          onRemove();
+      } catch (storageError: any) {
+          if (storageError.code !== 'storage/object-not-found') {
+              console.warn("Could not delete image from storage:", storageError);
+              toast({ title: "Deletion Warning", description: "Could not remove from cloud storage, but removed from view.", variant: "default"});
+          } else {
+            toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
+          }
+          onRemove(); // Still remove from UI even if storage deletion fails
       } finally {
           setIsDeleting(false);
       }
@@ -550,6 +536,35 @@ export default function ProductOptionsPage() {
     if (!productOptions && !error) { fetchAndSetProductData(false); }
     else { setIsLoading(false); }
   }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
+  
+  const handleVariantImageUpdate = useCallback((colorKey: string, imageIndex: number, newUrl: string | null) => {
+    setProductOptions(prev => {
+        if (!prev) return null;
+
+        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
+        if (!updatedOptionsByColor[colorKey]) {
+            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantImages: [] };
+        }
+        
+        const currentImages = updatedOptionsByColor[colorKey].variantImages || [];
+        const newImages = [...currentImages];
+        
+        if (newUrl) { // Add or update image
+            if (imageIndex < newImages.length) {
+                newImages[imageIndex].imageUrl = newUrl;
+            } else {
+                newImages.push({ imageUrl: newUrl, aiHint: '' });
+            }
+        } else { // Remove image
+            newImages.splice(imageIndex, 1);
+        }
+        
+        updatedOptionsByColor[colorKey].variantImages = newImages;
+
+        setHasUnsavedChanges(true);
+        return { ...prev, optionsByColor: updatedOptionsByColor };
+    });
+  }, []);
 
   const handleRefreshData = () => {
     if (source === 'customizer-studio') {
@@ -1099,6 +1114,9 @@ export default function ProductOptionsPage() {
   const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
   const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
+  const imageSlots = Array.from({ length: MAX_VARIATION_IMAGES });
+
+
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
       <div className="mb-6 flex justify-between items-center">
@@ -1218,28 +1236,20 @@ export default function ProductOptionsPage() {
                             </div>
                           </div>
                           {editingImagesForColor === groupKey && (
-                              <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                  {(productOptions.optionsByColor?.[groupKey]?.variantImages || []).map((imgInfo, i) => (
-                                    <VariantImageUploader
-                                        key={imgInfo.imageUrl || i}
-                                        userId={user.uid}
-                                        productId={firestoreDocId}
-                                        colorKey={groupKey}
-                                        imageInfo={imgInfo}
-                                        onUploadComplete={() => fetchAndSetProductData(true)}
-                                    />
-                                  ))}
-                                  {(productOptions.optionsByColor?.[groupKey]?.variantImages || []).length < MAX_VARIATION_IMAGES && (
-                                     <VariantImageUploader
-                                        key="new-uploader"
-                                        userId={user.uid}
-                                        productId={firestoreDocId}
-                                        colorKey={groupKey}
-                                        imageInfo={null}
-                                        onUploadComplete={() => fetchAndSetProductData(true)}
-                                    />
-                                  )}
-                              </div>
+                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {imageSlots.map((_, index) => {
+                                    const imageInfo = productOptions.optionsByColor?.[groupKey]?.variantImages?.[index] || null;
+                                    return (
+                                        <VariantImageUploader
+                                            key={imageInfo?.imageUrl || index}
+                                            userId={user.uid}
+                                            imageInfo={imageInfo}
+                                            onUploadComplete={(newUrl) => handleVariantImageUpdate(groupKey, index, newUrl)}
+                                            onRemove={() => handleVariantImageUpdate(groupKey, index, null)}
+                                        />
+                                    );
+                                })}
+                            </div>
                           )}
                       </div>
                     ))}
@@ -1273,3 +1283,4 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
