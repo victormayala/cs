@@ -13,6 +13,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 function ProductListingLoadingSkeleton() {
     return (
@@ -44,6 +46,27 @@ function ProductListingLoadingSkeleton() {
     )
 }
 
+function StoreNotFound() {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <header className="sticky top-0 z-50 w-full border-b bg-card h-16"></header>
+        <main className="flex-1 flex items-center justify-center p-4">
+            <div className="text-center text-destructive">
+                <AlertTriangle className="mx-auto h-12 w-12" />
+                <h2 className="mt-4 text-xl font-semibold">Store Not Found</h2>
+                <p className="mt-2 text-sm text-muted-foreground">The store you are looking for does not seem to exist. Please check the URL.</p>
+                <Button asChild variant="link" className="mt-4">
+                    <Link href="/">
+                        Go to Homepage
+                    </Link>
+                </Button>
+            </div>
+        </main>
+        <footer className="border-t bg-muted/50 h-20"></footer>
+      </div>
+    );
+}
+
 export default function ProductListingPage() {
   const params = useParams();
   const storeId = params.storeId as string;
@@ -64,16 +87,16 @@ export default function ProductListingPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetch store config for header/footer
         const storeDocRef = doc(db, 'userStores', storeId);
         const storeDocSnap = await getDoc(storeDocRef);
         if (storeDocSnap.exists()) {
           setStoreConfig({ ...storeDocSnap.data(), id: storeDocSnap.id } as UserStoreConfig);
         } else {
-            throw new Error("Store configuration not found.");
+          setError("Store configuration not found.");
+          setIsLoading(false);
+          return;
         }
 
-        // Fetch products
         const response = await fetch(`/api/store/products?configUserId=${storeId}`);
         if (!response.ok) {
           const errorData = await response.json();
@@ -92,8 +115,16 @@ export default function ProductListingPage() {
     fetchPageData();
   }, [storeId]);
   
-  if (isLoading || !storeConfig) {
+  if (isLoading) {
       return <ProductListingLoadingSkeleton />
+  }
+
+  if (error) {
+     return <StoreNotFound />;
+  }
+  
+  if (!storeConfig) {
+      return <ProductListingLoadingSkeleton />;
   }
 
   return (
@@ -110,13 +141,7 @@ export default function ProductListingPage() {
             </p>
           </div>
 
-          {error ? (
-            <Alert variant="destructive" className="max-w-2xl mx-auto">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Error Loading Products</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : products.length === 0 ? (
+          {products.length === 0 ? (
             <div className="text-center py-16 border border-dashed rounded-lg bg-muted/20">
                 <PackageSearch className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
                 <h2 className="text-2xl font-semibold text-foreground">No Products Found</h2>
