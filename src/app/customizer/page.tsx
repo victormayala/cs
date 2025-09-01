@@ -411,7 +411,7 @@ function CustomizerLayoutAndLogic() {
             nativeAttrs.push({ name: 'Color', options: firestoreOptions.nativeAttributes.colors.map(c => c.name) });
         }
         if (firestoreOptions.nativeAttributes.sizes.length > 0) {
-            nativeAttrs.push({ name: 'Size', options: firestoreOptions.nativeAttributes.sizes });
+            nativeAttrs.push({ name: 'Size', options: firestoreOptions.nativeAttributes.sizes.map(s => s.name) });
         }
         setConfigurableAttributes(nativeAttrs);
         if(nativeAttrs.length > 0) {
