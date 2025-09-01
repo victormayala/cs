@@ -897,11 +897,8 @@ function DashboardPageContent() {
         <div className="flex flex-1">
           <Sidebar>
             <SidebarHeader>
-              <div className="p-2 w-full">
-                <div className="p-2 font-semibold text-lg text-foreground">Navigation</div>
-              </div>
             </SidebarHeader>
-            <SidebarContent>
+            <SidebarContent className="px-4">
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="lg" className="w-full justify-start">
