@@ -37,6 +37,7 @@ interface ProductView {
   imageUrl: string;
   aiHint?: string;
   boundaryBoxes: BoundaryBox[];
+  price?: number;
 }
 
 interface ProductViewSetupData {
@@ -65,7 +66,7 @@ interface ProductViewSetupProps {
   selectedBoundaryBoxId: string | null;
   setSelectedBoundaryBoxId: (id: string | null) => void;
   handleSelectView: (viewId: string) => void;
-  handleViewDetailChange: (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint'>, value: string) => void;
+  handleViewDetailChange: (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint' | 'price'>, value: string | number) => void;
   handleDeleteView: (viewId: string) => void;
   handleAddNewView: () => void;
   handleAddBoundaryBox: () => void;
@@ -163,6 +164,7 @@ export default function ProductViewSetup({
               {currentView && (<div className="space-y-3 p-3 border rounded-md bg-muted/20">
                   <div><Label htmlFor={`viewName-${currentView.id}`} className="text-xs mb-1 block">View Name</Label><Input id={`viewName-${currentView.id}`} value={currentView.name} onChange={(e) => handleViewDetailChange(currentView.id, 'name', e.target.value)} className="mt-1 h-8 bg-background"/></div>
                   <div><Label htmlFor={`viewImageUrl-${currentView.id}`} className="text-xs mb-1 block">Image URL</Label><Input id={`viewImageUrl-${currentView.id}`} value={currentView.imageUrl} onChange={(e) => handleViewDetailChange(currentView.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8 bg-background"/></div>
+                  <div><Label htmlFor={`viewPrice-${currentView.id}`} className="text-xs mb-1 block">Surcharge for this View ($)</Label><Input id={`viewPrice-${currentView.id}`} type="number" value={currentView.price || 0} onChange={(e) => handleViewDetailChange(currentView.id, 'price', Number(e.target.value))} className="mt-1 h-8 bg-background"/></div>
                   <div><Label htmlFor={`viewAiHint-${currentView.id}`} className="text-xs mb-1 block">AI Hint <span className="text-muted-foreground/70">(for Unsplash search)</span></Label><Input id={`viewAiHint-${currentView.id}`} value={currentView.aiHint || ''} onChange={(e) => handleViewDetailChange(currentView.id, 'aiHint', e.target.value)} placeholder="e.g., t-shirt back" className="mt-1 h-8 bg-background"/></div>
                   {productOptions.defaultViews.length > 1 && (<Button variant="destructive" onClick={() => handleDeleteView(currentView!.id)} size="sm" className="w-full mt-2"><Trash2 className="mr-2 h-4 w-4" />Delete This Default View</Button>)}
               </div>)}
@@ -204,3 +206,4 @@ export default function ProductViewSetup({
     </Card>
   );
 }
+
