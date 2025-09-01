@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
         hostname: 'cdnp.sanmar.com',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
       }
     ],
   },
