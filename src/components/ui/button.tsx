@@ -17,7 +17,7 @@ const buttonVariants = cva(
           "border border-input bg-background hover:bg-secondary hover:text-secondary-foreground", // Changed hover
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-secondary hover:text-secondary-foreground", // Changed hover
+        ghost: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", // Changed from bg-secondary
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -61,4 +61,3 @@ Button.displayName = "Button" // Standard display name for the exported componen
 
 
 export { Button, buttonVariants }
-
