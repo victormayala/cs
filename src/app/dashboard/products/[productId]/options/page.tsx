@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -746,16 +747,12 @@ export default function ProductOptionsPage() {
             const nativeProductData: { [key: string]: any } = {
                 name: productOptions.name,
                 description: productOptions.description,
+                brand: productOptions.brand || deleteField(),
+                sku: productOptions.sku || deleteField(),
+                category: productOptions.category || deleteField(),
+                customizationTechniques: productOptions.customizationTechniques || [],
                 lastModified: serverTimestamp()
             };
-            if (productOptions.brand) nativeProductData.brand = productOptions.brand;
-            if (productOptions.sku) nativeProductData.sku = productOptions.sku;
-            if (productOptions.category) {
-                nativeProductData.category = productOptions.category;
-            } else {
-                nativeProductData.category = deleteField();
-            }
-            if (productOptions.customizationTechniques) nativeProductData.customizationTechniques = productOptions.customizationTechniques;
             await setDoc(productBaseRef, nativeProductData, { merge: true });
         }
   
@@ -1242,19 +1239,16 @@ export default function ProductOptionsPage() {
                             </div>
                           </div>
                           {editingImagesForColor === groupKey && (
-                            <div className="p-4 border border-t-0 rounded-b-md">
+                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {productOptions.defaultViews.map((view, index) => (
-                                    <div key={view.id} className="mb-4">
-                                        <Label className="text-xs font-semibold text-muted-foreground">{view.name} View Image</Label>
-                                        <VariantImageUploader
-                                            key={`${groupKey}-${view.id}`}
-                                            userId={user?.uid}
-                                            imageInfo={productOptions.optionsByColor?.[groupKey]?.variantViewImages?.[view.id] || null}
-                                            onUploadComplete={(url) => handleUploadComplete(groupKey, view.id, url)}
-                                            onRemove={() => handleImageRemove(groupKey, view.id)}
-                                            slotNumber={index + 1}
-                                        />
-                                    </div>
+                                    <VariantImageUploader
+                                        key={`${groupKey}-${view.id}`}
+                                        userId={user?.uid}
+                                        imageInfo={productOptions.optionsByColor?.[groupKey]?.variantViewImages?.[view.id] || null}
+                                        onUploadComplete={(url) => handleUploadComplete(groupKey, view.id, url)}
+                                        onRemove={() => handleImageRemove(groupKey, view.id)}
+                                        slotNumber={index + 1}
+                                    />
                                 ))}
                             </div>
                           )}
@@ -1380,3 +1374,4 @@ export default function ProductOptionsPage() {
     </div>
   );
 }
+
