@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const sidebarVariants = cva(
-  "flex h-full flex-col bg-sidebar text-sidebar-foreground",
+  "flex h-full flex-col bg-sidebar text-sidebar-foreground border-r",
   {
     variants: {},
     defaultVariants: {},
