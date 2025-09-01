@@ -1,4 +1,5 @@
 
+
 'use server';
 
 // This file defines shared types for product customization options.
@@ -38,7 +39,8 @@ export interface VariationImage {
 
 export interface ColorGroupOptions {
   selectedVariationIds: string[];
-  // Renamed variantImages to variantViewImages to match customizer expectations
+  // variantViewImages is now deprecated in favor of the more flexible `views` array.
+  // It will be cleared on the next save in options/page.tsx.
   variantViewImages: Record<string, VariationImage>; 
   // NEW: Allow overriding views for this specific color group
   views?: ProductView[]; 
@@ -84,3 +86,4 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox };
+

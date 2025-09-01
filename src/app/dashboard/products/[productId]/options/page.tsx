@@ -77,7 +77,6 @@ interface ActiveDragState {
 
 const MIN_BOX_SIZE_PERCENT = 5;
 const MAX_PRODUCT_VIEWS = 4;
-const MAX_VARIATION_IMAGES = 4;
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -99,125 +98,6 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     return { error: errorMessage };
   }
 }
-
-// NEW, SELF-CONTAINED UPLOADER COMPONENT
-interface VariantImageUploaderProps {
-  userId: string | undefined;
-  imageInfo: VariationImage | null;
-  onUploadComplete: (newImageUrl: string) => void;
-  onRemove: () => void;
-  slotNumber: number;
-}
-
-function VariantImageUploader({ userId, imageInfo, onUploadComplete, onRemove, slotNumber }: VariantImageUploaderProps) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0] || !userId) return;
-    const file = e.target.files[0];
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
-      return;
-    }
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    const storageRef = ref(storage, `${userId}/variant_images/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on('state_changed',
-      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      (error) => {
-        console.error("Upload error:", error);
-        toast({ title: "Upload failed", description: error.message, variant: "destructive" });
-        setIsUploading(false);
-      },
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        toast({ title: "Upload Complete", description: "Image is ready. Don't forget to save your changes." });
-        onUploadComplete(downloadURL);
-        setIsUploading(false);
-      }
-    );
-  };
-  
-  const handleRemoveImage = async () => {
-    if (!imageInfo?.imageUrl) { onRemove(); return; }
-    setIsDeleting(true);
-    try {
-      if (imageInfo.imageUrl.includes('firebasestorage.googleapis.com')) {
-        const imageStorageRef = ref(storage, imageInfo.imageUrl);
-        await deleteObject(imageStorageRef);
-      }
-      toast({ title: "Image Removed", description: "The image has been removed. Save to make it final." });
-      onRemove();
-    } catch (storageError: any) {
-      if (storageError.code !== 'storage/object-not-found') {
-        console.warn("Could not delete image from storage:", storageError);
-        toast({ title: "Deletion Warning", description: "Could not remove from cloud storage, but removed from view.", variant: "default" });
-      }
-      onRemove();
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const isLoading = isUploading || isDeleting;
-
-  return (
-    <div className="relative border rounded-lg bg-card p-4 space-y-3">
-       <Label className="text-xs font-semibold text-muted-foreground">Image Slot {slotNumber}</Label>
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-      {isLoading && (
-        <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 rounded-lg">
-          <Loader2 className="h-6 w-6 animate-spin mb-2" />
-          <p className="text-xs text-muted-foreground">{isDeleting ? 'Deleting...' : 'Uploading...'}</p>
-          {isUploading && <Progress value={uploadProgress} className="w-2/3 h-1.5 mt-1" />}
-        </div>
-      )}
-       <div className={cn("space-y-3", isLoading && "opacity-40 pointer-events-none")}>
-        <div 
-            onClick={() => !imageInfo?.imageUrl && fileInputRef.current?.click()}
-            className={cn(
-                "relative w-full aspect-square bg-muted/50 rounded-md border-2 border-dashed flex items-center justify-center flex-shrink-0",
-                !imageInfo?.imageUrl && "cursor-pointer hover:border-primary hover:bg-muted/70 transition-colors"
-            )}
-        >
-          {imageInfo?.imageUrl ? (
-            <Image src={imageInfo.imageUrl} alt="Variant preview" fill className="object-contain rounded-md p-2" />
-          ) : (
-            <div className="text-center text-muted-foreground">
-                <UploadCloud className="h-8 w-8 mx-auto" />
-                <p className="text-xs mt-1">Click to upload</p>
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {imageInfo?.imageUrl ? (
-            <>
-            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-              <Pencil className="mr-2 h-3 w-3" /> Change
-            </Button>
-            <Button type="button" variant="destructive" size="sm" onClick={handleRemoveImage} disabled={isLoading}>
-              <Trash className="mr-2 h-3 w-3" /> Remove
-            </Button>
-            </>
-          ) : (
-             <Button type="button" variant="outline" size="sm" className="w-full col-span-2" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                <UploadCloud className="mr-2 h-4 w-4" /> Upload Image
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 export default function ProductOptionsPage() {
   const router = useRouter();
@@ -249,7 +129,7 @@ export default function ProductOptionsPage() {
   const [isDeleteViewDialogOpen, setIsDeleteViewDialogOpen] = useState(false);
   const [viewIdToDelete, setViewIdToDelete] = useState<string | null>(null);
   const [groupedVariations, setGroupedVariations] = useState<Record<string, WCVariation[]> | null>(null);
-  const [editingImagesForColor, setEditingImagesForColor] = useState<string | null>(null);
+  
   const [colorInputValue, setColorInputValue] = useState("");
   const [colorHexValue, setColorHexValue] = useState("#000000");
   const [sizeInputValue, setSizeInputValue] = useState("");
@@ -533,34 +413,6 @@ export default function ProductOptionsPage() {
     else { setIsLoading(false); }
   }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
-  // NEW: UPLOAD HANDLING LOGIC
-  const handleUploadComplete = useCallback((colorKey: string, viewId: string, newImageUrl: string) => {
-    setProductOptions(prev => {
-        if (!prev) return null;
-        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
-        if (!updatedOptionsByColor[colorKey]) {
-            updatedOptionsByColor[colorKey] = { selectedVariationIds: [], variantViewImages: {}, views: [] };
-        }
-        if (!updatedOptionsByColor[colorKey].variantViewImages) {
-          updatedOptionsByColor[colorKey].variantViewImages = {};
-        }
-        updatedOptionsByColor[colorKey].variantViewImages[viewId] = { imageUrl: newImageUrl, aiHint: '' };
-        return { ...prev, optionsByColor: updatedOptionsByColor };
-    });
-    setHasUnsavedChanges(true);
-  }, []);
-
-  const handleImageRemove = useCallback((colorKey: string, viewId: string) => {
-    setProductOptions(prev => {
-        if (!prev) return null;
-        const updatedOptionsByColor = JSON.parse(JSON.stringify(prev.optionsByColor));
-        if (updatedOptionsByColor[colorKey]?.variantViewImages?.[viewId]) {
-            delete updatedOptionsByColor[colorKey].variantViewImages[viewId];
-        }
-        return { ...prev, optionsByColor: updatedOptionsByColor };
-    });
-    setHasUnsavedChanges(true);
-  }, []);
   
   const handleRefreshData = () => {
     if (source === 'customizer-studio') {
@@ -588,7 +440,14 @@ export default function ProductOptionsPage() {
   ) => {
     e.preventDefault(); e.stopPropagation();
     if (!productOptions || !activeViewIdForSetup) return;
-    const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+    
+    let currentView: ProductView | undefined;
+    if (variationViewOverrideColor) {
+        currentView = productOptions.optionsByColor?.[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
+    } else {
+        currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+    }
+
     const currentBox = currentView?.boundaryBoxes.find(b => b.id === boxId);
     if (!currentBox || !imageWrapperRef.current) return;
     setSelectedBoundaryBoxId(boxId);
@@ -600,7 +459,7 @@ export default function ProductOptionsPage() {
       initialBoxWidth: currentBox.width, initialBoxHeight: currentBox.height,
       containerWidthPx: containerRect.width, containerHeightPx: containerRect.height,
     });
-  }, [productOptions, activeViewIdForSetup]);
+  }, [productOptions, activeViewIdForSetup, variationViewOverrideColor]);
 
   const handleDragging = useCallback((e: MouseEvent | TouchEvent) => {
     if (!activeDrag || !productOptions || !activeViewIdForSetup || !imageWrapperRef.current) return;
@@ -629,10 +488,23 @@ export default function ProductOptionsPage() {
       newX = Math.max(0, Math.min(newX, 100 - MIN_BOX_SIZE_PERCENT)); newWidth = Math.min(newWidth, 100 - newX); newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth); newX = Math.max(0, Math.min(newX, 100 - newWidth));
       newY = Math.max(0, Math.min(newY, 100 - MIN_BOX_SIZE_PERCENT)); newHeight = Math.min(newHeight, 100 - newY); newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight); newY = Math.max(0, Math.min(newY, 100 - newHeight));
       if (isNaN(newX) || isNaN(newY) || isNaN(newWidth) || isNaN(newHeight)) return;
-      setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(view => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(b => b.id === activeDrag.boxId ? { ...b, x: newX, y: newY, width: newWidth, height: newHeight } : b)} : view)} : null);
+
+      setProductOptions(prev => {
+          if (!prev) return null;
+          const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(b => b.id === activeDrag.boxId ? { ...b, x: newX, y: newY, width: newWidth, height: newHeight } : b)} : view;
+          if (variationViewOverrideColor) {
+              const newOptions = {...prev.optionsByColor};
+              if (newOptions[variationViewOverrideColor]?.views) {
+                  newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+              }
+              return { ...prev, optionsByColor: newOptions };
+          } else {
+              return { ...prev, defaultViews: prev.defaultViews.map(updater) };
+          }
+      });
       setHasUnsavedChanges(true);
     });
-  }, [activeDrag, productOptions, activeViewIdForSetup]);
+  }, [activeDrag, productOptions, activeViewIdForSetup, variationViewOverrideColor]);
 
   const handleInteractionEnd = useCallback(() => {
     cancelAnimationFrame(dragUpdateRef.current);
@@ -666,24 +538,13 @@ export default function ProductOptionsPage() {
     for (const colorKey in productOptionsToSave.optionsByColor) {
       const group = productOptionsToSave.optionsByColor[colorKey];
       
-      const cleanImages: Record<string, VariationImage> = {};
-      if (group.variantViewImages) {
-        for (const viewId in group.variantViewImages) {
-          const img = group.variantViewImages[viewId];
-          if (img && typeof img.imageUrl === 'string' && img.imageUrl.trim() !== '') {
-            cleanImages[viewId] = { imageUrl: img.imageUrl, aiHint: img.aiHint || '' };
-          }
-        }
-      }
-
       const hasOverrides = (group.views && group.views.length > 0);
-      const hasImages = Object.keys(cleanImages).length > 0;
 
-      // Only add the color group if it has selected variations, valid images, or view overrides
-      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || hasImages || hasOverrides) {
+      // Only add the color group if it has selected variations or view overrides
+      if ((group.selectedVariationIds && group.selectedVariationIds.length > 0) || hasOverrides) {
           cleanOptionsByColor[colorKey] = {
               selectedVariationIds: group.selectedVariationIds || [],
-              variantViewImages: cleanImages,
+              variantViewImages: {}, // Deprecated, clear on save
               views: group.views || [],
           };
       }
@@ -787,28 +648,57 @@ export default function ProductOptionsPage() {
 
   const handleAddNewView = () => {
     if (!productOptions) return;
-    if (productOptions.defaultViews.length >= MAX_PRODUCT_VIEWS) {
-      toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views per product.`, variant: "default" });
+
+    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : productOptions.defaultViews;
+
+    if (viewsList.length >= MAX_PRODUCT_VIEWS) {
+      toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
       return;
     }
     const newView: ProductView = {
-      id: crypto.randomUUID(), name: `View ${productOptions.defaultViews.length + 1}`,
+      id: crypto.randomUUID(), name: `View ${viewsList.length + 1}`,
       imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', aiHint: 'product view',
       boundaryBoxes: [], price: 0
     };
-    setProductOptions(prev => prev ? { ...prev, defaultViews: [...prev.defaultViews, newView] } : null);
+
+    setProductOptions(prev => {
+        if (!prev) return null;
+        if (variationViewOverrideColor) {
+            const newOptions = {...prev.optionsByColor};
+            if (!newOptions[variationViewOverrideColor]) newOptions[variationViewOverrideColor] = { selectedVariationIds: [], variantViewImages: {}, views: []};
+            newOptions[variationViewOverrideColor].views = [...(newOptions[variationViewOverrideColor].views || []), newView];
+            return { ...prev, optionsByColor: newOptions };
+        } else {
+            return { ...prev, defaultViews: [...prev.defaultViews, newView] };
+        }
+    });
+
     setActiveViewIdForSetup(newView.id); setSelectedBoundaryBoxId(null); setHasUnsavedChanges(true);
   };
   
   const handleViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id' | 'boundaryBoxes'>, value: string | number) => {
     if (!productOptions) return;
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === viewId ? { ...v, [field]: value } : v) } : null);
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updater = (v: ProductView) => v.id === viewId ? { ...v, [field]: value } : v;
+        if (variationViewOverrideColor) {
+             const newOptions = {...prev.optionsByColor};
+             if (newOptions[variationViewOverrideColor]?.views) {
+                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+             }
+             return { ...prev, optionsByColor: newOptions };
+        } else {
+            return { ...prev, defaultViews: prev.defaultViews.map(updater) };
+        }
+    });
     setHasUnsavedChanges(true);
   };
 
   const handleDeleteView = (viewId: string) => {
-    if (!productOptions || productOptions.defaultViews.length <= 1) {
-      toast({ title: "Cannot Delete", description: "At least one view must remain.", variant: "default" });
+    if (!productOptions) return;
+    const viewsList = variationViewOverrideColor ? productOptions.optionsByColor[variationViewOverrideColor]?.views || [] : productOptions.defaultViews;
+    if (viewsList.length <= 1 && !variationViewOverrideColor) { // Don't allow deleting last default view
+      toast({ title: "Cannot Delete", description: "At least one default view must remain.", variant: "default" });
       return;
     }
     setViewIdToDelete(viewId); setIsDeleteViewDialogOpen(true);
@@ -816,18 +706,42 @@ export default function ProductOptionsPage() {
 
   const confirmDeleteView = () => {
     if (!productOptions || !viewIdToDelete) return;
-    const updatedViews = productOptions.defaultViews.filter(v => v.id !== viewIdToDelete);
-    setProductOptions(prev => prev ? { ...prev, defaultViews: updatedViews } : null);
-    if (activeViewIdForSetup === viewIdToDelete) {
-      setActiveViewIdForSetup(updatedViews[0]?.id || null); setSelectedBoundaryBoxId(null);
-    }
+    
+    setProductOptions(prev => {
+        if (!prev) return null;
+        if (variationViewOverrideColor) {
+             const newOptions = {...prev.optionsByColor};
+             if (newOptions[variationViewOverrideColor]?.views) {
+                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.filter(v => v.id !== viewIdToDelete);
+             }
+             if(activeViewIdForSetup === viewIdToDelete) {
+                setActiveViewIdForSetup(newOptions[variationViewOverrideColor].views?.[0]?.id || null);
+             }
+             return { ...prev, optionsByColor: newOptions };
+        } else {
+            const updatedViews = prev.defaultViews.filter(v => v.id !== viewIdToDelete);
+            if(activeViewIdForSetup === viewIdToDelete) {
+                setActiveViewIdForSetup(updatedViews[0]?.id || null);
+            }
+            return { ...prev, defaultViews: updatedViews };
+        }
+    });
+    
+    setSelectedBoundaryBoxId(null);
     setIsDeleteViewDialogOpen(false); setViewIdToDelete(null);
     toast({title: "View Deleted"}); setHasUnsavedChanges(true);
   };
 
   const handleAddBoundaryBox = () => {
     if (!productOptions || !activeViewIdForSetup) return;
-    const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+
+    let currentView: ProductView | undefined;
+    if (variationViewOverrideColor) {
+        currentView = productOptions.optionsByColor[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
+    } else {
+        currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+    }
+    
     if (!currentView || currentView.boundaryBoxes.length >= 3) {
       toast({ title: "Limit Reached", description: "Max 3 areas per view.", variant: "destructive" });
       return;
@@ -837,20 +751,58 @@ export default function ProductOptionsPage() {
       x: 10 + currentView.boundaryBoxes.length * 5, y: 10 + currentView.boundaryBoxes.length * 5,
       width: 30, height: 20,
     };
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] } : v)} : null);
+
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] } : v;
+        if (variationViewOverrideColor) {
+            const newOptions = {...prev.optionsByColor};
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+            }
+            return { ...prev, optionsByColor: newOptions };
+        } else {
+            return { ...prev, defaultViews: prev.defaultViews.map(updater) };
+        }
+    });
+
     setSelectedBoundaryBoxId(newBox.id); setHasUnsavedChanges(true);
   };
 
   const handleRemoveBoundaryBox = (boxId: string) => {
     if (!productOptions || !activeViewIdForSetup) return;
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(v => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v)} : null);
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v;
+        if (variationViewOverrideColor) {
+             const newOptions = {...prev.optionsByColor};
+             if (newOptions[variationViewOverrideColor]?.views) {
+                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+             }
+             return { ...prev, optionsByColor: newOptions };
+        } else {
+             return { ...prev, defaultViews: prev.defaultViews.map(updater) };
+        }
+    });
     if (selectedBoundaryBoxId === boxId) setSelectedBoundaryBoxId(null);
     setHasUnsavedChanges(true);
   };
 
   const handleBoundaryBoxNameChange = (boxId: string, newName: string) => {
     if (!productOptions || !activeViewIdForSetup) return;
-    setProductOptions(prev => prev ? { ...prev, defaultViews: prev.defaultViews.map(view => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(box => box.id === boxId ? { ...box, name: newName } : box) } : view)} : null);
+    setProductOptions(prev => {
+        if (!prev) return null;
+        const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(box => box.id === boxId ? { ...box, name: newName } : box) } : view;
+        if (variationViewOverrideColor) {
+             const newOptions = {...prev.optionsByColor};
+             if (newOptions[variationViewOverrideColor]?.views) {
+                 newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+             }
+             return { ...prev, optionsByColor: newOptions };
+        } else {
+             return { ...prev, defaultViews: prev.defaultViews.map(updater) };
+        }
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -858,51 +810,36 @@ export default function ProductOptionsPage() {
     if (!productOptions || !activeViewIdForSetup) return;
     setProductOptions(prev => {
       if (!prev || !activeViewIdForSetup) return null;
-      return {
-        ...prev, defaultViews: prev.defaultViews.map(view => {
-          if (view.id === activeViewIdForSetup) {
-            const newBoxes = view.boundaryBoxes.map(box => {
-              if (box.id === boxId) {
-                let newBox = { ...box }; const parsedValue = parseFloat(value);
-                if (isNaN(parsedValue)) return box;
-                if (property === 'x') newBox.x = parsedValue; else if (property === 'y') newBox.y = parsedValue;
-                else if (property === 'width') newBox.width = parsedValue; else if (property === 'height') newBox.height = parsedValue;
-                let { x: tempX, y: tempY, width: tempW, height: tempH } = newBox;
-                tempW = Math.max(MIN_BOX_SIZE_PERCENT, tempW); tempH = Math.max(MIN_BOX_SIZE_PERCENT, tempH);
-                tempX = Math.max(0, Math.min(tempX, 100 - tempW)); tempY = Math.max(0, Math.min(tempY, 100 - tempH));
-                tempW = Math.min(tempW, 100 - tempX); tempH = Math.min(tempH, 100 - tempY);
-                newBox = { ...newBox, x: tempX, y: tempY, width: tempW, height: tempH };
-                if (isNaN(newBox.x)) newBox.x = 0; if (isNaN(newBox.y)) newBox.y = 0;
-                if (isNaN(newBox.width)) newBox.width = MIN_BOX_SIZE_PERCENT; if (isNaN(newBox.height)) newBox.height = MIN_BOX_SIZE_PERCENT;
-                return newBox;
-              } return box;
-            }); return { ...view, boundaryBoxes: newBoxes };
-          } return view;
-        })
+      const updater = (view: ProductView) => {
+        if (view.id === activeViewIdForSetup) {
+          const newBoxes = view.boundaryBoxes.map(box => {
+            if (box.id === boxId) {
+              let newBox = { ...box }; const parsedValue = parseFloat(value);
+              if (isNaN(parsedValue)) return box;
+              if (property === 'x') newBox.x = parsedValue; else if (property === 'y') newBox.y = parsedValue;
+              else if (property === 'width') newBox.width = parsedValue; else if (property === 'height') newBox.height = parsedValue;
+              let { x: tempX, y: tempY, width: tempW, height: tempH } = newBox;
+              tempW = Math.max(MIN_BOX_SIZE_PERCENT, tempW); tempH = Math.max(MIN_BOX_SIZE_PERCENT, tempH);
+              tempX = Math.max(0, Math.min(tempX, 100 - tempW)); tempY = Math.max(0, Math.min(tempY, 100 - tempH));
+              tempW = Math.min(tempW, 100 - tempX); tempH = Math.min(tempH, 100 - tempY);
+              newBox = { ...newBox, x: tempX, y: tempY, width: tempW, height: tempH };
+              if (isNaN(newBox.x)) newBox.x = 0; if (isNaN(newBox.y)) newBox.y = 0;
+              if (isNaN(newBox.width)) newBox.width = MIN_BOX_SIZE_PERCENT; if (isNaN(newBox.height)) newBox.height = MIN_BOX_SIZE_PERCENT;
+              return newBox;
+            } return box;
+          }); return { ...view, boundaryBoxes: newBoxes };
+        } return view;
       };
-    });
-    setHasUnsavedChanges(true);
-  };
 
-  const handleSelectAllVariationsInGroup = (groupKey: string, checked: boolean) => {
-    if (!productOptions) return;
-    setProductOptions(prev => {
-      if (!prev) return null;
-      const updatedOptionsByColor = { ...prev.optionsByColor };
-      let variationIdsToSet: string[] = [];
-      if (checked) {
-          if (prev.source === 'woocommerce' && groupedVariations) {
-            variationIdsToSet = groupedVariations[groupKey]?.map(v => v.id.toString()) || [];
-          } else { // native
-            variationIdsToSet = prev.nativeAttributes?.sizes.map(size => `${groupKey}-${size.id}`) || [groupKey];
-          }
-      }
-      if (!updatedOptionsByColor[groupKey]) {
-          updatedOptionsByColor[groupKey] = { selectedVariationIds: variationIdsToSet, variantViewImages: {}, views: [] };
+      if (variationViewOverrideColor) {
+        const newOptions = {...prev.optionsByColor};
+        if (newOptions[variationViewOverrideColor]?.views) {
+          newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
+        }
+        return { ...prev, optionsByColor: newOptions };
       } else {
-          updatedOptionsByColor[groupKey].selectedVariationIds = variationIdsToSet;
+        return { ...prev, defaultViews: prev.defaultViews.map(updater) };
       }
-      return { ...prev, optionsByColor: updatedOptionsByColor };
     });
     setHasUnsavedChanges(true);
   };
@@ -1087,6 +1024,16 @@ export default function ProductOptionsPage() {
       }
   };
 
+  // When selected variation override color changes, update the active view
+  useEffect(() => {
+    if (variationViewOverrideColor && productOptions?.optionsByColor?.[variationViewOverrideColor]?.views?.length) {
+      setActiveViewIdForSetup(productOptions.optionsByColor[variationViewOverrideColor].views![0].id);
+    } else if (!variationViewOverrideColor && productOptions?.defaultViews.length) {
+      setActiveViewIdForSetup(productOptions.defaultViews[0].id);
+    } else {
+      setActiveViewIdForSetup(null);
+    }
+  }, [variationViewOverrideColor, productOptions]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
@@ -1115,10 +1062,12 @@ export default function ProductOptionsPage() {
     );
   }
 
-  const currentView = productOptions.defaultViews.find(v => v.id === activeViewIdForSetup);
+  const currentView = (variationViewOverrideColor 
+    ? productOptions.optionsByColor?.[variationViewOverrideColor]?.views 
+    : productOptions.defaultViews)?.find(v => v.id === activeViewIdForSetup);
+    
   const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
 
-  const imageSlots = Array.from({ length: MAX_VARIATION_IMAGES });
   const colorGroupsForSelect = source === 'customizer-studio' 
   ? productOptions.nativeAttributes.colors.map(c => c.name) 
   : Object.keys(groupedVariations || {});
@@ -1217,70 +1166,30 @@ export default function ProductOptionsPage() {
             </div></CardContent>
           </Card>
           
-          {productOptions.type === 'variable' && (source === 'woocommerce' || source === 'customizer-studio') && (
+          {productOptions.type === 'variable' && (
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle className="font-headline text-lg flex items-center gap-2"><ImageIcon /> Variation Images</CardTitle>
-                <CardDescription>Assign specific images to your product variations (e.g., show a red shirt for the 'Red' color option). This overrides the default views for selected variations.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingVariations ? (<div className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>)
-                : variationsError ? (<Card><CardContent><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading Variations</AlertTitle><AlertDescription>{variationsError}</AlertDescription></Alert></CardContent></Card>)
-                : (source === 'woocommerce' && !groupedVariations) ? (<p className="text-sm text-muted-foreground">No variations with a clear grouping attribute (like 'Color') were found for this product.</p>)
-                : (<div className="space-y-4">
-                    {colorGroupsForSelect.map((groupKey) => (
-                      <div key={groupKey}>
-                          <div className="flex justify-between items-center bg-muted/50 p-2 rounded-t-md border">
-                            <h4 className="text-sm font-semibold text-foreground">Color: {groupKey}</h4>
-                            <div className="flex items-center space-x-2">
-                                <Button size="sm" variant={editingImagesForColor === groupKey ? "default" : "outline"} onClick={() => setEditingImagesForColor(prev => prev === groupKey ? null : groupKey)}>
-                                    <Edit3 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                          </div>
-                          {editingImagesForColor === groupKey && (
-                            <div className="p-4 border border-t-0 rounded-b-md grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {productOptions.defaultViews.map((view, index) => (
-                                    <VariantImageUploader
-                                        key={`${groupKey}-${view.id}`}
-                                        userId={user?.uid}
-                                        imageInfo={productOptions.optionsByColor?.[groupKey]?.variantViewImages?.[view.id] || null}
-                                        onUploadComplete={(url) => handleUploadComplete(groupKey, view.id, url)}
-                                        onRemove={() => handleImageRemove(groupKey, view.id)}
-                                        slotNumber={index + 1}
-                                    />
-                                ))}
-                            </div>
-                          )}
-                      </div>
-                    ))}
-                  </div>)}
-              </CardContent>
-            </Card>
-          )}
-
-          {productOptions.type === 'variable' && source === 'customizer-studio' && (
-            <Card className="shadow-md">
-              <CardHeader>
-                <CardTitle className="font-headline text-lg">Variation View Overrides</CardTitle>
-                <CardDescription>Define completely different views for a specific variation color.</CardDescription>
+                <CardTitle className="font-headline text-lg">Variation-Specific Views</CardTitle>
+                <CardDescription>
+                  For each color, you can define a unique set of views that will override the default views.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="variation-override-select">Select a Color to Override Views</Label>
-                   <Select
+                  <Label htmlFor="variation-override-select">Select a Color Group to Configure</Label>
+                  <Select
                       value={variationViewOverrideColor}
                       onValueChange={setVariationViewOverrideColor}
-                   >
-                     <SelectTrigger id="variation-override-select" className="mt-1">
-                       <SelectValue placeholder="Select a color..." />
-                     </SelectTrigger>
-                     <SelectContent>
-                       {colorGroupsForSelect.map(color => (
-                         <SelectItem key={color} value={color}>{color}</SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
+                  >
+                    <SelectTrigger id="variation-override-select" className="mt-1">
+                      <SelectValue placeholder="Select a color..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {colorGroupsForSelect.map(color => (
+                        <SelectItem key={color} value={color}>{color}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {variationViewOverrideColor && (
@@ -1291,13 +1200,13 @@ export default function ProductOptionsPage() {
                         selectedBoundaryBoxId={selectedBoundaryBoxId} 
                         setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
                         handleSelectView={handleSelectView} 
-                        handleViewDetailChange={() => {}}
-                        handleDeleteView={() => {}} 
-                        handleAddNewView={() => {}} 
-                        handleAddBoundaryBox={() => {}} 
-                        handleRemoveBoundaryBox={() => {}} 
-                        handleBoundaryBoxNameChange={() => {}} 
-                        handleBoundaryBoxPropertyChange={() => {}}
+                        handleViewDetailChange={handleViewDetailChange}
+                        handleDeleteView={handleDeleteView} 
+                        handleAddNewView={handleAddNewView} 
+                        handleAddBoundaryBox={handleAddBoundaryBox} 
+                        handleRemoveBoundaryBox={handleRemoveBoundaryBox} 
+                        handleBoundaryBoxNameChange={handleBoundaryBoxNameChange} 
+                        handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
                         imageWrapperRef={imageWrapperRef} 
                         handleInteractionStart={handleInteractionStart} 
                         activeDrag={activeDrag} 
@@ -1305,7 +1214,7 @@ export default function ProductOptionsPage() {
                         setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen} 
                         viewIdToDelete={viewIdToDelete} 
                         setViewIdToDelete={setViewIdToDelete} 
-                        confirmDeleteView={() => {}}
+                        confirmDeleteView={confirmDeleteView}
                         viewType="Variation Override"
                         onResetToDefault={() => {
                           setProductOptions(prev => {
@@ -1322,7 +1231,6 @@ export default function ProductOptionsPage() {
                       />
                   </div>
                 )}
-
               </CardContent>
             </Card>
           )}
