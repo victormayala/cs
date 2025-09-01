@@ -48,6 +48,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -144,8 +145,8 @@ function VariantImageView({
     };
 
     return (
-        <div key={view.id} className={cn("p-4 border rounded-lg", isActive ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/30')}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div key={view.id} className={cn("p-4 border rounded-lg w-full", isActive ? 'border-primary ring-2 ring-primary bg-background' : 'bg-muted/30 hover:bg-muted/50')}>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
                     <input
                         type="file"
@@ -179,12 +180,12 @@ function VariantImageView({
                             id={`viewName-${view.id}`}
                             value={view.name}
                             onChange={(e) => onViewDetailChange(view.id, 'name', e.target.value)}
-                            className="mt-1 h-9"
+                            className="mt-1 h-9 bg-background"
                             placeholder={`e.g., Front View`}
                         />
                     </div>
                     <div className="flex gap-2">
-                        <Button onClick={() => onSelectView(view.id)} variant="outline" size="sm" className="flex-1">
+                        <Button onClick={() => onSelectView(view.id)} variant="outline" size="sm" className="flex-1 bg-background">
                             <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
                         </Button>
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => onDeleteView(view.id)}>
@@ -1281,7 +1282,7 @@ export default function ProductOptionsPage() {
                         />
                     ))}
                      {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
-                        <Button onClick={handleAddNewView} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
+                        <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
                      )}
                   </div>
                    <div className="mt-4 pt-4 border-t">
