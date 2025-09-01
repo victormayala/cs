@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -21,12 +21,13 @@ import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsAc
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
 import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
 import { db } from '@/lib/firebase'; 
-import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore'; 
+import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, onSnapshot, addDoc, updateDoc } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
 import type { ShopifyProduct } from '@/types/shopify';
 import {format} from 'date-fns';
 import type { NativeProduct } from '@/app/actions/productActions';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,6 +60,16 @@ interface DisplayProduct {
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
+export interface ProductCategory {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  userId: string;
+  createdAt: any;
+  productCount?: number;
+}
+
 type ActiveDashboardTab = 'products' | 'categories' | 'storeIntegration' | 'settings' | 'profile';
 
 interface ProductToDelete {
@@ -68,6 +79,318 @@ interface ProductToDelete {
 }
 
 const LOCALLY_HIDDEN_PRODUCTS_KEY_PREFIX = 'customizer_studio_locally_hidden_products_';
+
+function CategoriesManager() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryParent, setNewCategoryParent] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<ProductCategory | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setIsLoading(true);
+    const catRef = collection(db, `users/${user.uid}/productCategories`);
+    const q = query(catRef, orderBy("name"));
+
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      const fetchedCategories: ProductCategory[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedCategories.push({ id: doc.id, ...doc.data() } as ProductCategory);
+      });
+      
+      const productsRef = collection(db, `users/${user.uid}/products`);
+      const productsSnap = await getDocs(productsRef);
+      const categoryCounts: Record<string, number> = {};
+      productsSnap.forEach(doc => {
+        const categoryId = doc.data().category;
+        if (categoryId) {
+          categoryCounts[categoryId] = (categoryCounts[categoryId] || 0) + 1;
+        }
+      });
+      
+      const categoriesWithCounts = fetchedCategories.map(cat => ({
+        ...cat,
+        productCount: categoryCounts[cat.id] || 0
+      }));
+
+      setCategories(categoriesWithCounts);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching categories:", error);
+      toast({ title: "Error", description: "Could not fetch categories.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, toast]);
+
+  const createSlug = (name: string) => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  };
+
+  const handleAddOrUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newCategoryName.trim()) return;
+
+    setIsSubmitting(true);
+    const slug = createSlug(newCategoryName);
+
+    try {
+      if (editingCategory) {
+        const catDocRef = doc(db, `users/${user.uid}/productCategories`, editingCategory.id);
+        await updateDoc(catDocRef, {
+          name: newCategoryName,
+          slug,
+          parentId: newCategoryParent || null,
+        });
+        toast({ title: "Category Updated", description: `"${newCategoryName}" has been updated.` });
+      } else {
+        const catCollRef = collection(db, `users/${user.uid}/productCategories`);
+        await addDoc(catCollRef, {
+          name: newCategoryName,
+          slug,
+          parentId: newCategoryParent || null,
+          userId: user.uid,
+          createdAt: new Date(),
+        });
+        toast({ title: "Category Added", description: `"${newCategoryName}" has been created.` });
+      }
+      setNewCategoryName('');
+      setNewCategoryParent(null);
+      setEditingCategory(null);
+    } catch (error: any) {
+      console.error("Error saving category:", error);
+      toast({ title: "Error", description: `Could not save category: ${error.message}`, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditing = (category: ProductCategory) => {
+    setEditingCategory(category);
+    setNewCategoryName(category.name);
+    setNewCategoryParent(category.parentId);
+  };
+
+  const cancelEditing = () => {
+    setEditingCategory(null);
+    setNewCategoryName('');
+    setNewCategoryParent(null);
+  };
+
+  const startDeleting = (category: ProductCategory) => {
+    setCategoryToDelete(category);
+  };
+
+  const confirmDelete = async () => {
+    if (!categoryToDelete || !user) return;
+  
+    const batch = writeBatch(db);
+    const productsToUpdateQuery = query(
+      collection(db, `users/${user.uid}/products`),
+      where("category", "==", categoryToDelete.id)
+    );
+  
+    const productsSnapshot = await getDocs(productsToUpdateQuery);
+    productsSnapshot.forEach((productDoc) => {
+      batch.update(productDoc.ref, { category: null });
+    });
+  
+    const childrenToUpdateQuery = query(
+      collection(db, `users/${user.uid}/productCategories`),
+      where("parentId", "==", categoryToDelete.id)
+    );
+  
+    const childrenSnapshot = await getDocs(childrenToUpdateQuery);
+    childrenSnapshot.forEach((childDoc) => {
+      batch.update(childDoc.ref, { parentId: null });
+    });
+  
+    const catDocRef = doc(db, `users/${user.uid}/productCategories`, categoryToDelete.id);
+    batch.delete(catDocRef);
+  
+    try {
+      await batch.commit();
+      toast({ title: "Category Deleted", description: `"${categoryToDelete.name}" and its associations have been removed.` });
+      setCategoryToDelete(null);
+    } catch (error: any) {
+      console.error("Error deleting category:", error);
+      toast({ title: "Error", description: `Could not delete category: ${error.message}`, variant: "destructive" });
+    }
+  };
+  
+  const categoryTree = useMemo(() => {
+    type TreeNode = ProductCategory & { children: TreeNode[] };
+    const nodeMap = new Map<string, TreeNode>();
+    const tree: TreeNode[] = [];
+
+    categories.forEach(cat => {
+      nodeMap.set(cat.id, { ...cat, children: [] });
+    });
+
+    nodeMap.forEach(node => {
+      if (node.parentId && nodeMap.has(node.parentId)) {
+        nodeMap.get(node.parentId)!.children.push(node);
+      } else {
+        tree.push(node);
+      }
+    });
+
+    nodeMap.forEach(node => {
+      node.children.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    
+    tree.sort((a, b) => a.name.localeCompare(b.name));
+    
+    return tree;
+  }, [categories]);
+
+  const renderCategoryRows = (categoriesToRender: (ProductCategory & { children: (ProductCategory & { children: any[] })[] })[], level = 0): JSX.Element[] => {
+    let rows: JSX.Element[] = [];
+    categoriesToRender.forEach(cat => {
+        rows.push(
+            <TableRow key={cat.id}>
+                <TableCell style={{ paddingLeft: `${1 + level * 1.5}rem` }}>
+                    <span className="font-medium">{level > 0 && '— '}{cat.name}</span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{cat.slug}</TableCell>
+                <TableCell className="text-center">{cat.productCount || 0}</TableCell>
+                <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => startEditing(cat)}><Edit className="h-4 w-4 mr-1"/> Edit</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => startDeleting(cat)}><Trash2 className="h-4 w-4 mr-1"/> Delete</Button>
+                </TableCell>
+            </TableRow>
+        );
+        if (cat.children && cat.children.length > 0) {
+            rows = rows.concat(renderCategoryRows(cat.children, level + 1));
+        }
+    });
+    return rows;
+  };
+
+  const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
+    let options: JSX.Element[] = [];
+    categoriesToRender.forEach(cat => {
+        if (editingCategory && cat.id === editingCategory.id) return;
+        
+        options.push(
+            <SelectItem key={cat.id} value={cat.id}>
+                <span style={{ paddingLeft: `${level * 1.5}rem` }}>{cat.name}</span>
+            </SelectItem>
+        );
+        if (cat.children && cat.children.length > 0) {
+            options = options.concat(renderCategoryOptions(cat.children, level + 1));
+        }
+    });
+    return options;
+  };
+
+  return (
+    <div className="grid gap-8 md:grid-cols-12">
+      <div className="md:col-span-4">
+          <Card>
+              <CardHeader>
+                  <CardTitle>{editingCategory ? "Edit Category" : "Add New Category"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <form onSubmit={handleAddOrUpdateCategory} className="space-y-4">
+                      <div>
+                          <Label htmlFor="category-name">Name</Label>
+                          <Input 
+                              id="category-name" 
+                              value={newCategoryName}
+                              onChange={(e) => setNewCategoryName(e.target.value)}
+                              required
+                              disabled={isSubmitting}
+                          />
+                          <p className="text-sm text-muted-foreground mt-1">The name is how it appears on your site.</p>
+                      </div>
+                      <div>
+                          <Label htmlFor="category-parent">Parent Category</Label>
+                          <Select 
+                              value={newCategoryParent || 'none'}
+                              onValueChange={(value) => setNewCategoryParent(value === 'none' ? null : value)}
+                              disabled={isSubmitting}
+                          >
+                              <SelectTrigger id="category-parent">
+                                  <SelectValue placeholder="None" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {renderCategoryOptions(categoryTree)}
+                              </SelectContent>
+                          </Select>
+                            <p className="text-sm text-muted-foreground mt-1">Assign a parent term to create a hierarchy.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                            <Button type="submit" disabled={isSubmitting || !newCategoryName.trim()}>
+                              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderPlus className="mr-2 h-4 w-4" />}
+                              {editingCategory ? "Update Category" : "Add New Category"}
+                          </Button>
+                          {editingCategory && (
+                              <Button type="button" variant="outline" onClick={cancelEditing}>Cancel</Button>
+                          )}
+                      </div>
+                  </form>
+              </CardContent>
+          </Card>
+      </div>
+      <div className="md:col-span-8">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Existing Categories</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  {isLoading ? (
+                      <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                  ) : categories.length === 0 ? (
+                      <div className="text-center py-10">
+                          <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <p className="mt-4 text-muted-foreground">No categories found. Add one to get started.</p>
+                      </div>
+                  ) : (
+                      <Table>
+                          <TableHeader>
+                              <TableRow>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Slug</TableHead>
+                                  <TableHead className="text-center">Count</TableHead>
+                                  <TableHead className="text-right">Actions</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {renderCategoryRows(categoryTree)}
+                          </TableBody>
+                      </Table>
+                  )}
+              </CardContent>
+          </Card>
+      </div>
+      <AlertDialog open={!!categoryToDelete} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will delete the category "{categoryToDelete?.name}". Any products in this category will become uncategorized. Any subcategories will become top-level categories. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 
 function DashboardPageContent() {
   const router = useRouter();
@@ -586,7 +909,7 @@ function DashboardPageContent() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                      <SidebarMenuItem>
-                      <SidebarMenuButton onClick={() => router.push('/dashboard/categories')} size="lg" className="w-full justify-start">
+                      <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="lg" className="w-full justify-start">
                         <FolderIcon className="mr-2 h-5 w-5" /> Categories
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -688,6 +1011,10 @@ function DashboardPageContent() {
                         )}
                       </CardContent>
                     </Card>
+                  )}
+
+                  {activeTab === 'categories' && (
+                    <CategoriesManager />
                   )}
 
                   {activeTab === 'storeIntegration' && (
