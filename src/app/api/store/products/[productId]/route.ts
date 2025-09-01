@@ -68,12 +68,16 @@ export async function GET(request: Request, { params }: { params: { productId: s
     
     const primaryImageUrl = views[0]?.imageUrl || defaultPlaceholderImage;
 
+    // Correctly process the variation images object
     const variationImages: Record<string, VariationImage[]> = {};
     if (optionsData?.optionsByColor) {
       for (const color in optionsData.optionsByColor) {
         const colorGroup = optionsData.optionsByColor[color];
-        if (colorGroup.variantImages && colorGroup.variantImages.length > 0) {
-          variationImages[color] = colorGroup.variantImages.filter(img => img && img.imageUrl);
+        if (colorGroup.variantViewImages && typeof colorGroup.variantViewImages === 'object') {
+          const imagesForColor = Object.values(colorGroup.variantViewImages).filter(img => img && img.imageUrl);
+          if (imagesForColor.length > 0) {
+            variationImages[color] = imagesForColor;
+          }
         }
       }
     }
