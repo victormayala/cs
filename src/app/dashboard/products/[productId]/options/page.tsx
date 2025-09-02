@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Trash2, Pencil, Redo, Image as ImageIcon, ChevronRight, PlusCircle, Maximize2 } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Pencil, Redo, Image as ImageIcon, Maximize2 } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlusCircle } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -72,6 +74,7 @@ interface ProductOptionsData {
   salePrice: number | string | null;
   shipping: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
+  defaultViews: ProductView[]; // Keep for defaults
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes: Omit<ProductAttributeOptions, 'sizes'> & { sizes: SizeAttribute[] };
@@ -307,42 +310,37 @@ export default function ProductOptionsPage() {
     const variations: NativeProductVariation[] = [];
     if (colors.length === 0 && sizes.length === 0) return [];
     
-    if (colors.length > 0) {
-      colors.forEach(color => {
-        if (sizes.length > 0) {
-          sizes.forEach(size => {
-            const id = `color-${color.name}-size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
+    const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }]; // Use a dummy if no colors
+    const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }]; // Use a dummy if no sizes
+    
+    colorOptions.forEach(color => {
+        sizeOptions.forEach(size => {
+            if (!color.name && !size.name) return; // Skip if both are dummy
+
+            const attributes: Record<string, string> = {};
+            let idParts: string[] = [];
+
+            if (color.name) {
+                attributes["Color"] = color.name;
+                idParts.push(`color-${color.name}`);
+            }
+            if (size.name) {
+                attributes["Size"] = size.name;
+                idParts.push(`size-${size.name}`);
+            }
+            
+            const id = idParts.join('-').toLowerCase().replace(/\s+/g, '-');
             const existing = productOptions.nativeVariations?.find(v => v.id === id);
+
             variations.push({
-              id,
-              attributes: { "Color": color.name, "Size": size.name },
-              price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0),
-              salePrice: existing?.salePrice ?? null,
-            });
-          });
-        } else {
-          const id = `color-${color.name}`.toLowerCase().replace(/\s+/g, '-');
-          const existing = productOptions.nativeVariations?.find(v => v.id === id);
-          variations.push({ 
-            id, 
-            attributes: { "Color": color.name }, 
-            price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), 
-            salePrice: existing?.salePrice ?? null 
-          });
-        }
-      });
-    } else if (sizes.length > 0) {
-        sizes.forEach(size => {
-            const id = `size-${size.name}`.toLowerCase().replace(/\s+/g, '-');
-            const existing = productOptions.nativeVariations?.find(v => v.id === id);
-            variations.push({ 
-                id, 
-                attributes: { "Size": size.name }, 
-                price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), 
-                salePrice: existing?.salePrice ?? null 
+                id,
+                attributes,
+                price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0),
+                salePrice: existing?.salePrice ?? null,
             });
         });
-    }
+    });
+
     return variations;
   }, [productOptions]);
 
@@ -449,6 +447,13 @@ export default function ProductOptionsPage() {
                 salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
                 shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
                 type: firestoreOptions?.type ?? baseProduct.type,
+                defaultViews: firestoreOptions?.defaultViews || [{
+                    id: crypto.randomUUID(),
+                    name: 'Default View',
+                    imageUrl: 'https://placehold.co/600x600/eee/ccc?text=Default',
+                    boundaryBoxes: [{ id: crypto.randomUUID(), name: 'Default Area', x: 25, y: 25, width: 50, height: 50 }],
+                    price: 0
+                }],
                 optionsByColor: firestoreOptions?.optionsByColor || {},
                 groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
                 nativeAttributes: { colors: nativeAttributesFromFS.colors, sizes: validatedSizes },
@@ -618,6 +623,11 @@ export default function ProductOptionsPage() {
             price: Number(productOptionsToSave.price) || 0,
             type: productOptionsToSave.type,
             allowCustomization: productOptionsToSave.allowCustomization,
+            defaultViews: productOptionsToSave.defaultViews.map((view: any) => ({
+                ...view,
+                boundaryBoxes: view.boundaryBoxes || [],
+                price: view.price || 0,
+            })),
             optionsByColor: cleanOptionsByColor,
             groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
             nativeAttributes: {
@@ -1030,9 +1040,41 @@ export default function ProductOptionsPage() {
     };
 
     const openEditModal = (color: string) => {
+        if (!productOptions) return;
+
+        // If this color doesn't have its own view overrides yet, create them from default.
+        if (!productOptions.optionsByColor[color] || !productOptions.optionsByColor[color].views) {
+            setProductOptions(prev => {
+                if (!prev) return null;
+                const newOptions = { ...prev.optionsByColor };
+                
+                // Deep copy default views and give new IDs
+                const newViewsForColor = prev.defaultViews.map(defaultView => ({
+                    ...defaultView,
+                    id: crypto.randomUUID(), // New unique ID for the view
+                    boundaryBoxes: defaultView.boundaryBoxes.map(box => ({
+                        ...box,
+                        id: crypto.randomUUID() // New unique ID for the box
+                    }))
+                }));
+
+                newOptions[color] = {
+                    ...newOptions[color],
+                    views: newViewsForColor,
+                };
+                return { ...prev, optionsByColor: newOptions };
+            });
+            // Use a timeout to allow state to update before setting active view
+            setTimeout(() => {
+                const firstViewId = productOptions.optionsByColor?.[color]?.views?.[0]?.id || productOptions.defaultViews[0]?.id || null;
+                setActiveViewIdForSetup(firstViewId);
+            }, 0);
+        } else {
+            const firstViewId = productOptions.optionsByColor?.[color]?.views?.[0]?.id || null;
+            setActiveViewIdForSetup(firstViewId);
+        }
+
         setActiveEditingColor(color);
-        const firstViewId = productOptions?.optionsByColor?.[color]?.views?.[0]?.id || null;
-        setActiveViewIdForSetup(firstViewId);
         setIsEditModalOpen(true);
     };
 
@@ -1193,29 +1235,24 @@ export default function ProductOptionsPage() {
                     </div></CardContent>
                     </Card>
 
-                    {productOptions.type === 'variable' && (
-                        <Card className="shadow-md">
-                            <CardHeader><CardTitle className="font-headline text-lg">Images &amp; Customization</CardTitle><CardDescription>For each color, you can define a unique set of views (images) and customization areas.</CardDescription></CardHeader>
-                            <CardContent className="space-y-2">
-                                {colorGroupsForSelect.map(color => (
-                                    <Card key={color} className="bg-muted/40">
-                                        <div className="p-4 flex justify-between items-center">
-                                            <h4 className="font-semibold text-foreground">{color}</h4>
-                                            <Button variant="ghost" size="sm" onClick={() => openEditModal(color)}>
-                                                <Edit3 className="mr-2 h-4 w-4" />
-                                                Edit Views & Areas
-                                            </Button>
-                                        </div>
-                                    </Card>
-                                ))}
-                                {colorGroupsForSelect.length === 0 && (
-                                    <div className="text-center py-6 text-muted-foreground">
-                                        <p>Add color attributes above to begin configuring variation-specific images and design areas.</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
+                    <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Images & Customization</CardTitle><CardDescription>For each color, you can define a unique set of views (images) and customization areas.</CardDescription></CardHeader><CardContent className="space-y-2">
+                        {colorGroupsForSelect.map(color => (
+                            <Card key={color} className="bg-muted/40">
+                                <div className="p-4 flex justify-between items-center">
+                                    <h4 className="font-semibold text-foreground">{color}</h4>
+                                    <Button variant="ghost" size="sm" onClick={() => openEditModal(color)}>
+                                        <Edit3 className="mr-2 h-4 w-4" />
+                                        Edit Views & Areas
+                                    </Button>
+                                </div>
+                            </Card>
+                        ))}
+                        {colorGroupsForSelect.length === 0 && (
+                            <div className="text-center py-6 text-muted-foreground">
+                                <p>Add color attributes above to begin configuring variation-specific images and design areas.</p>
+                            </div>
+                        )}
+                    </CardContent></Card>
 
                     {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
                 </div>
@@ -1342,6 +1379,3 @@ export default function ProductOptionsPage() {
         </div>
     );
 }
-
-    
-    
