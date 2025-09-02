@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
-import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation, ProductView } from '@/app/actions/productOptionsActions';
 import type { SizeAttribute } from '@/app/dashboard/products/[productId]/options/page';
 import { ProductCategory } from '@/app/dashboard/categories/page';
 
@@ -14,13 +14,9 @@ interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 's
 // A more detailed version for the PDP
 interface PublicProductDetail extends PublicProduct {
     salePrice?: number | null; // Allow null to represent no sale price
-    views: {
-        id: string;
-        name: string;
-        imageUrl: string;
-    }[];
+    views: ProductView[];
     attributes?: ProductAttributeOptionsForPDP;
-    variationImages?: Record<string, VariationImage[]>; // Key: Color Name
+    variationImages?: Record<string, ProductView[]>; // Key: Color Name
     brand?: string;
     sku?: string;
     category?: string; // This will now hold the category ID
@@ -61,23 +57,22 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
     const views = optionsData?.defaultViews?.map(view => ({
-      id: view.id,
-      name: view.name,
+      ...view, // Spread to include all properties like boundaryBoxes
       imageUrl: view.imageUrl && !view.imageUrl.includes('placehold.co') ? view.imageUrl : `${defaultPlaceholderImage}&txtsize=30&text=${encodeURIComponent(view.name)}`,
-    })) || [{ id: 'default_view', name: 'Front', imageUrl: defaultPlaceholderImage }];
+    })) || [{ id: 'default_view', name: 'Front', imageUrl: defaultPlaceholderImage, boundaryBoxes: [] }];
     
     const primaryImageUrl = views[0]?.imageUrl || defaultPlaceholderImage;
 
-    // Correctly process the variation images object
-    const variationImages: Record<string, VariationImage[]> = {};
+    // Correctly process the variation images object from the `views` array inside each color group
+    const variationImages: Record<string, ProductView[]> = {};
     if (optionsData?.optionsByColor) {
       for (const color in optionsData.optionsByColor) {
         const colorGroup = optionsData.optionsByColor[color];
-        if (colorGroup.variantViewImages && typeof colorGroup.variantViewImages === 'object') {
-          const imagesForColor = Object.values(colorGroup.variantViewImages).filter(img => img && img.imageUrl);
-          if (imagesForColor.length > 0) {
-            variationImages[color] = imagesForColor;
-          }
+        if (colorGroup.views && Array.isArray(colorGroup.views) && colorGroup.views.length > 0) {
+           variationImages[color] = colorGroup.views.map(view => ({
+               ...view,
+               imageUrl: view.imageUrl && !view.imageUrl.includes('placehold.co') ? view.imageUrl : `${defaultPlaceholderImage}&txtsize=30&text=${encodeURIComponent(view.name)}`
+           }));
         }
       }
     }

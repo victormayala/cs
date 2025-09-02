@@ -15,7 +15,7 @@ import { ArrowRight, Loader2, AlertTriangle, ChevronLeft, ChevronRight, Check, G
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-import type { ProductAttributeOptions, VariationImage, NativeProductVariation } from '@/app/actions/productOptionsActions';
+import type { ProductAttributeOptions, NativeProductVariation, ProductView as ProductViewType } from '@/app/actions/productOptionsActions';
 import { Separator } from '@/components/ui/separator';
 import { CustomizationTechnique } from '@/app/actions/productActions';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,20 +33,12 @@ interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 's
     sizes: SizeAttribute[];
 }
 
-
-interface ProductView {
-    id: string;
-    name: string;
-    imageUrl: string;
-    aiHint?: string;
-}
-
 // PDP needs more details than the PLP card, especially all views.
 interface ProductDetail extends PublicProduct {
     salePrice?: number | null;
-    views: ProductView[];
+    views: ProductViewType[];
     attributes?: ProductAttributeOptionsForPDP; // Use the more specific type
-    variationImages?: Record<string, VariationImage[]>; // Key: Color Name
+    variationImages?: Record<string, ProductViewType[]>; // Key: Color Name
     brand?: string;
     sku?: string;
     category?: string;
@@ -119,13 +111,7 @@ export default function ProductDetailPage() {
   const displayedImages = useMemo(() => {
     if (!product) return [];
     if (selectedColor && product.variationImages && product.variationImages[selectedColor]?.length > 0) {
-        // Create a structure compatible with ProductView for display
-        return product.variationImages[selectedColor].map((img, index) => ({
-            id: `${selectedColor}-img-${index}`,
-            name: `${selectedColor} View ${index + 1}`,
-            imageUrl: img.imageUrl,
-            aiHint: img.aiHint,
-        }));
+        return product.variationImages[selectedColor];
     }
     // Fallback to default views
     return product.views;
@@ -137,8 +123,10 @@ export default function ProductDetailPage() {
     // Update active image when displayedImages change
     if (displayedImages.length > 0) {
         setActiveImage(displayedImages[0].imageUrl);
+    } else if (product?.imageUrl) {
+        setActiveImage(product.imageUrl);
     }
-  }, [displayedImages]);
+  }, [displayedImages, product?.imageUrl]);
   
   useEffect(() => {
     if (!storeId || !productId) {
@@ -484,7 +472,7 @@ export default function ProductDetailPage() {
                  </div>
             </div>
         </main>
-        <StoreFooter storeConfig={storeConfig} />
+        <StoreFooter storeConfig={storeConfig!} />
     </div>
   );
 }
