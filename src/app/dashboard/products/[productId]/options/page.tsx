@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Pencil, Redo, Image as ImageIcon, Maximize2 } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Pencil, Redo, Image as ImageIcon, Maximize2, PlusCircle, Trash2 } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -49,8 +49,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle } from 'lucide-react';
-import { Trash2 } from 'lucide-react';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
@@ -308,23 +306,27 @@ export default function ProductOptionsPage() {
     }
     const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
     const variations: NativeProductVariation[] = [];
-    if (colors.length === 0 && sizes.length === 0) return [];
     
-    const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }]; // Use a dummy if no colors
-    const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }]; // Use a dummy if no sizes
+    const hasColors = colors.length > 0;
+    const hasSizes = sizes.length > 0;
+
+    if (!hasColors && !hasSizes) return [];
+
+    const colorOptions = hasColors ? colors : [{ name: '', hex: '' }]; // Dummy if no colors
+    const sizeOptions = hasSizes ? sizes : [{ id: '', name: '' }]; // Dummy if no sizes
     
     colorOptions.forEach(color => {
         sizeOptions.forEach(size => {
-            if (!color.name && !size.name) return; // Skip if both are dummy
+            if (!color.name && !size.name) return; // Skip if both are dummies
 
             const attributes: Record<string, string> = {};
             let idParts: string[] = [];
 
-            if (color.name) {
+            if (hasColors && color.name) {
                 attributes["Color"] = color.name;
                 idParts.push(`color-${color.name}`);
             }
-            if (size.name) {
+            if (hasSizes && size.name) {
                 attributes["Size"] = size.name;
                 idParts.push(`size-${size.name}`);
             }
@@ -599,21 +601,20 @@ export default function ProductOptionsPage() {
         }
         setIsSaving(true);
 
-        // Deep clone the object to avoid direct state mutation.
         const productOptionsToSave = JSON.parse(JSON.stringify(productOptions));
 
-        // Clean the optionsByColor structure before saving.
         const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
         for (const colorKey in productOptionsToSave.optionsByColor) {
             const group = productOptionsToSave.optionsByColor[colorKey];
-
-            const hasOverrides = (group.views && group.views.length > 0);
-
-            // Only add the color group if it has selected variations or view overrides
+            const hasOverrides = group.views && group.views.length > 0;
             if (hasOverrides) {
                 cleanOptionsByColor[colorKey] = {
                     selectedVariationIds: group.selectedVariationIds || [],
-                    views: (group.views || []).map((view: any) => ({ ...view, price: Number(view.price) || 0 })),
+                    views: (group.views || []).map((view: any) => ({
+                        ...view,
+                        boundaryBoxes: view.boundaryBoxes || [],
+                        price: Number(view.price) || 0
+                    })),
                 };
             }
         }
@@ -672,6 +673,9 @@ export default function ProductOptionsPage() {
         } else {
             dataToSave.nativeVariations = [];
         }
+        
+        dataToSave.shipping = productOptionsToSave.shipping || { weight: 0, length: 0, width: 0, height: 0 };
+
 
         try {
             const docRef = doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId);
@@ -1040,42 +1044,46 @@ export default function ProductOptionsPage() {
     };
 
     const openEditModal = (color: string) => {
-        if (!productOptions) return;
-
-        // If this color doesn't have its own view overrides yet, create them from default.
-        if (!productOptions.optionsByColor[color] || !productOptions.optionsByColor[color].views) {
-            setProductOptions(prev => {
-                if (!prev) return null;
-                const newOptions = { ...prev.optionsByColor };
-                
-                // Deep copy default views and give new IDs
-                const newViewsForColor = prev.defaultViews.map(defaultView => ({
-                    ...defaultView,
-                    id: crypto.randomUUID(), // New unique ID for the view
-                    boundaryBoxes: defaultView.boundaryBoxes.map(box => ({
-                        ...box,
-                        id: crypto.randomUUID() // New unique ID for the box
-                    }))
-                }));
-
-                newOptions[color] = {
-                    ...newOptions[color],
-                    views: newViewsForColor,
-                };
-                return { ...prev, optionsByColor: newOptions };
-            });
-            // Use a timeout to allow state to update before setting active view
-            setTimeout(() => {
-                const firstViewId = productOptions.optionsByColor?.[color]?.views?.[0]?.id || productOptions.defaultViews[0]?.id || null;
-                setActiveViewIdForSetup(firstViewId);
-            }, 0);
-        } else {
-            const firstViewId = productOptions.optionsByColor?.[color]?.views?.[0]?.id || null;
-            setActiveViewIdForSetup(firstViewId);
-        }
-
-        setActiveEditingColor(color);
-        setIsEditModalOpen(true);
+      if (!productOptions) return;
+    
+      const hasOverrides = productOptions.optionsByColor[color]?.views?.length > 0;
+    
+      if (!hasOverrides) {
+        // This is the first time editing this color, so create a deep copy of default views
+        setProductOptions(prev => {
+          if (!prev) return null;
+          const newOptions = { ...prev.optionsByColor };
+          
+          // Deep copy default views and give new IDs to views and their boundary boxes
+          const newViewsForColor = prev.defaultViews.map(defaultView => ({
+            ...defaultView,
+            id: crypto.randomUUID(),
+            boundaryBoxes: defaultView.boundaryBoxes.map(box => ({
+              ...box,
+              id: crypto.randomUUID()
+            }))
+          }));
+    
+          newOptions[color] = {
+            ...(newOptions[color] || { selectedVariationIds: [] }),
+            views: newViewsForColor,
+          };
+          return { ...prev, optionsByColor: newOptions };
+        });
+      }
+    
+      setActiveEditingColor(color);
+      setIsEditModalOpen(true);
+      
+      // Use a timeout to allow state to update before setting active view
+      setTimeout(() => {
+        setProductOptions(currentProductOptions => {
+          if (!currentProductOptions) return null;
+          const firstViewId = currentProductOptions.optionsByColor?.[color]?.views?.[0]?.id || null;
+          setActiveViewIdForSetup(firstViewId);
+          return currentProductOptions;
+        });
+      }, 0);
     };
 
     const handleImageUpload = async (viewId: string, file: File) => {
