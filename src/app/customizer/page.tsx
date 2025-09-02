@@ -67,7 +67,7 @@ export interface ProductView {
 
 interface ColorGroupOptionsForCustomizer {
   selectedVariationIds: string[];
-  variantViewImages: Record<string, { imageUrl: string; aiHint?: string }>;
+  views?: ProductView[]; // Views are now optional within the color group
 }
 
 interface LoadedCustomizerOptions {
@@ -478,64 +478,79 @@ function CustomizerLayoutAndLogic() {
 
  useEffect(() => {
     setProductDetails(prevProductDetails => {
-        if (!prevProductDetails || prevProductDetails.type !== 'variable') return prevProductDetails;
+        if (!prevProductDetails) return null;
 
         let matchingVariationPrice: number | null = null;
-        let primaryVariationImageSrc: string | null = null;
-        let primaryVariationImageAiHint: string | undefined = undefined;
+        let finalViews = prevProductDetails.views;
 
-        if (prevProductDetails.source === 'woocommerce' && productVariations) {
-            const matchingVariation = productVariations.find(variation => 
-                variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
-            );
-            if (matchingVariation) {
-                matchingVariationPrice = parseFloat(matchingVariation.price || '0');
-                if (matchingVariation.image?.src) {
-                    primaryVariationImageSrc = matchingVariation.image.src;
-                    primaryVariationImageAiHint = matchingVariation.image.alt?.split(" ").slice(0, 2).join(" ") || undefined;
+        // Determine which variation is selected
+        const isVariable = prevProductDetails.type === 'variable' || (prevProductDetails.nativeVariations && prevProductDetails.nativeVariations.length > 0);
+        let matchingNativeVariation: NativeProductVariation | undefined;
+        let matchingWcVariation: WCVariation | undefined;
+
+        if (isVariable) {
+            if (prevProductDetails.source === 'customizer-studio' && prevProductDetails.nativeVariations) {
+                matchingNativeVariation = prevProductDetails.nativeVariations.find(v => 
+                    Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
+                );
+                if (matchingNativeVariation) {
+                    matchingVariationPrice = matchingNativeVariation.price;
+                }
+            } else if (prevProductDetails.source === 'woocommerce' && productVariations) {
+                matchingWcVariation = productVariations.find(variation => 
+                    variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
+                );
+                if (matchingWcVariation) {
+                    matchingVariationPrice = parseFloat(matchingWcVariation.price || '0');
                 }
             }
-        } else if (prevProductDetails.source === 'customizer-studio' && prevProductDetails.nativeVariations) {
-            const matchingVariation = prevProductDetails.nativeVariations.find(v => 
-                Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
-            );
-            if (matchingVariation) {
-                matchingVariationPrice = matchingVariation.price;
-            }
         }
+        
+        // Determine which views to display based on selected color
+        const colorKey = loadedGroupingAttributeName ? selectedVariationOptions[loadedGroupingAttributeName] : null;
+        const colorSpecificViews = colorKey && loadedOptionsByColor?.[colorKey]?.views;
 
-        let currentColorKey: string | null = null;
-        if (loadedGroupingAttributeName && selectedVariationOptions[loadedGroupingAttributeName]) {
-            currentColorKey = selectedVariationOptions[loadedGroupingAttributeName];
+        if (colorSpecificViews && colorSpecificViews.length > 0) {
+            finalViews = colorSpecificViews;
+        } else if (matchingWcVariation?.image?.src) {
+             // For WC, if there's a variation image but no override views, create a temporary view
+             finalViews = [{
+                 id: `wc_variation_view_${matchingWcVariation.id}`,
+                 name: matchingWcVariation.attributes.map(a => a.option).join(' '),
+                 imageUrl: matchingWcVariation.image.src,
+                 aiHint: matchingWcVariation.image.alt || 'product variation',
+                 boundaryBoxes: prevProductDetails.views[0]?.boundaryBoxes || [], // Fallback to first default boundary
+                 price: 0,
+             }];
+        } else {
+             // Fallback to the base views from the initial load
+             finalViews = Object.values(viewBaseImages).map((base, index) => ({
+                id: prevProductDetails.views[index].id,
+                name: prevProductDetails.views[index].name,
+                imageUrl: base.url,
+                aiHint: base.aiHint,
+                price: prevProductDetails.views[index].price,
+                boundaryBoxes: prevProductDetails.views[index].boundaryBoxes,
+            }));
         }
-        const currentVariantViewImages = currentColorKey && loadedOptionsByColor ? loadedOptionsByColor[currentColorKey]?.variantViewImages : null;
-
-        const updatedViews = prevProductDetails.views.map(view => {
-            const baseImageInfo = viewBaseImages[view.id];
-            const baseImageUrl = baseImageInfo?.url || defaultFallbackProduct.views[0].imageUrl;
-            const baseAiHint = baseImageInfo?.aiHint || defaultFallbackProduct.views[0].aiHint;
-
-            let finalImageUrl = baseImageUrl;
-            let finalAiHint = baseAiHint;
-
-            if (currentVariantViewImages && currentVariantViewImages[view.id]?.imageUrl) {
-                finalImageUrl = currentVariantViewImages[view.id].imageUrl;
-                finalAiHint = currentVariantViewImages[view.id].aiHint || baseAiHint;
-            } else if (primaryVariationImageSrc && view.id === activeViewId) {
-                finalImageUrl = primaryVariationImageSrc;
-                finalAiHint = primaryVariationImageAiHint || baseAiHint;
-            }
-
-            return { ...view, imageUrl: finalImageUrl!, aiHint: finalAiHint };
-        });
 
         const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : prevProductDetails.basePrice;
 
-        return { ...prevProductDetails, views: updatedViews, basePrice: newBasePrice };
+        // Only update state if something has actually changed
+        if (JSON.stringify(prevProductDetails.views) !== JSON.stringify(finalViews) || prevProductDetails.basePrice !== newBasePrice) {
+            // If the views have changed, also reset the active view ID to the first new view
+            const newActiveViewId = finalViews[0]?.id || null;
+            if(activeViewId !== newActiveViewId) {
+                setActiveViewId(newActiveViewId);
+            }
+            return { ...prevProductDetails, views: finalViews, basePrice: newBasePrice };
+        }
+
+        return prevProductDetails;
     });
 }, [
-    selectedVariationOptions, productVariations, activeViewId, viewBaseImages,
-    loadedOptionsByColor, loadedGroupingAttributeName, configurableAttributes
+    selectedVariationOptions, productVariations, viewBaseImages,
+    loadedOptionsByColor, loadedGroupingAttributeName, activeViewId
 ]);
 
 
