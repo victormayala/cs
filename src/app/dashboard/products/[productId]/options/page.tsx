@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -144,9 +145,24 @@ function VariantImageView({
             onImageUpload(view.id, e.target.files[0]);
         }
     };
+    
+    const handleDivClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Prevent click from propagating if the click is on a button or input inside
+      if ((e.target as HTMLElement).closest('button, input')) {
+        return;
+      }
+      onSelectView(view.id);
+    };
 
     return (
-        <div key={view.id} className={cn("p-4 border rounded-lg w-full", isActive ? 'border-primary ring-2 ring-primary bg-background' : 'bg-muted/30 hover:bg-muted/50')}>
+        <div 
+          key={view.id} 
+          onClick={handleDivClick}
+          className={cn(
+            "p-4 border rounded-lg w-full cursor-pointer transition-all", 
+            isActive ? 'border-primary ring-2 ring-primary bg-background shadow-md' : 'bg-muted/30 hover:bg-muted/50'
+          )}
+        >
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
                     <input
@@ -157,7 +173,7 @@ function VariantImageView({
                         accept="image/png, image/jpeg, image/webp, image/gif"
                     />
                     <div
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                         className={cn(
                             "relative aspect-square w-full rounded-md border-2 border-dashed flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer",
                             isUploading === view.id && "cursor-wait opacity-50"
@@ -189,7 +205,7 @@ function VariantImageView({
                         <Button onClick={() => onSelectView(view.id)} variant="outline" size="sm" className="flex-1 bg-background">
                             <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => onDeleteView(view.id)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={(e) => {e.stopPropagation(); onDeleteView(view.id);}}>
                             <Trash2 className="h-4 w-4" />
                         </Button>
                     </div>
@@ -717,23 +733,23 @@ export default function ProductOptionsPage() {
     const handleAddNewView = () => {
         if (!productOptions || !activeEditingColor) return;
         
+        const viewsList = productOptions.optionsByColor[activeEditingColor]?.views || [];
+        if (viewsList.length >= MAX_PRODUCT_VIEWS) {
+            toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
+            return;
+        }
+
+        const newView: ProductView = {
+            id: crypto.randomUUID(),
+            name: `View ${viewsList.length + 1}`,
+            imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View',
+            aiHint: 'product view',
+            boundaryBoxes: [],
+            price: 0
+        };
+
         setProductOptions(prev => {
             if (!prev) return null;
-    
-            const viewsList = prev.optionsByColor[activeEditingColor]?.views || [];
-            if (viewsList.length >= MAX_PRODUCT_VIEWS) {
-                toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
-                return prev;
-            }
-    
-            const newView: ProductView = {
-                id: crypto.randomUUID(),
-                name: `View ${viewsList.length + 1}`,
-                imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View',
-                aiHint: 'product view',
-                boundaryBoxes: [],
-                price: 0
-            };
     
             const newOptionsByColor = { ...prev.optionsByColor };
             if (!newOptionsByColor[activeEditingColor]) {
@@ -1325,60 +1341,62 @@ export default function ProductOptionsPage() {
                                     </div>
                                 ))}
                             </div>
+                             <div className="mt-4 pt-4 border-t">
+                                 <Tabs defaultValue="areas">
+                                     <TabsList className="grid w-full grid-cols-1"><TabsTrigger value="areas" disabled={!activeViewIdForSetup}>Customization Areas</TabsTrigger></TabsList>
+                                     <TabsContent value="areas" className="mt-4">
+                                         {!activeViewIdForSetup || !productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup) ? (
+                                             <div className="text-center py-6 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" /><p>Select a view to manage its areas.</p></div>
+                                         ) : (<>
+                                             <div className="flex justify-between items-center mb-3">
+                                                 <h4 className="text-base font-semibold text-foreground">Areas for: <span className="text-primary">{productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.name}</span></h4>
+                                                 {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length < 3 ? (
+                                                     <Button onClick={handleAddBoundaryBox} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground" disabled={!activeViewIdForSetup}>
+                                                         <PlusCircle className="mr-1.5 h-4 w-4" />Add Area
+                                                     </Button>
+                                                 ) : null}
+                                             </div>
+                                             {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length > 0 ? (
+                                                 <div className="space-y-3">
+                                                     {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.map((box) => (
+                                                         <div key={box.id} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
+                                                             <div className="flex justify-between items-center mb-1.5"><Input value={box.name} onChange={(e) => handleBoundaryBoxNameChange(box.id, e.target.value)} className="text-sm font-semibold text-foreground h-8 flex-grow mr-2 bg-transparent border-0 focus-visible:ring-1 focus-visible:ring-ring p-1" onClick={(e) => e.stopPropagation()} /><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBox(box.id); }} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7" title="Remove Area"><Trash2 className="h-4 w-4" /></Button></div>
+                                                             {selectedBoundaryBoxId === box.id ? (
+                                                             <div className="mt-3 pt-3 border-t border-border/50"><h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Edit Dimensions (%):</h4>
+                                                                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                                                                     <div><Label htmlFor={`box-x-${box.id}`} className="text-xs mb-1 block">X</Label><Input type="number" step="0.1" min="0" max="100" id={`box-x-${box.id}`} value={box.x.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'x', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                                                     <div><Label htmlFor={`box-y-${box.id}`} className="text-xs mb-1 block">Y</Label><Input type="number" step="0.1" min="0" max="100" id={`box-y-${box.id}`} value={box.y.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'y', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                                                     <div><Label htmlFor={`box-w-${box.id}`} className="text-xs mb-1 block">Width</Label><Input type="number" step="0.1" min="5" max="100" id={`box-w-${box.id}`} value={box.width.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'width', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                                                     <div><Label htmlFor={`box-h-${box.id}`} className="text-xs mb-1 block">Height</Label><Input type="number" step="0.1" min="5" max="100" id={`box-h-${box.id}`} value={box.height.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'height', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
+                                                                 </div>
+                                                             </div>) : (<div className="text-xs text-muted-foreground space-y-0.5"><p><strong>X:</strong> {box.x.toFixed(1)}% | <strong>Y:</strong> {box.y.toFixed(1)}%</p><p><strong>W:</strong> {box.width.toFixed(1)}% | <strong>H:</strong> {box.height.toFixed(1)}%</p></div>)}
+                                                         </div>))}
+                                                 </div>) : (<p className="text-sm text-muted-foreground text-center py-2">No areas. Click "Add Area".</p>)}
+                                             {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length >= 3 && (<p className="text-sm text-muted-foreground text-center py-2">Max 3 areas for this view.</p>)}
+                                         </>)}
+                                     </TabsContent>
+                                 </Tabs>
+                            </div>
                         </div>
                         <div className="md:col-span-1 flex flex-col min-h-0">
-                            <Tabs defaultValue="views" className="flex flex-col flex-1 min-h-0">
-                                <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewIdForSetup}>Customization Areas</TabsTrigger></TabsList>
-                                <TabsContent value="views" className="mt-4 flex-1 overflow-y-auto space-y-4 pr-2 -mr-2">
-                                    {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
-                                        <VariantImageView
-                                            key={view.id}
-                                            view={view}
-                                            index={index}
-                                            isActive={activeViewIdForSetup === view.id}
-                                            onViewDetailChange={handleViewDetailChange}
-                                            onDeleteView={handleDeleteView}
-                                            onSelectView={handleSelectView}
-                                            onImageUpload={handleImageUpload}
-                                            isUploading={isUploadingImage}
-                                        />
-                                    ))}
-                                    {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
-                                        <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4" />Add View for {activeEditingColor}</Button>
-                                    )}
-                                </TabsContent>
-                                <TabsContent value="areas" className="mt-4 flex-1 overflow-y-auto pr-2 -mr-2">
-                                    {!activeViewIdForSetup || !productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup) ? (
-                                        <div className="text-center py-6 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" /><p>Select a view to manage its areas.</p></div>
-                                    ) : (<>
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h4 className="text-base font-semibold text-foreground">Areas for: <span className="text-primary">{productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.name}</span></h4>
-                                            {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length < 3 ? (
-                                                <Button onClick={handleAddBoundaryBox} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground" disabled={!activeViewIdForSetup}>
-                                                    <PlusCircle className="mr-1.5 h-4 w-4" />Add Area
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                        {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length > 0 ? (
-                                            <div className="space-y-3">
-                                                {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.map((box) => (
-                                                    <div key={box.id} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
-                                                        <div className="flex justify-between items-center mb-1.5"><Input value={box.name} onChange={(e) => handleBoundaryBoxNameChange(box.id, e.target.value)} className="text-sm font-semibold text-foreground h-8 flex-grow mr-2 bg-transparent border-0 focus-visible:ring-1 focus-visible:ring-ring p-1" onClick={(e) => e.stopPropagation()} /><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBox(box.id); }} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7" title="Remove Area"><Trash2 className="h-4 w-4" /></Button></div>
-                                                        {selectedBoundaryBoxId === box.id ? (
-                                                        <div className="mt-3 pt-3 border-t border-border/50"><h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Edit Dimensions (%):</h4>
-                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                                                                <div><Label htmlFor={`box-x-${box.id}`} className="text-xs mb-1 block">X</Label><Input type="number" step="0.1" min="0" max="100" id={`box-x-${box.id}`} value={box.x.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'x', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                <div><Label htmlFor={`box-y-${box.id}`} className="text-xs mb-1 block">Y</Label><Input type="number" step="0.1" min="0" max="100" id={`box-y-${box.id}`} value={box.y.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'y', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                <div><Label htmlFor={`box-w-${box.id}`} className="text-xs mb-1 block">Width</Label><Input type="number" step="0.1" min="5" max="100" id={`box-w-${box.id}`} value={box.width.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'width', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                <div><Label htmlFor={`box-h-${box.id}`} className="text-xs mb-1 block">Height</Label><Input type="number" step="0.1" min="5" max="100" id={`box-h-${box.id}`} value={box.height.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'height', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                            </div>
-                                                        </div>) : (<div className="text-xs text-muted-foreground space-y-0.5"><p><strong>X:</strong> {box.x.toFixed(1)}% | <strong>Y:</strong> {box.y.toFixed(1)}%</p><p><strong>W:</strong> {box.width.toFixed(1)}% | <strong>H:</strong> {box.height.toFixed(1)}%</p></div>)}
-                                                    </div>))}
-                                            </div>) : (<p className="text-sm text-muted-foreground text-center py-2">No areas. Click "Add Area".</p>)}
-                                        {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length >= 3 && (<p className="text-sm text-muted-foreground text-center py-2">Max 3 areas for this view.</p>)}
-                                    </>)}
-                                </TabsContent>
-                            </Tabs>
+                            <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
+                                {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
+                                    <VariantImageView
+                                        key={view.id}
+                                        view={view}
+                                        index={index}
+                                        isActive={activeViewIdForSetup === view.id}
+                                        onViewDetailChange={handleViewDetailChange}
+                                        onDeleteView={handleDeleteView}
+                                        onSelectView={handleSelectView}
+                                        onImageUpload={handleImageUpload}
+                                        isUploading={isUploadingImage}
+                                    />
+                                ))}
+                                {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
+                                    <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
+                                 )}
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>
