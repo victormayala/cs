@@ -536,9 +536,9 @@ export default function DesignCanvas({
               />
             )}
 
-            {productDefinedBoundaryBoxes && showBoundaryBoxes && productDefinedBoundaryBoxes.map(box => (
+            {productDefinedBoundaryBoxes && showBoundaryBoxes && productDefinedBoundaryBoxes.map((box, index) => (
               <div
-                key={`defined-${box.id}`}
+                key={`defined-${box.id}-${index}`}
                 className="absolute border-2 border-dashed border-primary/30 pointer-events-none"
                 style={{
                   left: `${box.x}%`, top: `${box.y}%`,
@@ -612,3 +612,6 @@ export default function DesignCanvas({
     
 
 
+
+
+    
