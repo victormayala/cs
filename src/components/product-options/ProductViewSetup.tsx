@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState } from 'react';
@@ -7,8 +6,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Trash2, Maximize2, LayersIcon, Edit3, DollarSign, Redo, Image as ImageIcon } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { PlusCircle, Trash2, Maximize2, LayersIcon, Edit3, Redo, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -84,7 +82,7 @@ interface ProductViewSetupProps {
   setVariationViewOverrideColor: (color: string) => void;
   colorGroupsForSelect: string[];
 }
-
+const MAX_PRODUCT_VIEWS = 4;
 export function ProductViewSetup({
   productOptions,
   activeViewId,
@@ -128,6 +126,7 @@ export function ProductViewSetup({
           <Select
             value={variationViewOverrideColor}
             onValueChange={setVariationViewOverrideColor}
+            disabled={colorGroupsForSelect.length === 0}
           >
             <SelectTrigger id="variation-override-select" className="mt-1">
               <SelectValue placeholder="Select a color..." />
@@ -138,6 +137,7 @@ export function ProductViewSetup({
               ))}
             </SelectContent>
           </Select>
+           {colorGroupsForSelect.length === 0 && <p className="text-xs text-muted-foreground mt-1">Add a color attribute to begin.</p>}
         </div>
 
         {variationViewOverrideColor && (
@@ -154,8 +154,8 @@ export function ProductViewSetup({
                   <p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.<br/>Select or add a view below.</p>
                 </div>
               )}
-              {currentView && currentView.boundaryBoxes && currentView.boundaryBoxes.map((box) => (
-                <div key={box.id} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
+              {currentView && currentView.boundaryBoxes && currentView.boundaryBoxes.map((box, index) => (
+                <div key={`${activeViewId}-${box.id}-${index}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
                   {selectedBoundaryBoxId === box.id && (<>
                       <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                       <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
@@ -199,8 +199,8 @@ export function ProductViewSetup({
                     <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold text-foreground">Areas for: <span className="text-primary">{currentView.name}</span></h4>{currentView.boundaryBoxes.length < 3 ? (<Button onClick={handleAddBoundaryBox} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground" disabled={!activeViewId}><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>) : null}</div>
                     {currentView.boundaryBoxes.length > 0 ? (
                     <div className="space-y-3">
-                      {currentView.boundaryBoxes.map((box) => (
-                      <div key={box.id} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
+                      {currentView.boundaryBoxes.map((box, index) => (
+                      <div key={`${box.id}-${index}`} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
                         <div className="flex justify-between items-center mb-1.5"><Input value={box.name} onChange={(e) => handleBoundaryBoxNameChange(box.id, e.target.value)} className="text-sm font-semibold text-foreground h-8 flex-grow mr-2 bg-transparent border-0 focus-visible:ring-1 focus-visible:ring-ring p-1" onClick={(e) => e.stopPropagation()} /><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBox(box.id);}} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7" title="Remove Area"><Trash2 className="h-4 w-4" /></Button></div>
                         {selectedBoundaryBoxId === box.id ? (
                         <div className="mt-3 pt-3 border-t border-border/50"><h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Edit Dimensions (%):</h4>

@@ -1,58 +1,35 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, UploadCloud, Pencil, Redo, Image as ImageIcon, Maximize2, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
+import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
+import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import { db, storage } from '@/lib/firebase';
-import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, deleteField, FieldValue, query, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, VariationImage, ShippingAttributes } from '@/app/actions/productOptionsActions';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp, deleteField, type FieldValue } from 'firebase/firestore';
+import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { ProductCategory } from '@/app/dashboard/categories/page';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import Image from 'next/image';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProductViewSetup } from '@/components/product-options/ProductViewSetup';
 
 
 const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
-const MAX_PRODUCT_VIEWS = 4;
 
 export interface SizeAttribute {
     id: string;
@@ -118,102 +95,6 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
   }
 }
 
-function VariantImageView({
-    view,
-    index,
-    onViewDetailChange,
-    onDeleteView,
-    onSelectView,
-    isActive,
-    onImageUpload,
-    isUploading
-}: {
-    view: ProductView;
-    index: number;
-    onViewDetailChange: (viewId: string, field: keyof Pick<ProductView, 'name' | 'imageUrl' | 'aiHint'>, value: string) => void;
-    onDeleteView: (viewId: string) => void;
-    onSelectView: (viewId: string) => void;
-    isActive: boolean;
-    onImageUpload: (viewId: string, file: File) => void;
-    isUploading: string | null;
-}) {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            onImageUpload(view.id, e.target.files[0]);
-        }
-    };
-    
-    const handleDivClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      // Prevent click from propagating if the click is on a button or input inside
-      if ((e.target as HTMLElement).closest('button, input')) {
-        return;
-      }
-      onSelectView(view.id);
-    };
-
-    return (
-        <div 
-          key={view.id} 
-          onClick={handleDivClick}
-          className={cn(
-            "p-4 border rounded-lg w-full cursor-pointer transition-all", 
-            isActive ? 'border-primary ring-2 ring-primary bg-background shadow-md' : 'bg-muted/30 hover:bg-muted/50'
-          )}
-        >
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-1">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept="image/png, image/jpeg, image/webp, image/gif"
-                    />
-                    <div
-                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                        className={cn(
-                            "relative aspect-square w-full rounded-md border-2 border-dashed flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer",
-                            isUploading === view.id && "cursor-wait opacity-50"
-                        )}
-                    >
-                        {view.imageUrl && !view.imageUrl.includes('placehold.co') ? (
-                            <Image src={view.imageUrl} alt={view.name || `View ${index + 1}`} fill className="object-contain p-1" />
-                        ) : (
-                            <div className="text-center">
-                                <UploadCloud className="mx-auto h-8 w-8" />
-                                <p className="text-xs mt-1">Click to upload</p>
-                            </div>
-                        )}
-                        {isUploading === view.id && <Loader2 className="absolute h-6 w-6 animate-spin text-primary" />}
-                    </div>
-                </div>
-                <div className="md:col-span-2 space-y-3">
-                    <div>
-                        <Label htmlFor={`viewName-${view.id}`}>View Name</Label>
-                        <Input
-                            id={`viewName-${view.id}`}
-                            value={view.name}
-                            onChange={(e) => onViewDetailChange(view.id, 'name', e.target.value)}
-                            className="mt-1 h-9 bg-background"
-                            placeholder={`e.g., Front View`}
-                        />
-                    </div>
-                    <div className="flex gap-2">
-                        <Button onClick={() => onSelectView(view.id)} variant="outline" size="sm" className="flex-1 bg-background">
-                            <Edit3 className="mr-2 h-3 w-3" /> Edit Areas
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={(e) => {e.stopPropagation(); onDeleteView(view.id);}}>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 export default function ProductOptionsPage() {
   const router = useRouter();
   const params = useParams();
@@ -248,72 +129,11 @@ export default function ProductOptionsPage() {
   const [sizeInputValue, setSizeInputValue] = useState("");
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
   
-  const [activeEditingColor, setActiveEditingColor] = useState<string>('');
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isUploadingImage, setIsUploadingImage] = useState<string | null>(null);
-
-
-  // NEW: State for variation price input fields
+  // NEW: State for the currently selected color group for editing variation-specific views
+  const [variationViewOverrideColor, setVariationViewOverrideColor] = useState<string>('');
   const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
   const [variationSalePriceInputs, setVariationSalePriceInputs] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchCategories = async () => {
-        const catRef = collection(db, `users/${user.uid}/productCategories`);
-        const q = query(catRef, orderBy("name"));
-        const snapshot = await getDocs(q);
-        const fetchedCategories: ProductCategory[] = [];
-        snapshot.forEach(doc => {
-            fetchedCategories.push({ id: doc.id, ...doc.data() } as ProductCategory);
-        });
-        setCategories(fetchedCategories);
-    };
-    fetchCategories();
-  }, [user]);
-
-  const categoryTree = useMemo(() => {
-    type TreeNode = ProductCategory & { children: TreeNode[] };
-    const nodeMap = new Map<string, TreeNode>();
-    const tree: TreeNode[] = [];
-
-    categories.forEach(cat => {
-      nodeMap.set(cat.id, { ...cat, children: [] });
-    });
-
-    nodeMap.forEach(node => {
-      if (node.parentId && nodeMap.has(node.parentId)) {
-        nodeMap.get(node.parentId)!.children.push(node);
-      } else {
-        tree.push(node);
-      }
-    });
-
-    nodeMap.forEach(node => {
-      node.children.sort((a, b) => a.name.localeCompare(b.name));
-    });
-    
-    tree.sort((a, b) => a.name.localeCompare(b.name));
-    
-    return tree;
-  }, [categories]);
-
-  const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
-    let options: JSX.Element[] = [];
-    categoriesToRender.forEach(cat => {
-        options.push(
-            <SelectItem key={cat.id} value={cat.id}>
-                <span style={{ paddingLeft: `${level * 1.5}rem` }}>{level > 0 && '— '}{cat.name}</span>
-            </SelectItem>
-        );
-        if (cat.children && cat.children.length > 0) {
-            options = options.concat(renderCategoryOptions(cat.children, level + 1));
-        }
-    });
-    return options;
-  };
 
   const generatedVariations = useMemo(() => {
     if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') {
@@ -451,13 +271,12 @@ export default function ProductOptionsPage() {
                 name: s.name,
             }));
 
-            // Ensure nativeVariations have salePrice as null if it's missing
             const cleanNativeVariations = (firestoreOptions?.nativeVariations || []).map(v => ({
                 ...v,
                 salePrice: v.salePrice ?? null,
             }));
 
-            setProductOptions({
+            const finalOptions = {
                 ...baseProduct,
                 source,
                 price: firestoreOptions?.price ?? baseProduct.price,
@@ -476,9 +295,15 @@ export default function ProductOptionsPage() {
                 nativeAttributes: { colors: nativeAttributesFromFS.colors, sizes: validatedSizes },
                 nativeVariations: cleanNativeVariations,
                 allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
-            });
+            };
+            setProductOptions(finalOptions);
 
-            // Populate variation input state
+             // Set the initial color for the variation view override editor
+            const firstColor = finalOptions.nativeAttributes?.colors?.[0]?.name;
+            if(firstColor && !variationViewOverrideColor) {
+                setVariationViewOverrideColor(firstColor);
+            }
+
             const priceInputs: Record<string, string> = {};
             const salePriceInputs: Record<string, string> = {};
             cleanNativeVariations.forEach(v => {
@@ -498,7 +323,7 @@ export default function ProductOptionsPage() {
             if (isRefresh) setIsRefreshing(false);
             else setIsLoading(false);
         }
-    }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast, hasUnsavedChanges]);
+    }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast, hasUnsavedChanges, variationViewOverrideColor]);
 
     useEffect(() => {
         if (authIsLoading) return;
@@ -534,9 +359,9 @@ export default function ProductOptionsPage() {
         type: ActiveDragState['type']
     ) => {
         e.preventDefault(); e.stopPropagation();
-        if (!productOptions || !activeEditingColor || !activeViewIdForSetup) return;
+        if (!productOptions || !variationViewOverrideColor || !activeViewIdForSetup) return;
 
-        let currentView: ProductView | undefined = productOptions.optionsByColor?.[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup);
+        let currentView: ProductView | undefined = productOptions.optionsByColor?.[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
         const currentBox = currentView?.boundaryBoxes.find(b => b.id === boxId);
         if (!currentBox || !imageWrapperRef.current) return;
         setSelectedBoundaryBoxId(boxId);
@@ -548,10 +373,10 @@ export default function ProductOptionsPage() {
             initialBoxWidth: currentBox.width, initialBoxHeight: currentBox.height,
             containerWidthPx: containerRect.width, containerHeightPx: containerRect.height,
         });
-    }, [productOptions, activeViewIdForSetup, activeEditingColor]);
+    }, [productOptions, activeViewIdForSetup, variationViewOverrideColor]);
 
     const handleDragging = useCallback((e: MouseEvent | TouchEvent) => {
-        if (!activeDrag || !productOptions || !activeEditingColor || !activeViewIdForSetup || !imageWrapperRef.current) return;
+        if (!activeDrag || !productOptions || !variationViewOverrideColor || !activeViewIdForSetup || !imageWrapperRef.current) return;
         e.preventDefault();
         cancelAnimationFrame(dragUpdateRef.current);
         dragUpdateRef.current = requestAnimationFrame(() => {
@@ -587,14 +412,14 @@ export default function ProductOptionsPage() {
                 const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(b => b.id === activeDrag.boxId ? { ...b, x: clampedX, y: clampedY, width: clampedWidth, height: clampedHeight } : b) } : view;
 
                 const newOptions = { ...prev.optionsByColor };
-                if (newOptions[activeEditingColor]?.views) {
-                    newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+                if (newOptions[variationViewOverrideColor]?.views) {
+                    newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
                 }
                 return { ...prev, optionsByColor: newOptions };
             });
             setHasUnsavedChanges(true);
         });
-    }, [activeDrag, productOptions, activeViewIdForSetup, activeEditingColor]);
+    }, [activeDrag, productOptions, activeViewIdForSetup, variationViewOverrideColor]);
 
     const handleInteractionEnd = useCallback(() => {
         cancelAnimationFrame(dragUpdateRef.current);
@@ -730,11 +555,11 @@ export default function ProductOptionsPage() {
     const handleSelectView = (viewId: string) => { setActiveViewIdForSetup(viewId); setSelectedBoundaryBoxId(null); };
 
     const handleAddNewView = () => {
-        if (!productOptions || !activeEditingColor) return;
+        if (!productOptions || !variationViewOverrideColor) return;
         
-        const viewsList = productOptions.optionsByColor[activeEditingColor]?.views || [];
-        if (viewsList.length >= MAX_PRODUCT_VIEWS) {
-            toast({ title: "Limit Reached", description: `Max ${MAX_PRODUCT_VIEWS} views.`, variant: "default" });
+        const viewsList = productOptions.optionsByColor[variationViewOverrideColor]?.views || [];
+        if (viewsList.length >= 4) {
+            toast({ title: "Limit Reached", description: "Max 4 views per variation.", variant: "default" });
             return;
         }
 
@@ -751,11 +576,11 @@ export default function ProductOptionsPage() {
             if (!prev) return null;
     
             const newOptionsByColor = { ...prev.optionsByColor };
-            if (!newOptionsByColor[activeEditingColor]) {
-                newOptionsByColor[activeEditingColor] = { selectedVariationIds: [], views: [] };
+            if (!newOptionsByColor[variationViewOverrideColor]) {
+                newOptionsByColor[variationViewOverrideColor] = { selectedVariationIds: [], views: [] };
             }
-            const updatedViews = [...(newOptionsByColor[activeEditingColor].views || []), newView];
-            newOptionsByColor[activeEditingColor] = { ...newOptionsByColor[activeEditingColor], views: updatedViews };
+            const updatedViews = [...(newOptionsByColor[variationViewOverrideColor].views || []), newView];
+            newOptionsByColor[variationViewOverrideColor] = { ...newOptionsByColor[variationViewOverrideColor], views: updatedViews };
     
             setActiveViewIdForSetup(newView.id);
             setSelectedBoundaryBoxId(null);
@@ -767,13 +592,13 @@ export default function ProductOptionsPage() {
     
 
     const handleViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id' | 'boundaryBoxes'>, value: string | number) => {
-        if (!productOptions || !activeEditingColor) return;
+        if (!productOptions || !variationViewOverrideColor) return;
         setProductOptions(prev => {
             if (!prev) return null;
             const updater = (v: ProductView) => v.id === viewId ? { ...v, [field]: value } : v;
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -785,16 +610,16 @@ export default function ProductOptionsPage() {
     };
 
     const confirmDeleteView = () => {
-        if (!productOptions || !viewIdToDelete || !activeEditingColor) return;
+        if (!productOptions || !viewIdToDelete || !variationViewOverrideColor) return;
 
         setProductOptions(prev => {
             if (!prev) return null;
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.filter(v => v.id !== viewIdToDelete);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.filter(v => v.id !== viewIdToDelete);
             }
             if (activeViewIdForSetup === viewIdToDelete) {
-                setActiveViewIdForSetup(newOptions[activeEditingColor].views?.[0]?.id || null);
+                setActiveViewIdForSetup(newOptions[variationViewOverrideColor].views?.[0]?.id || null);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -805,8 +630,8 @@ export default function ProductOptionsPage() {
     };
 
     const handleAddBoundaryBox = () => {
-        if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
-        let currentView: ProductView | undefined = productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup);
+        if (!productOptions || !activeViewIdForSetup || !variationViewOverrideColor) return;
+        let currentView: ProductView | undefined = productOptions.optionsByColor[variationViewOverrideColor]?.views?.find(v => v.id === activeViewIdForSetup);
 
         if (!currentView || currentView.boundaryBoxes.length >= 3) {
             toast({ title: "Limit Reached", description: "Max 3 areas per view.", variant: "destructive" });
@@ -822,8 +647,8 @@ export default function ProductOptionsPage() {
             if (!prev) return null;
             const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] } : v;
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -832,13 +657,13 @@ export default function ProductOptionsPage() {
     };
 
     const handleRemoveBoundaryBox = (boxId: string) => {
-        if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
+        if (!productOptions || !activeViewIdForSetup || !variationViewOverrideColor) return;
         setProductOptions(prev => {
             if (!prev) return null;
             const updater = (v: ProductView) => v.id === activeViewIdForSetup ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v;
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -847,13 +672,13 @@ export default function ProductOptionsPage() {
     };
 
     const handleBoundaryBoxNameChange = (boxId: string, newName: string) => {
-        if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
+        if (!productOptions || !activeViewIdForSetup || !variationViewOverrideColor) return;
         setProductOptions(prev => {
             if (!prev) return null;
             const updater = (view: ProductView) => view.id === activeViewIdForSetup ? { ...view, boundaryBoxes: view.boundaryBoxes.map(box => box.id === boxId ? { ...box, name: newName } : box) } : view;
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -861,7 +686,7 @@ export default function ProductOptionsPage() {
     };
 
     const handleBoundaryBoxPropertyChange = (boxId: string, property: keyof Pick<BoundaryBox, 'x' | 'y' | 'width' | 'height'>, value: string) => {
-        if (!productOptions || !activeViewIdForSetup || !activeEditingColor) return;
+        if (!productOptions || !activeViewIdForSetup || !variationViewOverrideColor) return;
         setProductOptions(prev => {
             if (!prev || !activeViewIdForSetup) return null;
             const updater = (view: ProductView) => {
@@ -886,8 +711,8 @@ export default function ProductOptionsPage() {
             };
 
             const newOptions = { ...prev.optionsByColor };
-            if (newOptions[activeEditingColor]?.views) {
-                newOptions[activeEditingColor].views = newOptions[activeEditingColor].views!.map(updater);
+            if (newOptions[variationViewOverrideColor]?.views) {
+                newOptions[variationViewOverrideColor].views = newOptions[variationViewOverrideColor].views!.map(updater);
             }
             return { ...prev, optionsByColor: newOptions };
         });
@@ -1074,74 +899,6 @@ export default function ProductOptionsPage() {
         }
     };
 
-    const openEditModal = (color: string) => {
-      if (!productOptions) return;
-    
-      setProductOptions(prev => {
-        if (!prev) return null;
-    
-        const newOptionsByColor = { ...prev.optionsByColor };
-        const hasOverrides = newOptionsByColor[color]?.views && newOptionsByColor[color].views.length > 0;
-    
-        if (!hasOverrides) {
-          // Deep copy default views and give new IDs to views and their boundary boxes
-          const newViewsForColor = prev.defaultViews.map(defaultView => ({
-            ...defaultView,
-            id: crypto.randomUUID(),
-            boundaryBoxes: defaultView.boundaryBoxes.map(box => ({
-              ...box,
-              id: crypto.randomUUID()
-            }))
-          }));
-    
-          newOptionsByColor[color] = {
-            ...(newOptionsByColor[color] || { selectedVariationIds: [], views: [] }),
-            views: newViewsForColor,
-          };
-        }
-        
-        // This setTimeout ensures that the state update from cloning views completes
-        // before we set the active view, preventing race conditions.
-        setTimeout(() => {
-          setActiveViewIdForSetup(newOptionsByColor[color]?.views?.[0]?.id || null);
-        }, 0);
-        
-        return { ...prev, optionsByColor: newOptionsByColor };
-      });
-    
-      setActiveEditingColor(color);
-      setIsEditModalOpen(true);
-    };
-
-    const handleImageUpload = async (viewId: string, file: File) => {
-        if (!user || !productOptions) return;
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-            toast({ title: "File too large", description: "Please upload images under 5MB.", variant: "destructive" });
-            return;
-        }
-
-        setIsUploadingImage(viewId);
-        try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async (e) => {
-                const dataUrl = e.target?.result as string;
-                const storageRef = ref(storage, `users/${user.uid}/product_view_images/${firestoreDocId}/${viewId}-${Date.now()}`);
-                const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
-                const downloadURL = await getDownloadURL(snapshot.ref);
-
-                handleViewDetailChange(viewId, 'imageUrl', downloadURL);
-                handleViewDetailChange(viewId, 'aiHint', 'product view');
-                toast({ title: "Image Uploaded", description: "The view image has been updated." });
-            };
-        } catch (error: any) {
-            console.error("Error uploading image:", error);
-            toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
-        } finally {
-            setIsUploadingImage(null);
-        }
-    };
-
 
     if (isLoading) {
         return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
@@ -1191,10 +948,12 @@ export default function ProductOptionsPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight mb-2 font-headline text-foreground">Product Options</h1>
             <div className="text-muted-foreground mb-8">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span> (ID: {firestoreDocId})</div>
-            {!credentialsExist && (<Card><CardContent><AlertTriangle className="h-4 w-4" /><AlertTitle>Store Not Connected</AlertTitle><AlertDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</AlertDescription></CardContent></Card>)}
-            {error && credentialsExist && <Card><CardContent><AlertTriangle className="h-4 w-4" /><AlertTitle>Product Data Error</AlertTitle><AlertDescription>{error}</AlertDescription></CardContent></Card>}
+            {!credentialsExist && (<Card><CardContent><AlertTriangle className="h-4 w-4" /><CardTitle>Store Not Connected</CardTitle><CardDescription>Your {source} store credentials are not configured. Please go to <Link href="/dashboard" className="underline hover:text-destructive/80">your dashboard</Link> and set them up.</CardDescription></CardContent></Card>)}
+            {error && credentialsExist && <Card><CardContent><AlertTriangle className="h-4 w-4" /><CardTitle>Product Data Error</CardTitle><CardDescription>{error}</CardDescription></CardContent></Card>}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="md:col-span-2 space-y-6">
+                    {/* BASE PRODUCT INFO */}
                     <Card className="shadow-md">
                         <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store {source !== 'customizer-studio' && '(Read-only)'}.</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
@@ -1202,27 +961,6 @@ export default function ProductOptionsPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div><Label htmlFor="productBrand">Brand</Label><Input id="productBrand" value={productOptions.brand || ''} placeholder="e.g., Gildan" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, brand: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                                 <div><Label htmlFor="productSku">SKU</Label><Input id="productSku" value={productOptions.sku || ''} placeholder="e.g., G5000-WHT-LG" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, sku: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
-                            </div>
-                            <div>
-                                <Label htmlFor="productCategory">Category</Label>
-                                <Select
-                                    value={productOptions.category || 'none'}
-                                    onValueChange={(value) => {
-                                        if (source === 'customizer-studio') {
-                                            setProductOptions(prev => prev ? { ...prev, category: value === 'none' ? undefined : value } : null);
-                                            setHasUnsavedChanges(true);
-                                        }
-                                    }}
-                                    disabled={source !== 'customizer-studio'}
-                                >
-                                    <SelectTrigger id="productCategory" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")}>
-                                        <SelectValue placeholder="Select a category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none"><em>Uncategorized</em></SelectItem>
-                                        {renderCategoryOptions(categoryTree)}
-                                    </SelectContent>
-                                </Select>
                             </div>
                             <div><Label htmlFor="productDescription">Description</Label><Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, description: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1247,7 +985,11 @@ export default function ProductOptionsPage() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* CUSTOMIZATION SETTINGS */}
                     <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Customization Settings</CardTitle><CardDescription>Control how this product can be customized.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex items-center space-x-3 rounded-md border p-4 bg-muted/20"><Checkbox id="allowCustomization" checked={productOptions.allowCustomization} onCheckedChange={(checked) => { const isChecked = checked as boolean; setProductOptions(prev => prev ? { ...prev, allowCustomization: isChecked } : null); setHasUnsavedChanges(true); }} /><div className="grid gap-1.5 leading-none"><Label htmlFor="allowCustomization" className="text-sm font-medium text-foreground cursor-pointer">Enable Product Customization</Label><p className="text-xs text-muted-foreground">If unchecked, the "Customize" button will not appear for this product.</p></div></div></CardContent></Card>
+                    
+                    {/* ATTRIBUTES & TECHNIQUES (NATIVE ONLY) */}
                     {source === 'customizer-studio' && (
                         <Card className="shadow-md">
                             <CardHeader><CardTitle className="font-headline text-lg">Product Attributes &amp; Techniques</CardTitle><CardDescription>Define colors, sizes, and available customization methods for this product.</CardDescription></CardHeader>
@@ -1261,7 +1003,8 @@ export default function ProductOptionsPage() {
                             </CardContent>
                         </Card>
                     )}
-
+                    
+                    {/* SHIPPING ATTRIBUTES */}
                     <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg flex items-center gap-2"><TruckIcon /> Shipping Attributes</CardTitle><CardDescription>Enter shipping details for native store calculations.</CardDescription></CardHeader><CardContent><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div><Label htmlFor="shippingWeight">Weight (lbs)</Label><Input id="shippingWeight" type="text" value={productOptions.shipping?.weight || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), weight: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
                         <div><Label htmlFor="shippingLength">Length (in)</Label><Input id="shippingLength" type="text" value={productOptions.shipping?.length || ''} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, shipping: { ...(prev.shipping || { weight: 0, length: 0, width: 0, height: 0 }), length: parseFloat(e.target.value) || 0 } } : null); setHasUnsavedChanges(true); }} className="mt-1" /></div>
@@ -1270,27 +1013,38 @@ export default function ProductOptionsPage() {
                     </div></CardContent>
                     </Card>
 
-                    <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Images & Customization</CardTitle><CardDescription>For each color, you can define a unique set of views (images) and customization areas.</CardDescription></CardHeader><CardContent className="space-y-2">
-                        {colorGroupsForSelect.map(color => (
-                            <Card key={color} className="bg-muted/40">
-                                <div className="p-4 flex justify-between items-center">
-                                    <h4 className="font-semibold text-foreground">{color}</h4>
-                                    <Button variant="ghost" size="sm" onClick={() => openEditModal(color)}>
-                                        <Edit3 className="mr-2 h-4 w-4" />
-                                        Edit Views & Areas
-                                    </Button>
-                                </div>
-                            </Card>
-                        ))}
-                        {colorGroupsForSelect.length === 0 && (
-                            <div className="text-center py-6 text-muted-foreground">
-                                <p>Add color attributes above to begin configuring variation-specific images and design areas.</p>
-                            </div>
-                        )}
-                    </CardContent></Card>
+                    {/* VARIATION VIEWS & AREAS */}
+                     <ProductViewSetup 
+                        productOptions={productOptions}
+                        activeViewId={activeViewIdForSetup}
+                        selectedBoundaryBoxId={selectedBoundaryBoxId}
+                        setSelectedBoundaryBoxId={setSelectedBoundaryBoxId}
+                        handleSelectView={handleSelectView}
+                        handleViewDetailChange={handleViewDetailChange}
+                        handleDeleteView={handleDeleteView}
+                        handleAddNewView={handleAddNewView}
+                        handleAddBoundaryBox={handleAddBoundaryBox}
+                        handleRemoveBoundaryBox={handleRemoveBoundaryBox}
+                        handleBoundaryBoxNameChange={handleBoundaryBoxNameChange}
+                        handleBoundaryBoxPropertyChange={handleBoundaryBoxPropertyChange}
+                        imageWrapperRef={imageWrapperRef}
+                        handleInteractionStart={handleInteractionStart}
+                        activeDrag={activeDrag}
+                        isDeleteViewDialogOpen={isDeleteViewDialogOpen}
+                        setIsDeleteViewDialogOpen={setIsDeleteViewDialogOpen}
+                        viewIdToDelete={viewIdToDelete}
+                        setViewIdToDelete={setViewIdToDelete}
+                        confirmDeleteView={confirmDeleteView}
+                        variationViewOverrideColor={variationViewOverrideColor}
+                        setVariationViewOverrideColor={setVariationViewOverrideColor}
+                        colorGroupsForSelect={colorGroupsForSelect}
+                    />
 
+                    {/* VARIATION PRICING (NATIVE ONLY) */}
                     {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
                 </div>
+
+                {/* SUMMARY & ACTIONS */}
                 <div className="md:col-span-1 space-y-6">
                     <Card className="shadow-md sticky top-8">
                         <CardHeader><CardTitle className="font-headline text-lg">Summary & Actions</CardTitle><CardDescription>Review your setup and save changes.</CardDescription></CardHeader>
@@ -1307,114 +1061,6 @@ export default function ProductOptionsPage() {
                     </Card>
                 </div>
             </div>
-
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="max-w-4xl h-[90svh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle>Edit Views for <span className="text-primary">{activeEditingColor}</span></DialogTitle>
-                        <DialogDescription>
-                            Define the images and customization areas for this specific product variation.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0">
-                        <div className="md:col-span-1 flex flex-col">
-                            <div ref={imageWrapperRef} className="relative w-full flex-1 aspect-square border rounded-md overflow-hidden group bg-background select-none" onMouseDown={(e) => { if (e.target === imageWrapperRef.current) setSelectedBoundaryBoxId(null); }}>
-                                {activeViewIdForSetup && productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.imageUrl ? (
-                                    <Image src={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.imageUrl} alt={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={productOptions.optionsByColor[activeEditingColor]!.views!.find(v => v.id === activeViewIdForSetup)!.aiHint || "product view"} priority />
-                                ) : (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                        <ImageIcon className="w-16 h-16 text-muted-foreground" />
-                                        <p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.<br />Select or add a view.</p>
-                                    </div>
-                                )}
-                                {activeViewIdForSetup && productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.boundaryBoxes.map((box, index) => (
-                                    <div key={`${box.id}-${index}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
-                                        {selectedBoundaryBoxId === box.id && (<>
-                                            <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                            <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                            <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                            <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                        </>)}
-                                        <div className={cn("absolute top-0.5 left-0.5 text-[8px] px-1 py-0.5 rounded-br-sm opacity-0 group-hover/box:opacity-100 group-[.is-selected]/box:opacity-100 transition-opacity select-none pointer-events-none", selectedBoundaryBoxId === box.id ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>{box.name}</div>
-                                    </div>
-                                ))}
-                            </div>
-                             <div className="mt-4 pt-4 border-t">
-                                 <Tabs defaultValue="areas">
-                                     <TabsList className="grid w-full grid-cols-1"><TabsTrigger value="areas" disabled={!activeViewIdForSetup}>Customization Areas</TabsTrigger></TabsList>
-                                     <TabsContent value="areas" className="mt-4">
-                                         {!activeViewIdForSetup || !productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup) ? (
-                                             <div className="text-center py-6 text-muted-foreground"><LayersIcon className="mx-auto h-10 w-10 mb-2" /><p>Select a view to manage its areas.</p></div>
-                                         ) : (<>
-                                             <div className="flex justify-between items-center mb-3">
-                                                 <h4 className="text-base font-semibold text-foreground">Areas for: <span className="text-primary">{productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)?.name}</span></h4>
-                                                 {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length < 3 ? (
-                                                     <Button onClick={handleAddBoundaryBox} variant="outline" size="sm" className="hover:bg-accent hover:text-accent-foreground" disabled={!activeViewIdForSetup}>
-                                                         <PlusCircle className="mr-1.5 h-4 w-4" />Add Area
-                                                     </Button>
-                                                 ) : null}
-                                             </div>
-                                             {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length > 0 ? (
-                                                 <div className="space-y-3">
-                                                     {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.map((box, index) => (
-                                                         <div key={`${box.id}-${index}`} className={cn("p-3 border rounded-md transition-all", selectedBoundaryBoxId === box.id ? 'bg-primary/10 border-primary shadow-md' : 'bg-background hover:bg-muted/50', "cursor-pointer")} onClick={() => setSelectedBoundaryBoxId(box.id)}>
-                                                             <div className="flex justify-between items-center mb-1.5"><Input value={box.name} onChange={(e) => handleBoundaryBoxNameChange(box.id, e.target.value)} className="text-sm font-semibold text-foreground h-8 flex-grow mr-2 bg-transparent border-0 focus-visible:ring-1 focus-visible:ring-ring p-1" onClick={(e) => e.stopPropagation()} /><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBox(box.id); }} className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 w-7" title="Remove Area"><Trash2 className="h-4 w-4" /></Button></div>
-                                                             {selectedBoundaryBoxId === box.id ? (
-                                                             <div className="mt-3 pt-3 border-t border-border/50"><h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Edit Dimensions (%):</h4>
-                                                                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                                                                     <div><Label htmlFor={`box-x-${box.id}`} className="text-xs mb-1 block">X</Label><Input type="number" step="0.1" min="0" max="100" id={`box-x-${box.id}`} value={box.x.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'x', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                     <div><Label htmlFor={`box-y-${box.id}`} className="text-xs mb-1 block">Y</Label><Input type="number" step="0.1" min="0" max="100" id={`box-y-${box.id}`} value={box.y.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'y', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                     <div><Label htmlFor={`box-w-${box.id}`} className="text-xs mb-1 block">Width</Label><Input type="number" step="0.1" min="5" max="100" id={`box-w-${box.id}`} value={box.width.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'width', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                     <div><Label htmlFor={`box-h-${box.id}`} className="text-xs mb-1 block">Height</Label><Input type="number" step="0.1" min="5" max="100" id={`box-h-${box.id}`} value={box.height.toFixed(1)} onChange={(e) => handleBoundaryBoxPropertyChange(box.id, 'height', e.target.value)} className="h-8 text-xs w-full bg-background" onClick={(e) => e.stopPropagation()} /></div>
-                                                                 </div>
-                                                             </div>) : (<div className="text-xs text-muted-foreground space-y-0.5"><p><strong>X:</strong> {box.x.toFixed(1)}% | <strong>Y:</strong> {box.y.toFixed(1)}%</p><p><strong>W:</strong> {box.width.toFixed(1)}% | <strong>H:</strong> {box.height.toFixed(1)}%</p></div>)}
-                                                         </div>
-                                                     ))}
-                                                 </div>
-                                              ) : (
-                                                <p className="text-sm text-muted-foreground text-center py-2">No areas. Click "Add Area".</p>
-                                              )}
-                                             {productOptions.optionsByColor[activeEditingColor]?.views?.find(v => v.id === activeViewIdForSetup)!.boundaryBoxes.length >= 3 && (<p className="text-sm text-muted-foreground text-center py-2">Max 3 areas for this view.</p>)}
-                                         </>)}
-                                     </TabsContent>
-                                 </Tabs>
-                            </div>
-                        </div>
-                        <div className="md:col-span-1 flex flex-col min-h-0">
-                            <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-4">
-                                {(productOptions.optionsByColor[activeEditingColor]?.views || []).map((view, index) => (
-                                    <VariantImageView
-                                        key={view.id}
-                                        view={view}
-                                        index={index}
-                                        isActive={activeViewIdForSetup === view.id}
-                                        onViewDetailChange={handleViewDetailChange}
-                                        onDeleteView={handleDeleteView}
-                                        onSelectView={handleSelectView}
-                                        onImageUpload={handleImageUpload}
-                                        isUploading={isUploadingImage}
-                                    />
-                                ))}
-                                {(productOptions.optionsByColor[activeEditingColor]?.views || []).length < MAX_PRODUCT_VIEWS && (
-                                    <Button onClick={handleAddNewView} variant="outline" className="w-full mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add View for {activeEditingColor}</Button>
-                                 )}
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button">Done</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            <AlertDialog open={isDeleteViewDialogOpen} onOpenChange={setIsDeleteViewDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader><AlertDialogTitle>Delete this view?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. It will permanently delete the view and its customization areas for this variation.</AlertDialogDescription></AlertDialogHeader>
-                    <AlertDialogFooter><AlertDialogCancel onClick={() => { setIsDeleteViewDialogOpen(false); setViewIdToDelete(null); }}>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteView} className={cn(buttonVariants({ variant: "destructive" }))}>Delete View</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </div>
     );
 }
