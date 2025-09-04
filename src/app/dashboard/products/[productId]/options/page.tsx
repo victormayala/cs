@@ -219,7 +219,7 @@ export default function ProductOptionsPage() {
             setVariationPriceInputs(priceInputs);
             setVariationSalePriceInputs(salePriceInputs);
 
-            setHasUnsavedChanges(isRefresh ? hasUnsavedChanges : false);
+            setHasUnsavedChanges(false);
             if (isRefresh) toast({ title: "Product Data Refreshed", description: "Details updated from your store." });
         } catch (e: any) {
             console.error("Error in fetchAndSetProductData:", e.message);
@@ -229,13 +229,12 @@ export default function ProductOptionsPage() {
             if (isRefresh) setIsRefreshing(false);
             else setIsLoading(false);
         }
-    }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast, hasUnsavedChanges]);
+    }, [productIdFromUrl, firestoreDocId, source, user?.uid, toast]);
 
     useEffect(() => {
         if (authIsLoading) return;
         if (!user?.uid) { setError("User not authenticated."); setIsLoading(false); return; }
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
-        // FIX: The dependency array was causing re-fetches on state updates. It should only run once on load.
         fetchAndSetProductData(false); 
     }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
 
@@ -503,6 +502,7 @@ export default function ProductOptionsPage() {
                 height: 20
               };
               const updatedView = { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
+              setSelectedBoundaryBoxId(newBox.id);
               return updatedView;
             }
             return v;
@@ -557,7 +557,7 @@ export default function ProductOptionsPage() {
                     <Card className="shadow-md">
                         <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store {source !== 'customizer-studio' && '(Read-only)'}.</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
-                            <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { handlePriceChange('name', e.target.value); }} /></div>
+                            <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, name: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div><Label htmlFor="productBrand">Brand</Label><Input id="productBrand" value={productOptions.brand || ''} placeholder="e.g., Gildan" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, brand: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                                 <div><Label htmlFor="productSku">SKU</Label><Input id="productSku" value={productOptions.sku || ''} placeholder="e.g., G5000-WHT-LG" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, sku: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
@@ -713,7 +713,11 @@ export default function ProductOptionsPage() {
                           <TabsContent value="areas" className="mt-4">
                             {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
                                 <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                {currentViewInEditor.boundaryBoxes.map((box, index) => (<div key={`${box.id}-${index}`} className="p-2 border-b"><Input value={box.name} onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} /></div>))}
+                                {currentViewInEditor.boundaryBoxes.map((box, index) => (
+                                  <div key={box.id} onClick={() => setSelectedBoundaryBoxId(box.id)} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
+                                    <Input value={box.name} onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} />
+                                  </div>
+                                ))}
                             </>)}
                           </TabsContent>
                         </Tabs>
