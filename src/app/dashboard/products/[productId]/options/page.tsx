@@ -265,21 +265,27 @@ export default function ProductOptionsPage() {
       return variations;
     }, [productOptions]);
     
-    useEffect(() => {
-        if (productOptions?.type === 'variable' && productOptions.source === 'customizer-studio') {
-            const currentVariationIds = new Set(productOptions.nativeVariations.map(v => v.id));
-            const generatedVariationIds = new Set(generatedVariations.map(v => v.id));
-            if (currentVariationIds.size !== generatedVariationIds.size || !Array.from(currentVariationIds).every(id => generatedVariationIds.has(id))) {
-                setProductOptions(prev => {
-                    if (!prev) return null;
-                    const existingVariationsMap = new Map(prev.nativeVariations.map(v => [v.id, v]));
-                    const newVariations = generatedVariations.map(genVar => existingVariationsMap.get(genVar.id) || genVar);
-                    return { ...prev, nativeVariations: newVariations };
-                });
-                setHasUnsavedChanges(true);
-            }
-        }
-    }, [productOptions?.type, productOptions?.source, productOptions?.nativeVariations, generatedVariations]);
+    const regenerateVariations = (options: ProductOptionsData): NativeProductVariation[] => {
+      if (options.type !== 'variable' || options.source !== 'customizer-studio') return options.nativeVariations || [];
+      const { colors = [], sizes = [] } = options.nativeAttributes || {};
+      if (colors.length === 0 && sizes.length === 0) return [];
+      const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }];
+      const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }];
+      const newVariations: NativeProductVariation[] = [];
+      colorOptions.forEach(color => {
+          sizeOptions.forEach(size => {
+              if (!color.name && !size.name) return;
+              const attributes: Record<string, string> = {};
+              let idParts: string[] = [];
+              if (color.name) { attributes["Color"] = color.name; idParts.push(`color-${color.name}`); }
+              if (size.name) { attributes["Size"] = size.name; idParts.push(`size-${size.name}`); }
+              const id = idParts.join('-').toLowerCase().replace(/\s+/g, '-');
+              const existing = options.nativeVariations?.find(v => v.id === id);
+              newVariations.push({ id, attributes, price: existing?.price ?? (typeof options.price === 'number' ? options.price : 0), salePrice: existing?.salePrice ?? null });
+          });
+      });
+      return newVariations;
+    };
 
 
     const handleRefreshData = () => {
@@ -339,38 +345,52 @@ export default function ProductOptionsPage() {
         if (!productOptions.allowCustomization) { toast({ title: "Customization Disabled", description: "This product is currently marked as 'Do Not Customize'.", variant: "default" }); return; }
         router.push(`/customizer?productId=${productOptions.id}&source=${productOptions.source}`);
     };
+
     const handleAddAttribute = (type: 'colors' | 'sizes') => {
-        if (!productOptions) return;
-        setHasUnsavedChanges(true);
-        if (type === 'colors') {
-            const name = colorInputValue.trim();
-            if (!name) { toast({ title: "Color name is required.", variant: "destructive" }); return; }
-            if (productOptions.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) { toast({ title: "Color already exists.", variant: "destructive" }); return; }
-            setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, colors: [...prev.nativeAttributes.colors, { name, hex: colorHexValue }] } } : null);
-            setColorInputValue(""); setColorHexValue("#000000");
-        } else {
-            const sizeName = sizeInputValue.trim();
-            if (!sizeName) { toast({ title: "Size name is required.", variant: "destructive" }); return; }
-            if (productOptions.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) { toast({ title: "Size already exists.", variant: "destructive" }); return; }
-            setProductOptions(prev => prev ? { ...prev, nativeAttributes: { ...prev.nativeAttributes, sizes: [...prev.nativeAttributes.sizes, { id: crypto.randomUUID(), name: sizeName }] } } : null);
-            setSizeInputValue("");
-        }
-    };
-    const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
-        if (!productOptions) return;
-        setHasUnsavedChanges(true);
         setProductOptions(prev => {
             if (!prev) return null;
+            setHasUnsavedChanges(true);
             let updatedAttributes = { ...prev.nativeAttributes };
             if (type === 'colors') {
-                updatedAttributes.colors = updatedAttributes.colors.filter(item => item.name !== value);
-                const updatedOptionsByColor = { ...prev.optionsByColor };
-                delete updatedOptionsByColor[value];
-                return { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
-            } else { updatedAttributes.sizes = prev.nativeAttributes.sizes.filter(item => item.id !== value); }
-            return { ...prev, nativeAttributes: updatedAttributes };
+                const name = colorInputValue.trim();
+                if (!name) { toast({ title: "Color name is required.", variant: "destructive" }); return prev; }
+                if (prev.nativeAttributes.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) { toast({ title: "Color already exists.", variant: "destructive" }); return prev; }
+                updatedAttributes.colors = [...prev.nativeAttributes.colors, { name, hex: colorHexValue }];
+            } else {
+                const sizeName = sizeInputValue.trim();
+                if (!sizeName) { toast({ title: "Size name is required.", variant: "destructive" }); return prev; }
+                if (prev.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) { toast({ title: "Size already exists.", variant: "destructive" }); return prev; }
+                updatedAttributes.sizes = [...prev.nativeAttributes.sizes, { id: crypto.randomUUID(), name: sizeName }];
+            }
+    
+            const updatedOptions = { ...prev, nativeAttributes: updatedAttributes };
+            const newVariations = regenerateVariations(updatedOptions);
+            if (type === 'colors') { setColorInputValue(""); setColorHexValue("#000000"); }
+            else { setSizeInputValue(""); }
+            return { ...updatedOptions, nativeVariations: newVariations };
         });
     };
+    
+    const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
+        setProductOptions(prev => {
+            if (!prev) return null;
+            setHasUnsavedChanges(true);
+            let updatedAttributes = { ...prev.nativeAttributes };
+            let updatedOptionsByColor = { ...prev.optionsByColor };
+    
+            if (type === 'colors') {
+                updatedAttributes.colors = updatedAttributes.colors.filter(item => item.name !== value);
+                delete updatedOptionsByColor[value];
+            } else {
+                updatedAttributes.sizes = prev.nativeAttributes.sizes.filter(item => item.id !== value);
+            }
+    
+            const updatedOptions = { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
+            const newVariations = regenerateVariations(updatedOptions);
+            return { ...updatedOptions, nativeVariations: newVariations };
+        });
+    };
+
     const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
         setHasUnsavedChanges(true);
         setProductOptions(prev => {
@@ -475,13 +495,23 @@ export default function ProductOptionsPage() {
     };
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-        setEditorViews(prev => prev.map(v => {
+        setEditorViews(prev => {
+          return prev.map(v => {
             if (v.id === activeViewIdInEditor && v.boundaryBoxes.length < 3) {
-                const newBox: BoundaryBox = { id: crypto.randomUUID(), name: `Area ${v.boundaryBoxes.length + 1}`, x: 10 + v.boundaryBoxes.length * 5, y: 10 + v.boundaryBoxes.length * 5, width: 30, height: 20 };
-                return { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
+              const newBox: BoundaryBox = {
+                id: crypto.randomUUID(),
+                name: `Area ${v.boundaryBoxes.length + 1}`,
+                x: 10 + v.boundaryBoxes.length * 5,
+                y: 10 + v.boundaryBoxes.length * 5,
+                width: 30,
+                height: 20
+              };
+              const updatedView = { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
+              return updatedView;
             }
             return v;
-        }));
+          });
+        });
     };
     const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
         if (!activeViewIdInEditor) return;
@@ -653,7 +683,7 @@ export default function ProductOptionsPage() {
                       <CardContent className="flex-1 space-y-4 overflow-y-auto">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
-                           {currentViewInEditor?.boundaryBoxes.map((box, index) => (
+                           {currentViewInEditor?.boundaryBoxes.map((box) => (
                              <div key={`${activeViewIdInEditor}-${box.id}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => {}} onTouchStart={(e) => {}}>
                                {selectedBoundaryBoxId === box.id && (<>
                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize" onMouseDown={(e) => {}} onTouchStart={(e) => {}}><Maximize2 className="w-2.5 h-2.5" /></div>
@@ -687,7 +717,7 @@ export default function ProductOptionsPage() {
                           <TabsContent value="areas" className="mt-4">
                             {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
                                 <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                {currentViewInEditor.boundaryBoxes.map((box) => (<div key={box.id} className="p-2 border-b"><Input value={box.name} onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} /></div>))}
+                                {currentViewInEditor.boundaryBoxes.map((box, index) => (<div key={`${box.id}-${index}`} className="p-2 border-b"><Input value={box.name} onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} /></div>))}
                             </>)}
                           </TabsContent>
                         </Tabs>
