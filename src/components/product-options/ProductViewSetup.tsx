@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Re-defining these interfaces here makes the component self-contained
 interface BoundaryBox {
@@ -193,15 +193,15 @@ export function ProductViewSetup({
   };
 
   return (
-    <div className="space-y-4">
-      <CardHeader className="p-0">
+    <Card className="w-full">
+      <CardHeader>
         <CardTitle className="font-headline text-lg">Variation View Editor</CardTitle>
         <CardDescription>
           Editing views and customization areas for: <span className="font-semibold text-primary">{variationColorName}</span>
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-0 space-y-4">
+      <CardContent className="space-y-4">
         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-background select-none" onMouseDown={(e) => { if (e.target === imageWrapperRef.current) setSelectedBoundaryBoxId(null); }}>
           {currentView?.imageUrl ? (
             <Image src={currentView.imageUrl} alt={currentView.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentView.aiHint || "product view"} priority />
@@ -211,8 +211,8 @@ export function ProductViewSetup({
               <p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.<br/>Select or add a view below.</p>
             </div>
           )}
-          {currentView?.boundaryBoxes.map((box) => (
-            <div key={`${activeViewId}-${box.id}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
+          {currentView?.boundaryBoxes.map((box, index) => (
+            <div key={`${activeViewId}-${box.id}-${index}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
               {selectedBoundaryBoxId === box.id && (<>
                   <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                   <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
@@ -275,7 +275,6 @@ export function ProductViewSetup({
           </TabsContent>
         </Tabs>
       </CardContent>
-
       <div className="flex justify-end gap-2 pt-4 border-t">
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
         <Button onClick={() => onSaveViews(views)}>
@@ -283,13 +282,12 @@ export function ProductViewSetup({
           Save and Close
         </Button>
       </div>
-
       <AlertDialog open={isDeleteViewDialogOpen} onOpenChange={setIsDeleteViewDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Delete this view?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. It will permanently delete the view and its customization areas for this variation.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel onClick={() => { setIsDeleteViewDialogOpen(false); setViewIdToDelete(null);}}>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteView} className={cn(buttonVariants({variant: "destructive"}))}>Delete View</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 }
