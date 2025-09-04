@@ -515,7 +515,7 @@ export default function DesignCanvas({
             />
 
             
-            {productDefinedBoundaryBoxes && productDefinedBoundaryBoxes.length > 0 && showBoundaryBoxes && showGrid && (
+            {productDefinedBoundaryBoxes && productDefinedBoundaryBoxes.length > 0 && showGrid && (
               <div
                 style={{
                   position: 'absolute',
@@ -615,3 +615,4 @@ export default function DesignCanvas({
 
 
     
+
