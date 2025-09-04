@@ -237,6 +237,21 @@ export default function ProductOptionsPage() {
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
         fetchAndSetProductData(false); 
     }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
+    
+    // This effect now ONLY runs when generatedVariations itself changes, which is a calculated value.
+    // It no longer re-initializes from productOptions on every render.
+    useEffect(() => {
+        if (productOptions) {
+            const priceInputs: Record<string, string> = {};
+            const salePriceInputs: Record<string, string> = {};
+            productOptions.nativeVariations.forEach(v => {
+                priceInputs[v.id] = String(v.price ?? '');
+                salePriceInputs[v.id] = v.salePrice != null ? String(v.salePrice) : '';
+            });
+            setVariationPriceInputs(priceInputs);
+            setVariationSalePriceInputs(salePriceInputs);
+        }
+    }, [productOptions?.nativeVariations]);
 
     const handleRefreshData = () => {
         if (source === 'customizer-studio') { toast({ title: "Not applicable", description: "Native products do not need to be refreshed.", variant: "default" }); return; }
@@ -268,14 +283,14 @@ export default function ProductOptionsPage() {
                 userId: user.uid,
                 name: productOptionsToSave.name,
                 description: productOptionsToSave.description,
-                customizationTechniques: productOptionsToSave.customizationTechniques || [],
                 lastModified: serverTimestamp()
             };
             // Conditionally add fields to avoid 'undefined'
             if (productOptionsToSave.brand) productBaseData.brand = productOptionsToSave.brand;
             if (productOptionsToSave.sku) productBaseData.sku = productOptionsToSave.sku;
             if (productOptionsToSave.category) productBaseData.category = productOptionsToSave.category;
-            
+            if (productOptionsToSave.customizationTechniques) productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques;
+
             await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
         }
         if (Array.isArray(productOptionsToSave.nativeVariations)) {
