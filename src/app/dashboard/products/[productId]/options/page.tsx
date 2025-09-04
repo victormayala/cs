@@ -810,7 +810,7 @@ function ProductOptionsPage() {
                         <CardTitle className="font-headline text-lg">View Editor</CardTitle>
                         <CardDescription>Editing views for: <span className="font-semibold text-primary">{activeEditingColor === '__default__' ? 'Default Product' : activeEditingColor}</span></CardDescription>
                       </CardHeader>
-                      <CardContent className="flex-1 space-y-4 overflow-y-auto">
+                      <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {currentViewInEditor?.boundaryBoxes.map((box) => (
@@ -836,46 +836,48 @@ function ProductOptionsPage() {
                              </div>
                            ))}
                         </div>
-                        <Tabs defaultValue="views" className="w-full">
-                          <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewIdInEditor}>Customization Areas</TabsTrigger></TabsList>
-                          <TabsContent value="views" className="mt-4 space-y-4">
-                            {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add View</Button>)}
-                            <div className="grid grid-cols-1 gap-4">
-                                {editorViews.map((view, index) => (
-                                      <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium">View {index + 1}</Label>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+                        <div className="overflow-y-auto">
+                          <Tabs defaultValue="views" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewIdInEditor}>Customization Areas</TabsTrigger></TabsList>
+                            <TabsContent value="views" className="mt-4 space-y-4">
+                              {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add View</Button>)}
+                              <div className="grid grid-cols-1 gap-4">
+                                  {editorViews.map((view, index) => (
+                                        <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
+                                          <div className="flex items-center justify-between">
+                                              <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium">View {index + 1}</Label>
+                                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+                                          </div>
+                                          <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
+                                          <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block text-xs">Image URL</Label>
+                                          <Input id={`viewImageUrl-${view.id}`} value={view.imageUrl} onChange={(e) => handleEditorViewDetailChange(view.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8"/>
+                                          <Button onClick={() => setActiveViewIdInEditor(view.id)} variant="link" size="sm" className="p-0 h-auto mt-2">Edit Areas</Button>
                                         </div>
-                                        <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
-                                        <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block text-xs">Image URL</Label>
-                                        <Input id={`viewImageUrl-${view.id}`} value={view.imageUrl} onChange={(e) => handleEditorViewDetailChange(view.id, 'imageUrl', e.target.value)} placeholder="https://placehold.co/600x600.png" className="mt-1 h-8"/>
-                                        <Button onClick={() => setActiveViewIdInEditor(view.id)} variant="link" size="sm" className="p-0 h-auto mt-2">Edit Areas</Button>
+                                  ))}
+                              </div>
+                            </TabsContent>
+                            <TabsContent value="areas" className="mt-4">
+                              {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
+                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
+                                  {currentViewInEditor.boundaryBoxes.map((box, index) => (
+                                    <div key={box.id} onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
+                                      <div className="flex items-center gap-2">
+                                          <Input 
+                                              value={box.name}
+                                              onClick={(e) => e.stopPropagation()} // Prevent parent onClick
+                                              onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} 
+                                              className="flex-grow h-8 text-sm"
+                                          />
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBoxFromEditor(box.id); }}>
+                                              <Trash2 className="h-4 w-4" />
+                                          </Button>
                                       </div>
-                                ))}
-                            </div>
-                          </TabsContent>
-                          <TabsContent value="areas" className="mt-4">
-                            {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
-                                <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                {currentViewInEditor.boundaryBoxes.map((box, index) => (
-                                  <div key={box.id} onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
-                                    <div className="flex items-center gap-2">
-                                        <Input 
-                                            value={box.name}
-                                            onClick={(e) => e.stopPropagation()} // Prevent parent onClick
-                                            onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} 
-                                            className="flex-grow h-8 text-sm"
-                                        />
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBoxFromEditor(box.id); }}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
                                     </div>
-                                  </div>
-                                ))}
-                            </>)}
-                          </TabsContent>
-                        </Tabs>
+                                  ))}
+                              </>)}
+                            </TabsContent>
+                          </Tabs>
+                        </div>
                       </CardContent>
                       <CardFooter className="flex justify-end gap-2 pt-6 border-t bg-muted/30">
                         <Button variant="ghost" onClick={() => setIsViewEditorOpen(false)}>Cancel</Button>
