@@ -140,7 +140,7 @@ function ProductOptionsPage() {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
 
-    const handleImageUpload = async (file: File, viewId: string) => {
+    const handleImageUpload = async (file: File, viewId: string, isDefaultImage: boolean = false) => {
         if (!user || !storage) {
             toast({ title: "Error", description: "User not authenticated or storage service is unavailable.", variant: "destructive" });
             return;
@@ -170,8 +170,16 @@ function ProductOptionsPage() {
             },
             () => {
                 getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    handleEditorViewDetailChange(viewId, 'imageUrl', downloadURL);
-                    toast({ title: "Upload Complete", description: `View image has been updated.` });
+                    if(isDefaultImage) {
+                        setProductOptions(prev => {
+                            if (!prev) return null;
+                            const newDefaultViews = [{ ...prev.defaultViews[0], imageUrl: downloadURL }];
+                            return { ...prev, defaultViews: newDefaultViews };
+                        })
+                    } else {
+                        handleEditorViewDetailChange(viewId, 'imageUrl', downloadURL);
+                    }
+                    toast({ title: "Upload Complete", description: `Image has been updated.` });
                     setUploadProgress(prev => ({ ...prev, [viewId]: 0 }));
                 });
             }
@@ -245,7 +253,7 @@ function ProductOptionsPage() {
                 salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
                 shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
                 type: firestoreOptions?.type ?? baseProduct.type,
-                defaultViews: firestoreOptions?.defaultViews || [{ id: crypto.randomUUID(), name: 'Default View', imageUrl: 'https://placehold.co/600x600/eee/ccc?text=Default', boundaryBoxes: [{ id: crypto.randomUUID(), name: 'Default Area', x: 25, y: 25, width: 50, height: 50 }], price: 0 }],
+                defaultViews: firestoreOptions?.defaultViews || [{ id: 'default_plp_view', name: 'Default Image', imageUrl: 'https://placehold.co/600x600/eee/ccc?text=Default', boundaryBoxes: [], price: 0 }],
                 optionsByColor: firestoreOptions?.optionsByColor || {},
                 groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
                 nativeAttributes: { colors: nativeAttributesFromFS.colors, sizes: validatedSizes },
@@ -501,9 +509,7 @@ function ProductOptionsPage() {
     const handleOpenViewEditor = (color: string) => {
         if (!productOptions) return;
         setActiveEditingColor(color);
-        const initialEditorViews = color === '__default__' 
-            ? productOptions.defaultViews 
-            : productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
+        const initialEditorViews = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
         
         setEditorViews(JSON.parse(JSON.stringify(initialEditorViews)));
         setActiveViewIdInEditor(initialEditorViews[0]?.id || null);
@@ -512,19 +518,15 @@ function ProductOptionsPage() {
     const handleSaveViewsForColor = () => {
         if (!productOptions) return;
         setHasUnsavedChanges(true);
-        if(activeEditingColor === '__default__') {
-            setProductOptions(prev => prev ? { ...prev, defaultViews: editorViews } : null);
-        } else {
-            setProductOptions(prev => {
-                if (!prev) return null;
-                const newOptionsByColor = { ...prev.optionsByColor };
-                const currentGroup = newOptionsByColor[activeEditingColor] || { selectedVariationIds: [], views: [] };
-                newOptionsByColor[activeEditingColor] = { ...currentGroup, views: editorViews };
-                return { ...prev, optionsByColor: newOptionsByColor };
-            });
-        }
+        setProductOptions(prev => {
+            if (!prev) return null;
+            const newOptionsByColor = { ...prev.optionsByColor };
+            const currentGroup = newOptionsByColor[activeEditingColor] || { selectedVariationIds: [], views: [] };
+            newOptionsByColor[activeEditingColor] = { ...currentGroup, views: editorViews };
+            return { ...prev, optionsByColor: newOptionsByColor };
+        });
         setIsViewEditorOpen(false);
-        toast({ title: "Views Updated", description: `Views for ${activeEditingColor === '__default__' ? 'Default' : activeEditingColor} have been updated locally. Remember to save all changes.` });
+        toast({ title: "Views Updated", description: `Views for ${activeEditingColor} have been updated locally. Remember to save all changes.` });
     };
 
     // New handlers for inside the modal
@@ -721,6 +723,8 @@ function ProductOptionsPage() {
 
     const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
     const currentViewInEditor = editorViews.find(v => v.id === activeViewIdInEditor);
+    const defaultProductImage = productOptions.defaultViews[0]?.imageUrl || 'https://placehold.co/600x600/eee/ccc?text=Default';
+    const defaultProductViewId = productOptions.defaultViews[0]?.id || 'default_plp_view';
 
     return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
@@ -800,20 +804,50 @@ function ProductOptionsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <p className="text-sm text-muted-foreground mb-3">
+                             <div className="p-3 border rounded-md bg-muted/20">
+                                <Label className="font-medium">Default Product Image (PLP)</Label>
+                                <p className="text-xs text-muted-foreground mb-3">This is the main image that will show on the product listing page.</p>
+                                <div className="mt-2 flex items-center gap-4">
+                                     <div className="relative w-24 h-24 rounded-md border bg-background overflow-hidden flex-shrink-0">
+                                        <Image src={defaultProductImage} alt="Default product image" fill className="object-contain" />
+                                    </div>
+                                    <div className="flex-grow">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="w-full"
+                                            onClick={() => fileInputRef.current[defaultProductViewId]?.click()}
+                                        >
+                                            <UploadCloud className="mr-2 h-4 w-4" /> Change Image
+                                        </Button>
+                                        <Input 
+                                            id={`file-upload-${defaultProductViewId}`}
+                                            ref={(el) => (fileInputRef.current[defaultProductViewId] = el)}
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    handleImageUpload(e.target.files[0], defaultProductViewId, true);
+                                                }
+                                            }}
+                                        />
+                                        {uploadProgress[defaultProductViewId] > 0 && uploadProgress[defaultProductViewId] < 100 && (
+                                            <Progress value={uploadProgress[defaultProductViewId]} className="h-2 mt-2" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <Separator />
+                            <Label className="font-medium">Customization Views by Color</Label>
+                            <p className="text-xs text-muted-foreground">
                                 {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 
-                                ? "Each color can have its own set of views. If no custom views are set, the product will not be customizable for that color." 
+                                ? "Each color can have its own set of views. If no custom views are set, the product will use the Default Image but won't be customizable for that color." 
                                 : "Define the default views available for this product. These can be overridden for specific colors if attributes are defined."
                                 }
                             </p>
                             <div className="space-y-2">
-                                <div className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
-                                    <span className="font-medium">Default Views</span>
-                                    <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor('__default__')}>
-                                        <Pencil className="mr-2 h-3 w-3" /> 
-                                        Edit {productOptions.defaultViews.length} Views & Areas
-                                    </Button>
-                                </div>
                             {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 && productOptions.nativeAttributes.colors.map(color => (
                                 <div key={color.name} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
                                 <div className="flex items-center gap-3">
@@ -822,7 +856,7 @@ function ProductOptionsPage() {
                                 </div>
                                 <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
                                     <Pencil className="mr-2 h-3 w-3" /> 
-                                    {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Override Views'}
+                                    {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Custom Views'}
                                 </Button>
                                 </div>
                             ))}
@@ -856,7 +890,7 @@ function ProductOptionsPage() {
                     <Card className="w-full h-full flex flex-col border-0 shadow-lg rounded-lg">
                       <CardHeader>
                         <CardTitle className="font-headline text-lg">View Editor</CardTitle>
-                        <CardDescription>Editing views for: <span className="font-semibold text-primary">{activeEditingColor === '__default__' ? 'Default Product' : activeEditingColor}</span></CardDescription>
+                        <CardDescription>Editing views for: <span className="font-semibold text-primary">{activeEditingColor}</span></CardDescription>
                       </CardHeader>
                       <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
@@ -869,9 +903,8 @@ function ProductOptionsPage() {
                                               activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
-                                onMouseDown={(e) => { e.stopPropagation(); handleInteractionStart(e, box.id, 'move'); }}
-                                onTouchStart={(e) => { e.stopPropagation(); handleInteractionStart(e, box.id, 'move'); }}
-                                onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }}
+                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box.id, 'move'); }}
+                                onTouchStart={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box.id, 'move'); }}
                               >
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
@@ -932,7 +965,7 @@ function ProductOptionsPage() {
                               {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
                                   <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
                                   {currentViewInEditor.boundaryBoxes.map((box, index) => (
-                                    <div key={box.id} onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
+                                    <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                       <div className="flex items-center gap-2">
                                           <Input 
                                               value={box.name}
