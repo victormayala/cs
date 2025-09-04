@@ -19,7 +19,7 @@ import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
 import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, deleteField, Unsubscribe } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -270,11 +270,26 @@ function ProductOptionsPage() {
                 description: productOptionsToSave.description,
                 lastModified: serverTimestamp()
             };
-            if (productOptionsToSave.brand) productBaseData.brand = productOptionsToSave.brand; else productBaseData.brand = deleteField();
-            if (productOptionsToSave.sku) productBaseData.sku = productOptionsToSave.sku; else productBaseData.sku = deleteField();
-            if (productOptionsToSave.category) productBaseData.category = productOptionsToSave.category; else productBaseData.category = deleteField();
-            if (productOptionsToSave.customizationTechniques) productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques; else productBaseData.customizationTechniques = deleteField();
-
+            if (productOptionsToSave.brand) {
+                productBaseData.brand = productOptionsToSave.brand;
+            } else {
+                productBaseData.brand = deleteField();
+            }
+            if (productOptionsToSave.sku) {
+                productBaseData.sku = productOptionsToSave.sku;
+            } else {
+                productBaseData.sku = deleteField();
+            }
+            if (productOptionsToSave.category) {
+                productBaseData.category = productOptionsToSave.category;
+            } else {
+                productBaseData.category = deleteField();
+            }
+            if (productOptionsToSave.customizationTechniques) {
+                productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques;
+            } else {
+                productBaseData.customizationTechniques = deleteField();
+            }
             await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
         }
         if (Array.isArray(productOptionsToSave.nativeVariations)) {
@@ -797,8 +812,8 @@ function ProductOptionsPage() {
                       <CardContent className="flex-1 space-y-4 overflow-y-auto">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
-                           {currentViewInEditor?.boundaryBoxes.map((box) => (
-                             <div key={box.id} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
+                           {currentViewInEditor?.boundaryBoxes.map((box, index) => (
+                             <div key={`${activeViewIdInEditor}-${box.id}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
                                <div className={cn("absolute top-0.5 left-0.5 text-[8px] px-1 py-0.5 rounded-br-sm opacity-0 group-hover/box:opacity-100 select-none pointer-events-none", selectedBoundaryBoxId === box.id ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>{box.name}</div>
                                 {selectedBoundaryBoxId === box.id && (
                                 <>
@@ -855,4 +870,8 @@ function ProductOptionsPage() {
     );
 }
 
-```
+export default function ProductOptions() {
+  return (
+    <ProductOptionsPage />
+  );
+}
