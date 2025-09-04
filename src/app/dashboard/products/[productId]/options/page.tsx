@@ -309,11 +309,18 @@ export default function ProductOptionsPage() {
         if (productOptionsToSave.salePrice !== null && productOptionsToSave.salePrice !== undefined && String(productOptionsToSave.salePrice).trim() !== '') { dataToSave.salePrice = Number(productOptionsToSave.salePrice); } 
         else { dataToSave.salePrice = deleteField(); }
         if (productOptions.source === 'customizer-studio') {
-            const productBaseData: Partial<NativeProduct> = {
-                name: productOptionsToSave.name, description: productOptionsToSave.description, brand: productOptionsToSave.brand || undefined,
-                sku: productOptionsToSave.sku || undefined, category: productOptionsToSave.category || undefined,
-                customizationTechniques: productOptionsToSave.customizationTechniques || [], lastModified: serverTimestamp()
+            const productBaseData: Partial<Omit<NativeProduct, 'id'>> = {
+                userId: user.uid,
+                name: productOptionsToSave.name,
+                description: productOptionsToSave.description,
+                customizationTechniques: productOptionsToSave.customizationTechniques || [],
+                lastModified: serverTimestamp()
             };
+            // Conditionally add fields to avoid 'undefined'
+            if (productOptionsToSave.brand) productBaseData.brand = productOptionsToSave.brand;
+            if (productOptionsToSave.sku) productBaseData.sku = productOptionsToSave.sku;
+            if (productOptionsToSave.category) productBaseData.category = productOptionsToSave.category;
+            
             await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
         }
         if (Array.isArray(productOptionsToSave.nativeVariations)) {
