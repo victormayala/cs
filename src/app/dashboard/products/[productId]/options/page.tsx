@@ -744,45 +744,42 @@ function ProductOptionsPage() {
                     </Card>
 
                     <Card className="shadow-md">
-                      <CardHeader>
-                        <CardTitle className="font-headline text-lg">Variation Images & Areas</CardTitle>
-                        <CardDescription>
-                          Define default views and areas for the product, or set specific views for each color variation.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <Label className="text-base font-semibold">Default Views</Label>
-                          <p className="text-xs text-muted-foreground mb-2">These views appear if no color-specific view is set.</p>
-                           <Button onClick={() => handleOpenViewEditor('__default__')}>
-                              <Pencil className="mr-2 h-4 w-4" /> Edit Default Views & Areas
-                          </Button>
-                        </div>
-
-                        {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 && (
-                          <>
-                            <Separator />
-                            <div>
-                                <Label className="text-base font-semibold">Views by Color</Label>
-                                <p className="text-xs text-muted-foreground mb-2">Optionally override the default views for specific colors.</p>
-                                <div className="space-y-2">
-                                  {productOptions.nativeAttributes.colors.map(color => (
-                                    <div key={color.name} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-5 h-5 rounded-full border" style={{backgroundColor: color.hex}}></div>
-                                        <span className="font-medium">{color.name}</span>
-                                      </div>
-                                      <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
-                                        <Pencil className="mr-2 h-3 w-3" /> 
-                                        {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Custom Views'}
-                                      </Button>
+                        <CardHeader>
+                            <CardTitle className="font-headline text-lg">Variation Images & Areas</CardTitle>
+                            <CardDescription>
+                            Define views and design areas for each color variation.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                             {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 ? (
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-3">
+                                        Each color can have its own set of views (e.g., front, back, sleeve). If no custom views are set for a color, the product will not be customizable for that color option.
+                                    </p>
+                                    <div className="space-y-2">
+                                    {productOptions.nativeAttributes.colors.map(color => (
+                                        <div key={color.name} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-5 h-5 rounded-full border" style={{backgroundColor: color.hex}}></div>
+                                            <span className="font-medium">{color.name}</span>
+                                        </div>
+                                        <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
+                                            <Pencil className="mr-2 h-3 w-3" /> 
+                                            {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Views & Areas'}
+                                        </Button>
+                                        </div>
+                                    ))}
                                     </div>
-                                  ))}
                                 </div>
-                            </div>
-                          </>
-                        )}
-                      </CardContent>
+                             ) : (
+                                <div className="text-center py-4">
+                                     <Button onClick={() => handleOpenViewEditor('__default__')}>
+                                        <Pencil className="mr-2 h-4 w-4" /> Edit Views & Areas
+                                    </Button>
+                                     <p className="text-xs text-muted-foreground mt-2">These views apply to the whole product.</p>
+                                </div>
+                             )}
+                        </CardContent>
                     </Card>
                     
                     {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!regenerateVariations(productOptions) || regenerateVariations(productOptions).length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(regenerateVariations(productOptions)[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{regenerateVariations(productOptions).map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
@@ -898,3 +895,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
+    
