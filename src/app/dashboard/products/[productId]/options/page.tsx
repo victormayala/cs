@@ -329,8 +329,14 @@ export default function ProductOptionsPage() {
         if (authIsLoading) return;
         if (!user?.uid) { setError("User not authenticated."); setIsLoading(false); return; }
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
-        if (!productOptions && !error) { fetchAndSetProductData(false); }
-        else { setIsLoading(false); }
+        // Only fetch if productOptions is null (initial load) and there's no error.
+        if (!productOptions && !error) { 
+            fetchAndSetProductData(false); 
+        }
+        else { 
+            // If we already have data or an error, don't re-fetch, just finish loading.
+            setIsLoading(false); 
+        }
     }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
 
 
@@ -1013,8 +1019,7 @@ export default function ProductOptionsPage() {
                     </div></CardContent>
                     </Card>
 
-                    {/* VARIATION VIEWS & AREAS */}
-                     <ProductViewSetup 
+                    <ProductViewSetup 
                         productOptions={productOptions}
                         activeViewId={activeViewIdForSetup}
                         selectedBoundaryBoxId={selectedBoundaryBoxId}
