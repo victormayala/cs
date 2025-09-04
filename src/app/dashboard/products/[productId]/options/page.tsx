@@ -84,7 +84,7 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     }
     return { options: undefined };
   } catch (error: any) {
-    let errorMessage = `Failed to load options: ${error.message}`;
+    let errorMessage = `Failed to load options: ${'error.message'}`;
     if (error.code === 'permission-denied') {
         errorMessage = "Permission denied. Please check your Firestore security rules to allow reads on 'userProductOptions' for authenticated users.";
     }
@@ -745,7 +745,7 @@ function ProductOptionsPage() {
 
                     <Card className="shadow-md">
                         <CardHeader>
-                            <CardTitle className="font-headline text-lg">Variation Images & Areas</CardTitle>
+                            <CardTitle className="font-headline text-lg">Variation Images &amp; Areas</CardTitle>
                             <CardDescription>
                             Define views and design areas for each color variation.
                             </CardDescription>
@@ -765,7 +765,7 @@ function ProductOptionsPage() {
                                         </div>
                                         <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
                                             <Pencil className="mr-2 h-3 w-3" /> 
-                                            {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Views & Areas'}
+                                            {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Views &amp; Areas'}
                                         </Button>
                                         </div>
                                     ))}
@@ -774,7 +774,7 @@ function ProductOptionsPage() {
                              ) : (
                                 <div className="text-center py-4">
                                      <Button onClick={() => handleOpenViewEditor('__default__')}>
-                                        <Pencil className="mr-2 h-4 w-4" /> Edit Views & Areas
+                                        <Pencil className="mr-2 h-4 w-4" /> Edit Views &amp; Areas
                                     </Button>
                                      <p className="text-xs text-muted-foreground mt-2">These views apply to the whole product.</p>
                                 </div>
@@ -787,7 +787,7 @@ function ProductOptionsPage() {
 
                 <div className="md:col-span-1 space-y-6">
                     <Card className="shadow-md sticky top-8">
-                        <CardHeader><CardTitle className="font-headline text-lg">Summary & Actions</CardTitle><CardDescription>Review your setup and save changes.</CardDescription></CardHeader>
+                        <CardHeader><CardTitle className="font-headline text-lg">Summary &amp; Actions</CardTitle><CardDescription>Review your setup and save changes.</CardDescription></CardHeader>
                         <CardContent>
                             <div className="text-sm text-muted-foreground">Editing for: <span className="font-semibold text-foreground">{productOptions.name}</span></div>
                             <div className="text-sm text-muted-foreground">Customization: <Badge variant={productOptions.allowCustomization ? "default" : "secondary"} className={productOptions.allowCustomization ? "bg-green-500/10 text-green-700 border-green-500/30" : ""}>{productOptions.allowCustomization ? "Enabled" : "Disabled"}</Badge></div>
@@ -803,9 +803,9 @@ function ProductOptionsPage() {
             </div>
             
              {isViewEditorOpen && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setIsViewEditorOpen(false)}>
-                  <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-background border-l shadow-lg" onClick={e => e.stopPropagation()}>
-                    <Card className="w-full h-full flex flex-col border-0 shadow-none rounded-none">
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsViewEditorOpen(false)}>
+                  <div className="relative w-full h-full max-w-5xl max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                    <Card className="w-full h-full flex flex-col border-0 shadow-lg rounded-lg">
                       <CardHeader>
                         <CardTitle className="font-headline text-lg">View Editor</CardTitle>
                         <CardDescription>Editing views for: <span className="font-semibold text-primary">{activeEditingColor === '__default__' ? 'Default Product' : activeEditingColor}</span></CardDescription>
