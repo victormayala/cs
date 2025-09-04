@@ -235,13 +235,9 @@ export default function ProductOptionsPage() {
         if (authIsLoading) return;
         if (!user?.uid) { setError("User not authenticated."); setIsLoading(false); return; }
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
-        if (!productOptions && !error) { 
-            fetchAndSetProductData(false); 
-        }
-        else { 
-            setIsLoading(false); 
-        }
-    }, [authIsLoading, user?.uid, productIdFromUrl, productOptions, error, fetchAndSetProductData]);
+        // FIX: The dependency array was causing re-fetches on state updates. It should only run once on load.
+        fetchAndSetProductData(false); 
+    }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
 
     const generatedVariations = useMemo(() => {
       if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') return [];
