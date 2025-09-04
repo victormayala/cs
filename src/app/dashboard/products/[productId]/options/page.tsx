@@ -813,8 +813,17 @@ function ProductOptionsPage() {
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {currentViewInEditor?.boundaryBoxes.map((box) => (
-                             <div key={box.id} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
-                               <div className={cn("absolute top-0.5 left-0.5 text-[8px] px-1 py-0.5 rounded-br-sm opacity-0 group-hover/box:opacity-100 select-none pointer-events-none", selectedBoundaryBoxId === box.id ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>{box.name}</div>
+                             <div 
+                                key={box.id} 
+                                className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
+                                              selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10',
+                                              activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
+                                            )} 
+                                style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
+                                onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} 
+                                onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}
+                                onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }}
+                              >
                                 {selectedBoundaryBoxId === box.id && (
                                 <>
                                     <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
@@ -849,8 +858,18 @@ function ProductOptionsPage() {
                             {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
                                 <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
                                 {currentViewInEditor.boundaryBoxes.map((box, index) => (
-                                  <div key={box.id} onClick={() => setSelectedBoundaryBoxId(box.id)} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
-                                    <Input value={box.name} onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} />
+                                  <div key={box.id} onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
+                                    <div className="flex items-center gap-2">
+                                        <Input 
+                                            value={box.name}
+                                            onClick={(e) => e.stopPropagation()} // Prevent parent onClick
+                                            onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} 
+                                            className="flex-grow h-8 text-sm"
+                                        />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBoxFromEditor(box.id); }}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                   </div>
                                 ))}
                             </>)}
@@ -875,5 +894,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
-    
