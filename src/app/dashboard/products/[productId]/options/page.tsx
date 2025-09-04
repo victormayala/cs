@@ -93,7 +93,7 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
   }
 }
 
-export default function ProductOptionsPage() {
+function ProductOptionsPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -237,21 +237,6 @@ export default function ProductOptionsPage() {
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
         fetchAndSetProductData(false); 
     }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
-    
-    // This effect now ONLY runs when generatedVariations itself changes, which is a calculated value.
-    // It no longer re-initializes from productOptions on every render.
-    useEffect(() => {
-        if (productOptions) {
-            const priceInputs: Record<string, string> = {};
-            const salePriceInputs: Record<string, string> = {};
-            productOptions.nativeVariations.forEach(v => {
-                priceInputs[v.id] = String(v.price ?? '');
-                salePriceInputs[v.id] = v.salePrice != null ? String(v.salePrice) : '';
-            });
-            setVariationPriceInputs(priceInputs);
-            setVariationSalePriceInputs(salePriceInputs);
-        }
-    }, [productOptions?.nativeVariations]);
 
     const handleRefreshData = () => {
         if (source === 'customizer-studio') { toast({ title: "Not applicable", description: "Native products do not need to be refreshed.", variant: "default" }); return; }
@@ -278,18 +263,17 @@ export default function ProductOptionsPage() {
 
         if (productOptionsToSave.salePrice !== null && productOptionsToSave.salePrice !== undefined && String(productOptionsToSave.salePrice).trim() !== '') { dataToSave.salePrice = Number(productOptionsToSave.salePrice); } 
         else { dataToSave.salePrice = deleteField(); }
+        
         if (productOptions.source === 'customizer-studio') {
-            const productBaseData: Partial<Omit<NativeProduct, 'id' | 'createdAt'>> = {
-                userId: user.uid,
+            const productBaseData: Partial<Omit<NativeProduct, 'id' | 'createdAt' | 'userId'>> = {
                 name: productOptionsToSave.name,
                 description: productOptionsToSave.description,
                 lastModified: serverTimestamp()
             };
-            // Conditionally add fields to avoid 'undefined'
-            if (productOptionsToSave.brand) productBaseData.brand = productOptionsToSave.brand;
-            if (productOptionsToSave.sku) productBaseData.sku = productOptionsToSave.sku;
-            if (productOptionsToSave.category) productBaseData.category = productOptionsToSave.category;
-            if (productOptionsToSave.customizationTechniques) productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques;
+            if (productOptionsToSave.brand) productBaseData.brand = productOptionsToSave.brand; else productBaseData.brand = deleteField();
+            if (productOptionsToSave.sku) productBaseData.sku = productOptionsToSave.sku; else productBaseData.sku = deleteField();
+            if (productOptionsToSave.category) productBaseData.category = productOptionsToSave.category; else productBaseData.category = deleteField();
+            if (productOptionsToSave.customizationTechniques) productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques; else productBaseData.customizationTechniques = deleteField();
 
             await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
         }
@@ -357,6 +341,18 @@ export default function ProductOptionsPage() {
             }
             const updatedOptions = { ...prev, nativeAttributes: updatedAttributes };
             const newVariations = regenerateVariations(updatedOptions);
+            
+            const priceInputs: Record<string, string> = {};
+            const salePriceInputs: Record<string, string> = {};
+            newVariations.forEach(v => {
+                const existing = updatedOptions.nativeVariations.find(ov => ov.id === v.id);
+                priceInputs[v.id] = String(existing?.price ?? v.price ?? '');
+                salePriceInputs[v.id] = existing?.salePrice != null ? String(existing.salePrice) : (v.salePrice != null ? String(v.salePrice) : '');
+            });
+
+            setVariationPriceInputs(priceInputs);
+            setVariationSalePriceInputs(salePriceInputs);
+
             if (type === 'colors') { setColorInputValue(""); setColorHexValue("#000000"); }
             else { setSizeInputValue(""); }
             setHasUnsavedChanges(true);
@@ -381,11 +377,6 @@ export default function ProductOptionsPage() {
             return { ...updatedOptions, nativeVariations: newVariations };
         });
     };
-
-    const generatedVariations = useMemo(() => {
-        if (!productOptions) return [];
-        return regenerateVariations(productOptions);
-    }, [productOptions]);
 
     const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
         setHasUnsavedChanges(true);
@@ -423,14 +414,17 @@ export default function ProductOptionsPage() {
         if (valueStr.trim() !== '' && isNaN(value as number)) { toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" }); return; }
         const updatedPriceInputs = { ...variationPriceInputs };
         const updatedSalePriceInputs = { ...variationSalePriceInputs };
-        generatedVariations.forEach(genVar => {
+        
+        const variationsToUpdate = regenerateVariations(productOptions!);
+
+        variationsToUpdate.forEach(genVar => {
             if (field === 'price' && value !== null) updatedPriceInputs[genVar.id] = value.toString();
             else if (field === 'salePrice') updatedSalePriceInputs[genVar.id] = value !== null ? value.toString() : '';
         });
         setVariationPriceInputs(updatedPriceInputs); setVariationSalePriceInputs(updatedSalePriceInputs);
         setProductOptions(prev => {
             if (!prev) return null;
-            const updatedVariations = generatedVariations.map(genVar => ({ ...(prev.nativeVariations.find(v => v.id === genVar.id) || genVar), [field]: value }));
+            const updatedVariations = variationsToUpdate.map(genVar => ({ ...(prev.nativeVariations.find(v => v.id === genVar.id) || genVar), [field]: value }));
             return { ...prev, nativeVariations: updatedVariations };
         });
         setHasUnsavedChanges(true); toast({ title: "Prices Updated", description: `All variations' ${field}s have been updated.` });
@@ -772,7 +766,7 @@ export default function ProductOptionsPage() {
                       </CardContent>
                     </Card>
                     
-                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!generatedVariations || generatedVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(generatedVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{generatedVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!regenerateVariations(productOptions) || regenerateVariations(productOptions).length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(regenerateVariations(productOptions)[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{regenerateVariations(productOptions).map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
                 </div>
 
                 <div className="md:col-span-1 space-y-6">
@@ -854,7 +848,11 @@ export default function ProductOptionsPage() {
                   </div>
                 </div>
              )}
-             <AlertDialog open={isDeleteViewDialogOpen} onOpenChange={setIsDeleteViewDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this view?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteViewInEditor} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete View</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+             <AlertDialog open={isDeleteViewDialogOpen} onOpenChange={setIsDeleteViewDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this view?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteViewInEditor} className={cn(buttonVariants({variant: "destructive"}))}>Delete View</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         </div>
     );
 }
+
+export default ProductOptionsPage;
+
+    
