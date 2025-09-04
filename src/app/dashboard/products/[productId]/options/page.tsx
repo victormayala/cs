@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
 import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, deleteField, Unsubscribe } from 'firebase/firestore';
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -238,51 +238,6 @@ export default function ProductOptionsPage() {
         fetchAndSetProductData(false); 
     }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
 
-    const generatedVariations = useMemo(() => {
-      if (!productOptions || productOptions.type !== 'variable' || productOptions.source !== 'customizer-studio') return [];
-      const { colors = [], sizes = [] } = productOptions.nativeAttributes || {};
-      if (colors.length === 0 && sizes.length === 0) return [];
-      const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }];
-      const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }];
-      const variations: NativeProductVariation[] = [];
-      colorOptions.forEach(color => {
-          sizeOptions.forEach(size => {
-              if (!color.name && !size.name) return;
-              const attributes: Record<string, string> = {};
-              let idParts: string[] = [];
-              if (color.name) { attributes["Color"] = color.name; idParts.push(`color-${color.name}`); }
-              if (size.name) { attributes["Size"] = size.name; idParts.push(`size-${size.name}`); }
-              const id = idParts.join('-').toLowerCase().replace(/\s+/g, '-');
-              const existing = productOptions.nativeVariations?.find(v => v.id === id);
-              variations.push({ id, attributes, price: existing?.price ?? (typeof productOptions.price === 'number' ? productOptions.price : 0), salePrice: existing?.salePrice ?? null, });
-          });
-      });
-      return variations;
-    }, [productOptions]);
-    
-    const regenerateVariations = (options: ProductOptionsData): NativeProductVariation[] => {
-      if (options.type !== 'variable' || options.source !== 'customizer-studio') return options.nativeVariations || [];
-      const { colors = [], sizes = [] } = options.nativeAttributes || {};
-      if (colors.length === 0 && sizes.length === 0) return [];
-      const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }];
-      const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }];
-      const newVariations: NativeProductVariation[] = [];
-      colorOptions.forEach(color => {
-          sizeOptions.forEach(size => {
-              if (!color.name && !size.name) return;
-              const attributes: Record<string, string> = {};
-              let idParts: string[] = [];
-              if (color.name) { attributes["Color"] = color.name; idParts.push(`color-${color.name}`); }
-              if (size.name) { attributes["Size"] = size.name; idParts.push(`size-${size.name}`); }
-              const id = idParts.join('-').toLowerCase().replace(/\s+/g, '-');
-              const existing = options.nativeVariations?.find(v => v.id === id);
-              newVariations.push({ id, attributes, price: existing?.price ?? (typeof options.price === 'number' ? options.price : 0), salePrice: existing?.salePrice ?? null });
-          });
-      });
-      return newVariations;
-    };
-
-
     const handleRefreshData = () => {
         if (source === 'customizer-studio') { toast({ title: "Not applicable", description: "Native products do not need to be refreshed.", variant: "default" }); return; }
         if (!authIsLoading && user && productIdFromUrl) { fetchAndSetProductData(true); } 
@@ -309,7 +264,7 @@ export default function ProductOptionsPage() {
         if (productOptionsToSave.salePrice !== null && productOptionsToSave.salePrice !== undefined && String(productOptionsToSave.salePrice).trim() !== '') { dataToSave.salePrice = Number(productOptionsToSave.salePrice); } 
         else { dataToSave.salePrice = deleteField(); }
         if (productOptions.source === 'customizer-studio') {
-            const productBaseData: Partial<Omit<NativeProduct, 'id'>> = {
+            const productBaseData: Partial<Omit<NativeProduct, 'id' | 'createdAt'>> = {
                 userId: user.uid,
                 name: productOptionsToSave.name,
                 description: productOptionsToSave.description,
@@ -347,11 +302,32 @@ export default function ProductOptionsPage() {
         if (!productOptions.allowCustomization) { toast({ title: "Customization Disabled", description: "This product is currently marked as 'Do Not Customize'.", variant: "default" }); return; }
         router.push(`/customizer?productId=${productOptions.id}&source=${productOptions.source}`);
     };
-
+    
+    const regenerateVariations = (options: ProductOptionsData): NativeProductVariation[] => {
+      if (options.type !== 'variable' || options.source !== 'customizer-studio') return options.nativeVariations || [];
+      const { colors = [], sizes = [] } = options.nativeAttributes || {};
+      if (colors.length === 0 && sizes.length === 0) return [];
+      const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }];
+      const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }];
+      const newVariations: NativeProductVariation[] = [];
+      colorOptions.forEach(color => {
+          sizeOptions.forEach(size => {
+              if (!color.name && !size.name) return;
+              const attributes: Record<string, string> = {};
+              let idParts: string[] = [];
+              if (color.name) { attributes["Color"] = color.name; idParts.push(`color-${color.name}`); }
+              if (size.name) { attributes["Size"] = size.name; idParts.push(`size-${size.name}`); }
+              const id = idParts.join('-').toLowerCase().replace(/\s+/g, '-');
+              const existing = options.nativeVariations?.find(v => v.id === id);
+              newVariations.push({ id, attributes, price: existing?.price ?? (typeof options.price === 'number' ? options.price : 0), salePrice: existing?.salePrice ?? null });
+          });
+      });
+      return newVariations;
+    };
+    
     const handleAddAttribute = (type: 'colors' | 'sizes') => {
         setProductOptions(prev => {
             if (!prev) return null;
-            setHasUnsavedChanges(true);
             let updatedAttributes = { ...prev.nativeAttributes };
             if (type === 'colors') {
                 const name = colorInputValue.trim();
@@ -364,11 +340,11 @@ export default function ProductOptionsPage() {
                 if (prev.nativeAttributes.sizes.some(s => s.name.toLowerCase() === sizeName.toLowerCase())) { toast({ title: "Size already exists.", variant: "destructive" }); return prev; }
                 updatedAttributes.sizes = [...prev.nativeAttributes.sizes, { id: crypto.randomUUID(), name: sizeName }];
             }
-    
             const updatedOptions = { ...prev, nativeAttributes: updatedAttributes };
             const newVariations = regenerateVariations(updatedOptions);
             if (type === 'colors') { setColorInputValue(""); setColorHexValue("#000000"); }
             else { setSizeInputValue(""); }
+            setHasUnsavedChanges(true);
             return { ...updatedOptions, nativeVariations: newVariations };
         });
     };
@@ -376,22 +352,25 @@ export default function ProductOptionsPage() {
     const handleRemoveAttribute = (type: 'colors' | 'sizes', value: string) => {
         setProductOptions(prev => {
             if (!prev) return null;
-            setHasUnsavedChanges(true);
             let updatedAttributes = { ...prev.nativeAttributes };
             let updatedOptionsByColor = { ...prev.optionsByColor };
-    
             if (type === 'colors') {
                 updatedAttributes.colors = updatedAttributes.colors.filter(item => item.name !== value);
                 delete updatedOptionsByColor[value];
             } else {
                 updatedAttributes.sizes = prev.nativeAttributes.sizes.filter(item => item.id !== value);
             }
-    
             const updatedOptions = { ...prev, nativeAttributes: updatedAttributes, optionsByColor: updatedOptionsByColor };
             const newVariations = regenerateVariations(updatedOptions);
+            setHasUnsavedChanges(true);
             return { ...updatedOptions, nativeVariations: newVariations };
         });
     };
+
+    const generatedVariations = useMemo(() => {
+        if (!productOptions) return [];
+        return regenerateVariations(productOptions);
+    }, [productOptions]);
 
     const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
         setHasUnsavedChanges(true);
@@ -525,6 +504,129 @@ export default function ProductOptionsPage() {
         if (!activeViewIdInEditor) return;
         setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor ? { ...v, boundaryBoxes: v.boundaryBoxes.map(b => b.id === boxId ? {...b, name: newName} : b) } : v));
     };
+
+    const getMouseOrTouchCoords = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+        if ('touches' in e && e.touches.length > 0) {
+          return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+      };
+      
+    const handleInteractionStart = (
+        e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
+        boxId: string,
+        interactionType: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'
+      ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    
+        if (!imageWrapperRef.current) return;
+        const box = editorViews.flatMap(v => v.boundaryBoxes).find(b => b.id === boxId);
+        if (!box) return;
+    
+        const containerRect = imageWrapperRef.current.getBoundingClientRect();
+        const coords = getMouseOrTouchCoords(e);
+    
+        setActiveDrag({
+          type: interactionType,
+          boxId,
+          pointerStartX: coords.x,
+          pointerStartY: coords.y,
+          initialBoxX: box.x,
+          initialBoxY: box.y,
+          initialBoxWidth: box.width,
+          initialBoxHeight: box.height,
+          containerWidthPx: containerRect.width,
+          containerHeightPx: containerRect.height,
+        });
+      };
+    
+      const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!activeDrag) return;
+    
+        cancelAnimationFrame(dragUpdateRef.current);
+        dragUpdateRef.current = requestAnimationFrame(() => {
+          if (!activeDrag) return;
+          const coords = getMouseOrTouchCoords(e);
+          const dx = coords.x - activeDrag.pointerStartX;
+          const dy = coords.y - activeDrag.pointerStartY;
+    
+          const dxPercent = (dx / activeDrag.containerWidthPx) * 100;
+          const dyPercent = (dy / activeDrag.containerHeightPx) * 100;
+    
+          setEditorViews(currentViews => currentViews.map(view => {
+            if (view.id !== activeViewIdInEditor) return view;
+    
+            return {
+              ...view,
+              boundaryBoxes: view.boundaryBoxes.map(box => {
+                if (box.id !== activeDrag.boxId) return box;
+    
+                let newX = box.x;
+                let newY = box.y;
+                let newWidth = box.width;
+                let newHeight = box.height;
+    
+                switch (activeDrag.type) {
+                  case 'move':
+                    newX = activeDrag.initialBoxX + dxPercent;
+                    newY = activeDrag.initialBoxY + dyPercent;
+                    break;
+                  case 'resize_br':
+                    newWidth = activeDrag.initialBoxWidth + dxPercent;
+                    newHeight = activeDrag.initialBoxHeight + dyPercent;
+                    break;
+                  case 'resize_bl':
+                    newX = activeDrag.initialBoxX + dxPercent;
+                    newWidth = activeDrag.initialBoxWidth - dxPercent;
+                    newHeight = activeDrag.initialBoxHeight + dyPercent;
+                    break;
+                  case 'resize_tr':
+                    newY = activeDrag.initialBoxY + dyPercent;
+                    newWidth = activeDrag.initialBoxWidth + dxPercent;
+                    newHeight = activeDrag.initialBoxHeight - dyPercent;
+                    break;
+                  case 'resize_tl':
+                    newX = activeDrag.initialBoxX + dxPercent;
+                    newY = activeDrag.initialBoxY + dyPercent;
+                    newWidth = activeDrag.initialBoxWidth - dxPercent;
+                    newHeight = activeDrag.initialBoxHeight - dyPercent;
+                    break;
+                }
+    
+                newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
+                newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
+                newX = Math.max(0, Math.min(newX, 100 - newWidth));
+                newY = Math.max(0, Math.min(newY, 100 - newHeight));
+    
+                return { ...box, x: newX, y: newY, width: newWidth, height: newHeight };
+              })
+            };
+          }));
+        });
+      }, [activeDrag, activeViewIdInEditor]);
+    
+      const handleInteractionEnd = useCallback(() => {
+        cancelAnimationFrame(dragUpdateRef.current);
+        setActiveDrag(null);
+        setHasUnsavedChanges(true);
+      }, []);
+    
+      useEffect(() => {
+        if (activeDrag) {
+          window.addEventListener('mousemove', handleInteractionMove);
+          window.addEventListener('touchmove', handleInteractionMove, { passive: false });
+          window.addEventListener('mouseup', handleInteractionEnd);
+          window.addEventListener('touchend', handleInteractionEnd);
+        }
+        return () => {
+          window.removeEventListener('mousemove', handleInteractionMove);
+          window.removeEventListener('touchmove', handleInteractionMove);
+          window.removeEventListener('mouseup', handleInteractionEnd);
+          window.removeEventListener('touchend', handleInteractionEnd);
+          cancelAnimationFrame(dragUpdateRef.current);
+        };
+      }, [activeDrag, handleInteractionMove, handleInteractionEnd]);
 
     if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
     if (error) return (
@@ -687,12 +789,12 @@ export default function ProductOptionsPage() {
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {currentViewInEditor?.boundaryBoxes.map((box) => (
-                             <div key={`${activeViewIdInEditor}-${box.id}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => {}} onTouchStart={(e) => {}}>
+                             <div key={`${activeViewIdInEditor}-${box.id}`} className={cn("absolute transition-colors duration-100 ease-in-out group/box", selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10', activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab')} style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }} onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}>
                                {selectedBoundaryBoxId === box.id && (<>
-                                   <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize" onMouseDown={(e) => {}} onTouchStart={(e) => {}}><Maximize2 className="w-2.5 h-2.5" /></div>
-                                   <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize" onMouseDown={(e) => {}} onTouchStart={(e) => {}}><Maximize2 className="w-2.5 h-2.5" /></div>
-                                   <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize" onMouseDown={(e) => {}} onTouchStart={(e) => {}}><Maximize2 className="w-2.5 h-2.5" /></div>
-                                   <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize" onMouseDown={(e) => {}} onTouchStart={(e) => {}}><Maximize2 className="w-2.5 h-2.5" /></div>
+                                   <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                   <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                   <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                   <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                </>)}
                                <div className={cn("absolute top-0.5 left-0.5 text-[8px] px-1 py-0.5 rounded-br-sm opacity-0 group-hover/box:opacity-100 select-none pointer-events-none", selectedBoundaryBoxId === box.id ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>{box.name}</div>
                              </div>
