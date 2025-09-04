@@ -747,37 +747,41 @@ function ProductOptionsPage() {
                       <CardHeader>
                         <CardTitle className="font-headline text-lg">Variation Images & Areas</CardTitle>
                         <CardDescription>
-                          Define default views and areas below, or set specific views for each color variation.
+                          Define default views and areas for the product, or set specific views for each color variation.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent>
-                        <Tabs defaultValue="default">
-                          <TabsList>
-                            <TabsTrigger value="default">Default Views</TabsTrigger>
-                            <TabsTrigger value="byColor" disabled={source !== 'customizer-studio' || productOptions.nativeAttributes.colors.length === 0}>
-                              Views by Color
-                            </TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="default" className="pt-4">
-                            <Button onClick={() => handleOpenViewEditor('__default__')}>
-                               <Pencil className="mr-2 h-4 w-4" /> Edit Default Views & Areas
-                            </Button>
-                          </TabsContent>
-                          <TabsContent value="byColor" className="pt-4 space-y-2">
-                             {productOptions.nativeAttributes.colors.map(color => (
-                                <div key={color.name} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-5 h-5 rounded-full border" style={{backgroundColor: color.hex}}></div>
-                                    <span className="font-medium">{color.name}</span>
-                                  </div>
-                                  <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
-                                    <Pencil className="mr-2 h-3 w-3" /> 
-                                    {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Custom Views'}
-                                  </Button>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <Label className="text-base font-semibold">Default Views</Label>
+                          <p className="text-xs text-muted-foreground mb-2">These views appear if no color-specific view is set.</p>
+                           <Button onClick={() => handleOpenViewEditor('__default__')}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit Default Views & Areas
+                          </Button>
+                        </div>
+
+                        {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 && (
+                          <>
+                            <Separator />
+                            <div>
+                                <Label className="text-base font-semibold">Views by Color</Label>
+                                <p className="text-xs text-muted-foreground mb-2">Optionally override the default views for specific colors.</p>
+                                <div className="space-y-2">
+                                  {productOptions.nativeAttributes.colors.map(color => (
+                                    <div key={color.name} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-5 h-5 rounded-full border" style={{backgroundColor: color.hex}}></div>
+                                        <span className="font-medium">{color.name}</span>
+                                      </div>
+                                      <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
+                                        <Pencil className="mr-2 h-3 w-3" /> 
+                                        {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Custom Views'}
+                                      </Button>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                          </TabsContent>
-                        </Tabs>
+                            </div>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                     
@@ -820,17 +824,17 @@ function ProductOptionsPage() {
                                               activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
-                                onMouseDown={(e) => handleInteractionStart(e, box.id, 'move')} 
-                                onTouchStart={(e) => handleInteractionStart(e, box.id, 'move')}
+                                onMouseDown={(e) => { e.stopPropagation(); handleInteractionStart(e, box.id, 'move'); }}
+                                onTouchStart={(e) => { e.stopPropagation(); handleInteractionStart(e, box.id, 'move'); }}
                                 onClick={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }}
                               >
                                 {selectedBoundaryBoxId === box.id && (
-                                <>
+                                  <>
                                     <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                     <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                     <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                     <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                </>
+                                  </>
                                 )}
                              </div>
                            ))}
