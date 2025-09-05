@@ -195,6 +195,9 @@ function ProductOptionsPage() {
         if (isRefresh) setIsRefreshing(true); else setIsLoading(true);
         setError(null);
         try {
+            const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
+            if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
+
             let baseProduct: { id: string; name: string; description: string; price: number | string; type: any; salePrice: number | string | null; brand?: string; sku?: string; category?: string; customizationTechniques?: CustomizationTechnique[]; shipping?: ShippingAttributes };
             if (source === 'shopify') {
                 const credDocRef = doc(db, 'userShopifyCredentials', user.uid);
@@ -235,13 +238,15 @@ function ProductOptionsPage() {
                 baseProduct = {
                     id: firestoreDocId, name: nativeProduct.name,
                     description: nativeProduct.description || 'No description provided.',
-                    price: '', salePrice: null, type: 'simple', brand: nativeProduct.brand, sku: nativeProduct.sku,
+                    price: firestoreOptions?.price ?? 0, 
+                    salePrice: firestoreOptions?.salePrice ?? null,
+                    type: firestoreOptions?.type ?? 'simple',
+                    brand: nativeProduct.brand, sku: nativeProduct.sku,
                     category: nativeProduct.category, customizationTechniques: nativeProduct.customizationTechniques,
                     shipping: { weight: 0, length: 0, width: 0, height: 0 },
                 };
             }
-            const { options: firestoreOptions, error: firestoreError } = await loadProductOptionsFromFirestoreClient(user.uid, firestoreDocId);
-            if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings: ${firestoreError}`, variant: "default" });
+
             const nativeAttributesFromFS = firestoreOptions?.nativeAttributes || { colors: [], sizes: [] };
             if (!nativeAttributesFromFS.colors) nativeAttributesFromFS.colors = [];
             const validatedSizes = (nativeAttributesFromFS.sizes || []).map((s: any) => ({ id: s.id || crypto.randomUUID(), name: s.name, }));
@@ -1002,3 +1007,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
