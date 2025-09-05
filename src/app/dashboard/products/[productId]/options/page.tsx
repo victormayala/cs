@@ -574,15 +574,7 @@ function ProductOptionsPage() {
     };
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-        setEditorViews(prev => prev.map(v => {
-            if (v.id === activeViewIdInEditor && v.boundaryBoxes.length < 3) {
-                const newBox: BoundaryBox = { id: crypto.randomUUID(), name: `Area ${v.boundaryBoxes.length + 1}`, x: 10 + v.boundaryBoxes.length * 5, y: 10 + v.boundaryBoxes.length * 5, width: 30, height: 20 };
-                const updatedView = { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
-                setSelectedBoundaryBoxId(newBox.id);
-                return updatedView;
-            }
-            return v;
-        }));
+        setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor && v.boundaryBoxes.length < 3 ? { ...v, boundaryBoxes: [...v.boundaryBoxes, { id: crypto.randomUUID(), name: `Area ${v.boundaryBoxes.length + 1}`, x: 10 + v.boundaryBoxes.length * 5, y: 10 + v.boundaryBoxes.length * 5, width: 30, height: 20 }] } : v));
     };
     const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
         if (!activeViewIdInEditor) return;
@@ -600,7 +592,7 @@ function ProductOptionsPage() {
         }
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
     };
-      
+
     const handleInteractionStart = (
         e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
         box: BoundaryBox,
@@ -608,6 +600,8 @@ function ProductOptionsPage() {
     ) => {
         e.preventDefault();
         e.stopPropagation();
+
+        if (!imageWrapperRef.current) return;
         
         const coords = getMouseOrTouchCoords(e);
         activeDragRef.current = {
@@ -620,28 +614,33 @@ function ProductOptionsPage() {
             initialBoxWidth: box.width,
             initialBoxHeight: box.height,
         };
+        
+        window.addEventListener('mousemove', handleInteractionMove);
+        window.addEventListener('touchmove', handleInteractionMove, { passive: false });
+        window.addEventListener('mouseup', handleInteractionEnd);
+        window.addEventListener('touchend', handleInteractionEnd);
     };
     
-    const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+    const handleInteractionMove = (e: MouseEvent | TouchEvent) => {
         if (!activeDragRef.current || !imageWrapperRef.current) return;
-    
+        
         e.preventDefault();
-    
+        
         const { type, boxId, pointerStartX, pointerStartY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         if (!boxEl) return;
-    
+        
         const coords = getMouseOrTouchCoords(e);
         const containerRect = imageWrapperRef.current.getBoundingClientRect();
         if (containerRect.width === 0 || containerRect.height === 0) return;
-    
+        
         const dx = coords.x - pointerStartX;
         const dy = coords.y - pointerStartY;
         const dxPercent = (dx / containerRect.width) * 100;
         const dyPercent = (dy / containerRect.height) * 100;
-    
+        
         let newX = initialBoxX, newY = initialBoxY, newWidth = initialBoxWidth, newHeight = initialBoxHeight;
-    
+        
         switch (type) {
             case 'move': newX = initialBoxX + dxPercent; newY = initialBoxY + dyPercent; break;
             case 'resize_br': newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight + dyPercent; break;
@@ -659,52 +658,37 @@ function ProductOptionsPage() {
         boxEl.style.top = `${newY}%`;
         boxEl.style.width = `${newWidth}%`;
         boxEl.style.height = `${newHeight}%`;
-    }, []);
+    };
     
-    const handleInteractionEnd = useCallback(() => {
-        if (!activeDragRef.current || !imageWrapperRef.current) return;
+    const handleInteractionEnd = () => {
+        if (!activeDragRef.current) return;
         const { boxId } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
-        if (!boxEl) return;
+        
+        if (boxEl) {
+            const newX = parseFloat(boxEl.style.left);
+            const newY = parseFloat(boxEl.style.top);
+            const newWidth = parseFloat(boxEl.style.width);
+            const newHeight = parseFloat(boxEl.style.height);
 
-        const newX = parseFloat(boxEl.style.left);
-        const newY = parseFloat(boxEl.style.top);
-        const newWidth = parseFloat(boxEl.style.width);
-        const newHeight = parseFloat(boxEl.style.height);
-
-        setHasUnsavedChanges(true);
-        setEditorViews(currentViews => currentViews.map(view => {
-            if (view.id !== activeViewIdInEditor) return view;
-            return {
-                ...view,
-                boundaryBoxes: view.boundaryBoxes.map(box => 
-                    box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
-                ),
-            };
-        }));
+            setHasUnsavedChanges(true);
+            setEditorViews(currentViews => currentViews.map(view => {
+                if (view.id !== activeViewIdInEditor) return view;
+                return {
+                    ...view,
+                    boundaryBoxes: view.boundaryBoxes.map(box => 
+                        box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+                    ),
+                };
+            }));
+        }
         
         activeDragRef.current = null;
-    }, [activeViewIdInEditor]);
-    
-    useEffect(() => {
-        const moveHandler = (e: MouseEvent | TouchEvent) => handleInteractionMove(e);
-        const endHandler = () => handleInteractionEnd();
-    
-        if (activeDragRef.current) {
-            window.addEventListener('mousemove', moveHandler);
-            window.addEventListener('touchmove', moveHandler, { passive: false });
-            window.addEventListener('mouseup', endHandler);
-            window.addEventListener('touchend', endHandler);
-        }
-    
-        return () => {
-            window.removeEventListener('mousemove', moveHandler);
-            window.removeEventListener('touchmove', moveHandler);
-            window.removeEventListener('mouseup', endHandler);
-            window.removeEventListener('touchend', endHandler);
-        };
-    }, [handleInteractionMove, handleInteractionEnd]);
-
+        window.removeEventListener('mousemove', handleInteractionMove);
+        window.removeEventListener('touchmove', handleInteractionMove);
+        window.removeEventListener('mouseup', handleInteractionEnd);
+        window.removeEventListener('touchend', handleInteractionEnd);
+    };
 
       const categoryTree = useMemo(() => {
         const nodeMap = new Map<string, ProductCategory>();
@@ -843,7 +827,7 @@ function ProductOptionsPage() {
                                 <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES_OPTIONS.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)} /><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
                                 <Separator />
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
+                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={()={() => handleAddAttribute('colors')}}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
                                     <div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes'); } }} /><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
                                 </div>
                             </CardContent>
@@ -860,7 +844,7 @@ function ProductOptionsPage() {
 
                     <Card className="shadow-md">
                         <CardHeader>
-                            <CardTitle className="font-headline text-lg">Variation Images & Areas</CardTitle>
+                            <CardTitle className="font-headline text-lg">Variation Images &amp; Areas</CardTitle>
                             <CardDescription>
                             Define views and design areas for each color variation.
                             </CardDescription>
@@ -1111,6 +1095,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
 
     
