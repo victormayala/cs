@@ -68,6 +68,10 @@ interface ProductOptionsData {
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
 
+const MAX_PRODUCT_VIEWS = 5;
+const MIN_BOX_SIZE_PERCENT = 5;
+
+const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -1043,4 +1047,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
