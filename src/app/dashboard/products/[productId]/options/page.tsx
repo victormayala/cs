@@ -621,7 +621,7 @@ function ProductOptionsPage() {
         window.addEventListener('touchend', handleInteractionEnd);
     };
     
-    const handleInteractionMove = (e: MouseEvent | TouchEvent) => {
+    const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
         if (!activeDragRef.current || !imageWrapperRef.current) return;
         
         e.preventDefault();
@@ -658,9 +658,9 @@ function ProductOptionsPage() {
         boxEl.style.top = `${newY}%`;
         boxEl.style.width = `${newWidth}%`;
         boxEl.style.height = `${newHeight}%`;
-    };
+    }, []);
     
-    const handleInteractionEnd = () => {
+    const handleInteractionEnd = useCallback(() => {
         if (!activeDragRef.current) return;
         const { boxId } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
@@ -688,7 +688,27 @@ function ProductOptionsPage() {
         window.removeEventListener('touchmove', handleInteractionMove);
         window.removeEventListener('mouseup', handleInteractionEnd);
         window.removeEventListener('touchend', handleInteractionEnd);
-    };
+    }, [activeViewIdInEditor, handleInteractionMove]);
+
+    useEffect(() => {
+      const moveHandler = (e: MouseEvent | TouchEvent) => handleInteractionMove(e);
+      const endHandler = () => handleInteractionEnd();
+  
+      if (activeDragRef.current) {
+        window.addEventListener("mousemove", moveHandler);
+        window.addEventListener("touchmove", moveHandler, { passive: false });
+        window.addEventListener("mouseup", endHandler);
+        window.addEventListener("touchend", endHandler);
+      }
+  
+      return () => {
+        window.removeEventListener("mousemove", moveHandler);
+        window.removeEventListener("touchmove", moveHandler);
+        window.removeEventListener("mouseup", endHandler);
+        window.removeEventListener("touchend", endHandler);
+      };
+    }, [handleInteractionMove, handleInteractionEnd]);
+
 
       const categoryTree = useMemo(() => {
         const nodeMap = new Map<string, ProductCategory>();
@@ -827,7 +847,7 @@ function ProductOptionsPage() {
                                 <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES_OPTIONS.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)} /><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
                                 <Separator />
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={()={() => handleAddAttribute('colors')}}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
+                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
                                     <div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes'); } }} /><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
                                 </div>
                             </CardContent>
@@ -1095,5 +1115,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
-    
