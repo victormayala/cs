@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -51,7 +50,10 @@ export interface ProductCategory {
   id: string;
   name: string;
   parentId: string | null;
+  children?: ProductCategory[];
 }
+
+const CUSTOMIZATION_TECHNIQUES_OPTIONS: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 // This is the internal state representation. Note that salePrice can be null.
 interface ProductOptionsData {
@@ -77,8 +79,6 @@ interface ProductOptionsData {
 
 const MAX_PRODUCT_VIEWS = 5;
 const MIN_BOX_SIZE_PERCENT = 5;
-
-const CUSTOMIZATION_TECHNIQUES_OPTIONS: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -645,7 +645,7 @@ function ProductOptionsPage() {
     
         cancelAnimationFrame(dragUpdateRef.current);
         dragUpdateRef.current = requestAnimationFrame(() => {
-          if (!activeDrag) return;
+          if (!activeDrag || !imageWrapperRef.current) return;
           const coords = getMouseOrTouchCoords(e);
           const dx = coords.x - activeDrag.pointerStartX;
           const dy = coords.y - activeDrag.pointerStartY;
@@ -726,9 +726,8 @@ function ProductOptionsPage() {
       }, [activeDrag, handleInteractionMove, handleInteractionEnd]);
 
       const categoryTree = useMemo(() => {
-        type TreeNode = ProductCategory & { children: TreeNode[] };
-        const nodeMap = new Map<string, TreeNode>();
-        const tree: TreeNode[] = [];
+        const nodeMap = new Map<string, ProductCategory>();
+        const tree: ProductCategory[] = [];
     
         categories.forEach(cat => {
           nodeMap.set(cat.id, { ...cat, children: [] });
@@ -736,7 +735,11 @@ function ProductOptionsPage() {
     
         nodeMap.forEach(node => {
           if (node.parentId && nodeMap.has(node.parentId)) {
-            nodeMap.get(node.parentId)!.children.push(node);
+            const parent = nodeMap.get(node.parentId);
+            if (parent) {
+                parent.children = parent.children || [];
+                parent.children.push(node);
+            }
           } else {
             tree.push(node);
           }
@@ -745,7 +748,7 @@ function ProductOptionsPage() {
         return tree;
       }, [categories]);
 
-      const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
+      const renderCategoryOptions = (categoriesToRender: ProductCategory[], level = 0): JSX.Element[] => {
         let options: JSX.Element[] = [];
         categoriesToRender.forEach(cat => {
             options.push(
@@ -1045,7 +1048,7 @@ function ProductOptionsPage() {
                           <Tabs defaultValue="views" className="w-full">
                             <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewIdInEditor}>Customization Areas</TabsTrigger></TabsList>
                             <TabsContent value="views" className="mt-4 space-y-4">
-                              {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add View</Button>)}
+                              {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
                                   {editorViews.map((view, index) => (
                                     <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
@@ -1086,7 +1089,7 @@ function ProductOptionsPage() {
                               </div>
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
-                              {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view</p> : (<>
+                              {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view to manage its areas.</p> : <>
                                   <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
                                   {currentViewInEditor.boundaryBoxes.map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
@@ -1103,7 +1106,7 @@ function ProductOptionsPage() {
                                       </div>
                                     </div>
                                   ))}
-                              </>)}
+                              </>}
                             </TabsContent>
                           </Tabs>
                         </div>
