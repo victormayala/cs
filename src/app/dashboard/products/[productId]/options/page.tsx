@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -49,6 +50,7 @@ export interface SizeAttribute {
 export interface ProductCategory {
   id: string;
   name: string;
+  parentId: string | null;
 }
 
 // This is the internal state representation. Note that salePrice can be null.
@@ -149,7 +151,8 @@ function ProductOptionsPage() {
             const querySnapshot = await getDocs(q);
             const fetchedCategories: ProductCategory[] = [];
             querySnapshot.forEach((doc) => {
-                fetchedCategories.push({ id: doc.id, name: doc.data().name } as ProductCategory);
+                const data = doc.data();
+                fetchedCategories.push({ id: doc.id, name: data.name, parentId: data.parentId || null });
             });
             setCategories(fetchedCategories);
         };
@@ -724,6 +727,42 @@ function ProductOptionsPage() {
         };
       }, [activeDrag, handleInteractionMove, handleInteractionEnd]);
 
+      const categoryTree = useMemo(() => {
+        type TreeNode = ProductCategory & { children: TreeNode[] };
+        const nodeMap = new Map<string, TreeNode>();
+        const tree: TreeNode[] = [];
+    
+        categories.forEach(cat => {
+          nodeMap.set(cat.id, { ...cat, children: [] });
+        });
+    
+        nodeMap.forEach(node => {
+          if (node.parentId && nodeMap.has(node.parentId)) {
+            nodeMap.get(node.parentId)!.children.push(node);
+          } else {
+            tree.push(node);
+          }
+        });
+    
+        return tree;
+      }, [categories]);
+
+      const renderCategoryOptions = (categoriesToRender: (ProductCategory & { children: any[] })[], level = 0): JSX.Element[] => {
+        let options: JSX.Element[] = [];
+        categoriesToRender.forEach(cat => {
+            options.push(
+                <SelectItem key={cat.id} value={cat.id}>
+                    <span style={{ paddingLeft: `${level * 1.5}rem` }}>{level > 0 && '— '}{cat.name}</span>
+                </SelectItem>
+            );
+            if (cat.children && cat.children.length > 0) {
+                options = options.concat(renderCategoryOptions(cat.children, level + 1));
+            }
+        });
+        return options;
+      };
+
+
     if (isLoading) return <div className="flex items-center justify-center min-h-screen bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3">Loading product options...</p></div>;
     if (error) return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -783,9 +822,7 @@ function ProductOptionsPage() {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="none">Uncategorized</SelectItem>
-                                                {categories.map(cat => (
-                                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                                                ))}
+                                                {renderCategoryOptions(categoryTree)}
                                             </SelectContent>
                                         </Select>
                                     </div>
