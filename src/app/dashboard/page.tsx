@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, useMemo, Suspense, useCallback } from "react";
@@ -899,7 +900,7 @@ function DashboardPageContent() {
         <div className="flex flex-1">
           <Sidebar className="sticky top-16 h-[calc(100vh-4rem)]">
             <SidebarContent className="px-4 pt-6">
-              <SidebarMenu>
+              <SidebarMenu className="gap-2">
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="default" className="w-full justify-start">
                     <PackageIcon className="mr-2 h-5 w-5" />
@@ -921,7 +922,7 @@ function DashboardPageContent() {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter>
-              <SidebarMenu>
+              <SidebarMenu className="gap-2">
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="default" className="w-full justify-start">
                     <Settings className="mr-2 h-5 w-5" />
