@@ -308,15 +308,22 @@ function ProductOptionsPage() {
             cleanOptionsByColor[colorKey] = { selectedVariationIds: group.selectedVariationIds || [], views: (group.views || []).map((view: any) => ({ ...view, boundaryBoxes: view.boundaryBoxes || [], price: Number(view.price) || 0 })) };
         }
         const dataToSave: { [key: string]: any } = {
-            id: productOptionsToSave.id, price: Number(productOptionsToSave.price) || 0, type: productOptionsToSave.type,
-            allowCustomization: productOptionsToSave.allowCustomization, defaultViews: productOptionsToSave.defaultViews || [],
-            optionsByColor: cleanOptionsByColor, groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
+            id: productOptionsToSave.id,
+            price: Number(productOptions.price) || 0, // Correctly use the state value
+            type: productOptionsToSave.type,
+            allowCustomization: productOptionsToSave.allowCustomization, 
+            defaultViews: productOptionsToSave.defaultViews || [],
+            optionsByColor: cleanOptionsByColor, 
+            groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
             nativeAttributes: { colors: productOptionsToSave.nativeAttributes.colors || [], sizes: productOptionsToSave.nativeAttributes.sizes.map((s: any) => ({ id: s.id, name: s.name })) || [], },
             lastSaved: serverTimestamp(),
         };
 
-        if (productOptionsToSave.salePrice !== null && productOptionsToSave.salePrice !== undefined && String(productOptionsToSave.salePrice).trim() !== '') { dataToSave.salePrice = Number(productOptionsToSave.salePrice); } 
-        else { dataToSave.salePrice = deleteField(); }
+        if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
+            dataToSave.salePrice = Number(productOptions.salePrice);
+        } else {
+            dataToSave.salePrice = deleteField();
+        }
         
         if (productOptions.source === 'customizer-studio') {
             const productBaseData: { [key: string]: any } = {
