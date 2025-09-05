@@ -603,26 +603,22 @@ function ProductOptionsPage() {
       
     const handleInteractionStart = (
         e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-        boxId: string,
+        box: BoundaryBox,
         interactionType: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'
     ) => {
         e.preventDefault();
         e.stopPropagation();
         
-        if (!imageWrapperRef.current) return;
-        const boxEl = document.getElementById(`boundary-box-${boxId}`);
-        if (!boxEl) return;
-    
         const coords = getMouseOrTouchCoords(e);
         activeDragRef.current = {
             type: interactionType,
-            boxId,
+            boxId: box.id,
             pointerStartX: coords.x,
             pointerStartY: coords.y,
-            initialBoxX: parseFloat(boxEl.style.left),
-            initialBoxY: parseFloat(boxEl.style.top),
-            initialBoxWidth: parseFloat(boxEl.style.width),
-            initialBoxHeight: parseFloat(boxEl.style.height),
+            initialBoxX: box.x,
+            initialBoxY: box.y,
+            initialBoxWidth: box.width,
+            initialBoxHeight: box.height,
         };
     };
     
@@ -1016,15 +1012,15 @@ function ProductOptionsPage() {
                                               activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
-                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box.id, 'move'); }}
-                                onTouchStart={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box.id, 'move'); }}
+                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                onTouchStart={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                               >
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
-                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box.id, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box.id, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                   </>
                                 )}
                              </div>
@@ -1115,3 +1111,6 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
+
+    
