@@ -137,9 +137,8 @@ function ProductOptionsPage() {
   const [viewIdToDelete, setViewIdToDelete] = useState<string | null>(null);
   
   const imageWrapperRef = useRef<HTMLDivElement>(null);
-  type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; pointerStartX: number; pointerStartY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; containerWidthPx: number; containerHeightPx: number; };
-  const [activeDrag, setActiveDrag] = useState<ActiveDragState | null>(null);
-  const dragUpdateRef = useRef(0);
+  type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; pointerStartX: number; pointerStartY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; };
+  const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -575,24 +574,15 @@ function ProductOptionsPage() {
     };
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-        setEditorViews(prev => {
-          return prev.map(v => {
+        setEditorViews(prev => prev.map(v => {
             if (v.id === activeViewIdInEditor && v.boundaryBoxes.length < 3) {
-              const newBox: BoundaryBox = {
-                id: crypto.randomUUID(),
-                name: `Area ${v.boundaryBoxes.length + 1}`,
-                x: 10 + v.boundaryBoxes.length * 5,
-                y: 10 + v.boundaryBoxes.length * 5,
-                width: 30,
-                height: 20
-              };
-              const updatedView = { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
-              setSelectedBoundaryBoxId(newBox.id);
-              return updatedView;
+                const newBox: BoundaryBox = { id: crypto.randomUUID(), name: `Area ${v.boundaryBoxes.length + 1}`, x: 10 + v.boundaryBoxes.length * 5, y: 10 + v.boundaryBoxes.length * 5, width: 30, height: 20 };
+                const updatedView = { ...v, boundaryBoxes: [...v.boundaryBoxes, newBox] };
+                setSelectedBoundaryBoxId(newBox.id);
+                return updatedView;
             }
             return v;
-          });
-        });
+        }));
     };
     const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
         if (!activeViewIdInEditor) return;
@@ -606,124 +596,118 @@ function ProductOptionsPage() {
 
     const getMouseOrTouchCoords = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
         if ('touches' in e && e.touches.length > 0) {
-          return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
         }
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
-      };
+    };
       
     const handleInteractionStart = (
         e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
         boxId: string,
         interactionType: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'
-      ) => {
+    ) => {
         e.preventDefault();
         e.stopPropagation();
-    
+        
         if (!imageWrapperRef.current) return;
-        const box = editorViews.flatMap(v => v.boundaryBoxes).find(b => b.id === boxId);
-        if (!box) return;
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (!boxEl) return;
     
-        const containerRect = imageWrapperRef.current.getBoundingClientRect();
         const coords = getMouseOrTouchCoords(e);
-    
-        setActiveDrag({
-          type: interactionType,
-          boxId,
-          pointerStartX: coords.x,
-          pointerStartY: coords.y,
-          initialBoxX: box.x,
-          initialBoxY: box.y,
-          initialBoxWidth: box.width,
-          initialBoxHeight: box.height,
-          containerWidthPx: containerRect.width,
-          containerHeightPx: containerRect.height,
-        });
-      };
-    
-      const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-        if (!activeDrag) return;
-    
-        cancelAnimationFrame(dragUpdateRef.current);
-        dragUpdateRef.current = requestAnimationFrame(() => {
-          if (!activeDrag || !imageWrapperRef.current) return;
-          const coords = getMouseOrTouchCoords(e);
-          const dx = coords.x - activeDrag.pointerStartX;
-          const dy = coords.y - activeDrag.pointerStartY;
-    
-          const dxPercent = (dx / activeDrag.containerWidthPx) * 100;
-          const dyPercent = (dy / activeDrag.containerHeightPx) * 100;
-    
-          setEditorViews(currentViews => currentViews.map(view => {
-            if (view.id !== activeViewIdInEditor) return view;
-    
-            const newBoundaryBoxes = view.boundaryBoxes.map(box => {
-              if (box.id !== activeDrag.boxId) return box;
-    
-              let newX = box.x;
-              let newY = box.y;
-              let newWidth = box.width;
-              let newHeight = box.height;
-    
-              switch (activeDrag.type) {
-                case 'move':
-                  newX = activeDrag.initialBoxX + dxPercent;
-                  newY = activeDrag.initialBoxY + dyPercent;
-                  break;
-                case 'resize_br':
-                  newWidth = activeDrag.initialBoxWidth + dxPercent;
-                  newHeight = activeDrag.initialBoxHeight + dyPercent;
-                  break;
-                case 'resize_bl':
-                  newX = activeDrag.initialBoxX + dxPercent;
-                  newWidth = activeDrag.initialBoxWidth - dxPercent;
-                  newHeight = activeDrag.initialBoxHeight + dyPercent;
-                  break;
-                case 'resize_tr':
-                  newY = activeDrag.initialBoxY + dyPercent;
-                  newWidth = activeDrag.initialBoxWidth + dxPercent;
-                  newHeight = activeDrag.initialBoxHeight - dyPercent;
-                  break;
-                case 'resize_tl':
-                  newX = activeDrag.initialBoxX + dxPercent;
-                  newY = activeDrag.initialBoxY + dyPercent;
-                  newWidth = activeDrag.initialBoxWidth - dxPercent;
-                  newHeight = activeDrag.initialBoxHeight - dyPercent;
-                  break;
-              }
-    
-              newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
-              newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
-              newX = Math.max(0, Math.min(newX, 100 - newWidth));
-              newY = Math.max(0, Math.min(newY, 100 - newHeight));
-    
-              return { ...box, x: newX, y: newY, width: newWidth, height: newHeight };
-            });
-            return { ...view, boundaryBoxes: newBoundaryBoxes };
-          }));
-        });
-      }, [activeDrag, activeViewIdInEditor]);
-    
-      const handleInteractionEnd = useCallback(() => {
-        cancelAnimationFrame(dragUpdateRef.current);
-        setActiveDrag(null);
-        setHasUnsavedChanges(true);
-      }, []);
-    
-      useEffect(() => {
-        if (activeDrag) {
-          window.addEventListener('mousemove', handleInteractionMove);
-          window.addEventListener('touchmove', handleInteractionMove, { passive: false });
-          window.addEventListener('mouseup', handleInteractionEnd);
-          window.addEventListener('touchend', handleInteractionEnd);
-        }
-        return () => {
-          window.removeEventListener('mousemove', handleInteractionMove);
-          window.removeEventListener('touchmove', handleInteractionMove);
-          window.removeEventListener('mouseup', handleInteractionEnd);
-          window.removeEventListener('touchend', handleInteractionEnd);
-          cancelAnimationFrame(dragUpdateRef.current);
+        activeDragRef.current = {
+            type: interactionType,
+            boxId,
+            pointerStartX: coords.x,
+            pointerStartY: coords.y,
+            initialBoxX: parseFloat(boxEl.style.left),
+            initialBoxY: parseFloat(boxEl.style.top),
+            initialBoxWidth: parseFloat(boxEl.style.width),
+            initialBoxHeight: parseFloat(boxEl.style.height),
         };
-      }, [activeDrag, handleInteractionMove, handleInteractionEnd]);
+    };
+    
+    const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!activeDragRef.current || !imageWrapperRef.current) return;
+        const { type, boxId, pointerStartX, pointerStartY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+    
+        const coords = getMouseOrTouchCoords(e);
+        const containerRect = imageWrapperRef.current.getBoundingClientRect();
+        if (containerRect.width === 0 || containerRect.height === 0) return;
+    
+        const dx = coords.x - pointerStartX;
+        const dy = coords.y - pointerStartY;
+        const dxPercent = (dx / containerRect.width) * 100;
+        const dyPercent = (dy / containerRect.height) * 100;
+    
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (!boxEl) return;
+    
+        let newX = initialBoxX, newY = initialBoxY, newWidth = initialBoxWidth, newHeight = initialBoxHeight;
+    
+        switch (type) {
+            case 'move': newX = initialBoxX + dxPercent; newY = initialBoxY + dyPercent; break;
+            case 'resize_br': newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight + dyPercent; break;
+            case 'resize_bl': newX = initialBoxX + dxPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight + dyPercent; break;
+            case 'resize_tr': newY = initialBoxY + dyPercent; newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight - dyPercent; break;
+            case 'resize_tl': newX = initialBoxX + dxPercent; newY = initialBoxY + dyPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight - dyPercent; break;
+        }
+
+        newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
+        newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
+        newX = Math.max(0, Math.min(newX, 100 - newWidth));
+        newY = Math.max(0, Math.min(newY, 100 - newHeight));
+    
+        boxEl.style.left = `${newX}%`;
+        boxEl.style.top = `${newY}%`;
+        boxEl.style.width = `${newWidth}%`;
+        boxEl.style.height = `${newHeight}%`;
+    
+    }, []);
+    
+    const handleInteractionEnd = useCallback(() => {
+        if (!activeDragRef.current || !imageWrapperRef.current) return;
+        const { boxId } = activeDragRef.current;
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (!boxEl) return;
+
+        const newX = parseFloat(boxEl.style.left);
+        const newY = parseFloat(boxEl.style.top);
+        const newWidth = parseFloat(boxEl.style.width);
+        const newHeight = parseFloat(boxEl.style.height);
+
+        setHasUnsavedChanges(true);
+        setEditorViews(currentViews => currentViews.map(view => {
+            if (view.id !== activeViewIdInEditor) return view;
+            return {
+                ...view,
+                boundaryBoxes: view.boundaryBoxes.map(box => 
+                    box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+                ),
+            };
+        }));
+        
+        activeDragRef.current = null;
+    }, [activeViewIdInEditor]);
+    
+    useEffect(() => {
+        const moveHandler = (e: MouseEvent | TouchEvent) => handleInteractionMove(e);
+        const endHandler = () => handleInteractionEnd();
+    
+        if (activeDragRef.current) {
+            window.addEventListener('mousemove', moveHandler);
+            window.addEventListener('touchmove', moveHandler, { passive: false });
+            window.addEventListener('mouseup', endHandler);
+            window.addEventListener('touchend', endHandler);
+        }
+    
+        return () => {
+            window.removeEventListener('mousemove', moveHandler);
+            window.removeEventListener('touchmove', moveHandler);
+            window.removeEventListener('mouseup', endHandler);
+            window.removeEventListener('touchend', endHandler);
+        };
+    }, [handleInteractionMove, handleInteractionEnd]);
+
 
       const categoryTree = useMemo(() => {
         const nodeMap = new Map<string, ProductCategory>();
@@ -748,7 +732,7 @@ function ProductOptionsPage() {
         return tree;
       }, [categories]);
 
-      const renderCategoryOptions = (categoriesToRender: ProductCategory[], level = 0): JSX.Element[] => {
+      const renderCategoryOptions = (categoriesToRender: ProductCategory[], level = 0) => {
         let options: JSX.Element[] = [];
         categoriesToRender.forEach(cat => {
             options.push(
@@ -1024,10 +1008,11 @@ function ProductOptionsPage() {
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {currentViewInEditor?.boundaryBoxes.map((box) => (
                              <div 
-                                key={box.id} 
+                                key={box.id}
+                                id={`boundary-box-${box.id}`}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
                                               selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10',
-                                              activeDrag?.boxId === box.id && activeDrag.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
+                                              activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
                                 onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box.id, 'move'); }}
