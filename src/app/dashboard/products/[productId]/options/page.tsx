@@ -320,6 +320,7 @@ function ProductOptionsPage() {
     
       const dataToSave: { [key: string]: any } = {
         id: productOptions.id,
+        name: productOptions.name,
         price: Number(productOptions.price) || 0,
         type: productOptions.type,
         allowCustomization: productOptions.allowCustomization,
@@ -330,6 +331,7 @@ function ProductOptionsPage() {
           colors: productOptions.nativeAttributes.colors || [],
           sizes: (productOptions.nativeAttributes.sizes || []).map((s: any) => ({ id: s.id, name: s.name })),
         },
+        shipping: productOptions.shipping || { weight: 0, length: 0, width: 0, height: 0 },
         lastSaved: serverTimestamp(),
       };
     
@@ -339,13 +341,12 @@ function ProductOptionsPage() {
         dataToSave.salePrice = deleteField();
       }
     
-      if (productOptions.source === 'customizer-studio') {
+      if (source === 'customizer-studio') {
         const productBaseData: { [key: string]: any } = {
           name: productOptions.name,
           description: productOptions.description,
           lastModified: serverTimestamp()
         };
-        // Use deleteField() for optional fields to remove them if empty
         productBaseData.brand = productOptions.brand || deleteField();
         productBaseData.sku = productOptions.sku || deleteField();
         productBaseData.category = productOptions.category || deleteField();
@@ -355,22 +356,22 @@ function ProductOptionsPage() {
       }
     
       if (Array.isArray(productOptions.nativeVariations)) {
-        dataToSave.nativeVariations = productOptions.nativeVariations.map((variation: any) => {
+        dataToSave.nativeVariations = productOptions.nativeVariations.map((variation) => {
           const cleanVariation: { [key: string]: any } = {
             id: variation.id,
             attributes: variation.attributes,
             price: Number(variation.price) || 0,
           };
-          if (variation.salePrice !== null && variation.salePrice !== undefined && String(variation.salePrice).trim() !== '') {
-            cleanVariation.salePrice = Number(variation.salePrice);
+          // Correctly handle null/undefined/empty string for salePrice
+          const salePriceNum = Number(variation.salePrice);
+          if (variation.salePrice != null && String(variation.salePrice).trim() !== '' && !isNaN(salePriceNum)) {
+            cleanVariation.salePrice = salePriceNum;
           }
           return cleanVariation;
         });
       } else {
         dataToSave.nativeVariations = [];
       }
-      
-      dataToSave.shipping = productOptions.shipping || { weight: 0, length: 0, width: 0, height: 0 };
     
       try {
         await setDoc(doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId), dataToSave, { merge: true });
@@ -382,6 +383,7 @@ function ProductOptionsPage() {
           description = "Save failed due to permissions. Please check your Firestore security rules for writes.";
         }
         toast({ title: "Save Error", description, variant: "destructive" });
+        console.error("Firestore save error:", error);
       } finally {
         setIsSaving(false);
       }
