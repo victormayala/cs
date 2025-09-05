@@ -68,7 +68,7 @@ interface ProductOptionsData {
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes: Omit<ProductAttributeOptions, 'sizes'> & { sizes: SizeAttribute[] };
-  nativeVariations: NativeProductVariation[];
+  nativeVariations: (Omit<NativeProductVariation, 'price'|'salePrice'> & { price: number|string, salePrice?: number|string|null })[];
   allowCustomization: boolean;
   source: 'woocommerce' | 'shopify' | 'customizer-studio';
 }
@@ -295,35 +295,21 @@ function ProductOptionsPage() {
       }
       setIsSaving(true);
     
-      const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
-      for (const colorKey in productOptions.optionsByColor) {
-        const group = productOptions.optionsByColor[colorKey];
-        cleanOptionsByColor[colorKey] = {
-          selectedVariationIds: group.selectedVariationIds || [],
-          views: (group.views || []).map((view: any) => ({
-            ...view,
-            boundaryBoxes: view.boundaryBoxes || [],
-            price: Number(view.price) || 0
-          }))
-        };
-      }
-    
-      const dataToSave: { [key: string]: any } = {
-        id: productOptions.id,
-        name: productOptions.name,
-        price: Number(productOptions.price) || 0,
-        type: productOptions.type,
-        allowCustomization: productOptions.allowCustomization,
-        defaultViews: productOptions.defaultViews || [],
-        optionsByColor: cleanOptionsByColor,
-        groupingAttributeName: productOptions.groupingAttributeName || null,
-        nativeAttributes: {
-          colors: productOptions.nativeAttributes.colors || [],
-          sizes: (productOptions.nativeAttributes.sizes || []).map((s: any) => ({ id: s.id, name: s.name })),
-        },
-        shipping: productOptions.shipping || { weight: 0, length: 0, width: 0, height: 0 },
-        lastSaved: serverTimestamp(),
+      const dataToSave: { [key: string]: any } = {};
+
+      // Only include fields that are managed on this page in the userProductOptions document
+      dataToSave.price = Number(productOptions.price) || 0;
+      dataToSave.type = productOptions.type;
+      dataToSave.allowCustomization = productOptions.allowCustomization;
+      dataToSave.defaultViews = productOptions.defaultViews || [];
+      dataToSave.optionsByColor = productOptions.optionsByColor || {};
+      dataToSave.groupingAttributeName = productOptions.groupingAttributeName || null;
+      dataToSave.nativeAttributes = {
+        colors: productOptions.nativeAttributes.colors || [],
+        sizes: (productOptions.nativeAttributes.sizes || []).map((s: any) => ({ id: s.id, name: s.name })),
       };
+      dataToSave.shipping = productOptions.shipping || { weight: 0, length: 0, width: 0, height: 0 };
+      dataToSave.lastSaved = serverTimestamp();
     
       if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
         dataToSave.salePrice = Number(productOptions.salePrice);
@@ -355,9 +341,6 @@ function ProductOptionsPage() {
           const salePriceNum = Number(variation.salePrice);
           if (variation.salePrice != null && String(variation.salePrice).trim() !== '' && !isNaN(salePriceNum)) {
             cleanVariation.salePrice = salePriceNum;
-          } else {
-             // Explicitly delete salePrice if it's null, undefined, or empty string
-             // This is not needed if we just don't add it to cleanVariation
           }
           return cleanVariation;
         });
@@ -387,13 +370,13 @@ function ProductOptionsPage() {
         router.push(`/customizer?productId=${productOptions.id}&source=${productOptions.source}`);
     };
     
-    const regenerateVariations = (options: ProductOptionsData): NativeProductVariation[] => {
+    const regenerateVariations = (options: ProductOptionsData): ProductOptionsData['nativeVariations'] => {
       if (options.type !== 'variable' || options.source !== 'customizer-studio') return options.nativeVariations || [];
       const { colors = [], sizes = [] } = options.nativeAttributes || {};
       if (colors.length === 0 && sizes.length === 0) return [];
       const colorOptions = colors.length > 0 ? colors : [{ name: '', hex: '' }];
       const sizeOptions = sizes.length > 0 ? sizes : [{ id: '', name: '' }];
-      const newVariations: NativeProductVariation[] = [];
+      const newVariations: ProductOptionsData['nativeVariations'] = [];
       colorOptions.forEach(color => {
           sizeOptions.forEach(size => {
               if (!color.name && !size.name) return;
@@ -465,12 +448,10 @@ function ProductOptionsPage() {
       setHasUnsavedChanges(true);
       setProductOptions(prev => {
         if (!prev) return null;
-        return {
-          ...prev,
-          nativeVariations: prev.nativeVariations.map(v => 
-            v.id === id ? { ...v, [field]: value } : v
-          )
-        };
+        const newVariations = prev.nativeVariations.map(v => 
+          v.id === id ? { ...v, [field]: value } : v
+        );
+        return { ...prev, nativeVariations: newVariations };
       });
     };
     
@@ -482,15 +463,13 @@ function ProductOptionsPage() {
           nativeVariations: prev.nativeVariations.map(v => {
             if (v.id === id) {
               const value = v[field];
+              const numValue = Number(value);
               if (value === '' || value == null) {
                 return { ...v, [field]: field === 'price' ? 0 : null };
               }
-              const numValue = Number(value);
               if (isNaN(numValue)) {
                 toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
-                // Revert to original value if parsing fails
-                const originalVariation = regenerateVariations(prev).find(ov => ov.id === id);
-                return { ...v, [field]: originalVariation?.[field] ?? (field === 'price' ? 0 : null) };
+                return { ...v, [field]: field === 'price' ? 0 : null };
               }
               return { ...v, [field]: numValue };
             }
@@ -1023,3 +1002,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
+    
