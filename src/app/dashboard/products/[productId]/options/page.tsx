@@ -41,11 +41,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
 
-const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
-const MAX_PRODUCT_VIEWS = 4;
-const MIN_BOX_SIZE_PERCENT = 5;
-
-
 export interface SizeAttribute {
     id: string;
     name: string;
@@ -64,7 +59,7 @@ interface ProductOptionsData {
   salePrice: number | string | null;
   shipping: ShippingAttributes;
   type: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
-  defaultViews: ProductView[]; 
+  defaultViews: ProductView[];
   optionsByColor: Record<string, ColorGroupOptions>;
   groupingAttributeName: string | null;
   nativeAttributes: Omit<ProductAttributeOptions, 'sizes'> & { sizes: SizeAttribute[] };
@@ -235,7 +230,7 @@ function ProductOptionsPage() {
                 baseProduct = {
                     id: firestoreDocId, name: nativeProduct.name,
                     description: nativeProduct.description || 'No description provided.',
-                    price: firestoreOptions?.price ?? 0, 
+                    price: firestoreOptions?.price ?? 0,
                     salePrice: firestoreOptions?.salePrice ?? null,
                     type: firestoreOptions?.type ?? 'simple',
                     brand: nativeProduct.brand, sku: nativeProduct.sku,
@@ -279,12 +274,12 @@ function ProductOptionsPage() {
         if (authIsLoading) return;
         if (!user?.uid) { setError("User not authenticated."); setIsLoading(false); return; }
         if (!productIdFromUrl) { setError("Product ID is missing."); setIsLoading(false); return; }
-        fetchAndSetProductData(false); 
+        fetchAndSetProductData(false);
     }, [authIsLoading, user?.uid, productIdFromUrl, fetchAndSetProductData]);
 
     const handleRefreshData = () => {
         if (source === 'customizer-studio') { toast({ title: "Not applicable", description: "Native products do not need to be refreshed.", variant: "default" }); return; }
-        if (!authIsLoading && user && productIdFromUrl) { fetchAndSetProductData(true); } 
+        if (!authIsLoading && user && productIdFromUrl) { fetchAndSetProductData(true); }
         else { toast({ title: "Cannot Refresh", description: "User or product ID missing.", variant: "destructive" }); }
     };
 
@@ -296,8 +291,7 @@ function ProductOptionsPage() {
       setIsSaving(true);
     
       const dataToSave: { [key: string]: any } = {};
-
-      // Only include fields that are managed on this page in the userProductOptions document
+    
       dataToSave.price = Number(productOptions.price) || 0;
       dataToSave.type = productOptions.type;
       dataToSave.allowCustomization = productOptions.allowCustomization;
@@ -341,6 +335,8 @@ function ProductOptionsPage() {
           const salePriceNum = Number(variation.salePrice);
           if (variation.salePrice != null && String(variation.salePrice).trim() !== '' && !isNaN(salePriceNum)) {
             cleanVariation.salePrice = salePriceNum;
+          } else {
+            cleanVariation.salePrice = null;
           }
           return cleanVariation;
         });
@@ -448,7 +444,7 @@ function ProductOptionsPage() {
       setHasUnsavedChanges(true);
       setProductOptions(prev => {
         if (!prev) return null;
-        const newVariations = prev.nativeVariations.map(v => 
+        const newVariations = prev.nativeVariations.map(v =>
           v.id === id ? { ...v, [field]: value } : v
         );
         return { ...prev, nativeVariations: newVariations };
@@ -502,7 +498,7 @@ function ProductOptionsPage() {
         const value = field === 'price' ? productOptions.price : productOptions.salePrice;
         const numValue = Number(value);
         if (String(value).trim() === '' && field === 'salePrice') { setProductOptions({ ...productOptions, salePrice: null }); return; }
-        if (isNaN(numValue)) { setProductOptions({ ...productOptions, [field]: field === 'price' ? 0 : null }); } 
+        if (isNaN(numValue)) { setProductOptions({ ...productOptions, [field]: field === 'price' ? 0 : null }); }
         else { setProductOptions({ ...productOptions, [field]: numValue }); }
     };
     const handleOpenViewEditor = (color: string) => {
@@ -724,8 +720,7 @@ function ProductOptionsPage() {
     const currentViewInEditor = editorViews.find(v => v.id === activeViewIdInEditor);
     const defaultProductImage = productOptions.defaultViews[0]?.imageUrl || 'https://placehold.co/600x600/eee/ccc?text=Default';
     const defaultProductViewId = productOptions.defaultViews[0]?.id || 'default_plp_view';
-    const currentVariations = regenerateVariations(productOptions);
-
+    
     return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
             <div className="mb-6 flex justify-between items-center">
@@ -842,8 +837,8 @@ function ProductOptionsPage() {
                             <Separator />
                             <Label className="font-medium">Customization Views by Color</Label>
                             <p className="text-xs text-muted-foreground">
-                                {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0 
-                                ? "Each color can have its own set of views. If no custom views are set, the product will use the Default Image but won't be customizable for that color." 
+                                {source === 'customizer-studio' && productOptions.nativeAttributes.colors.length > 0
+                                ? "Each color can have its own set of views. If no custom views are set, the product will use the Default Image but won't be customizable for that color."
                                 : "Define the default views available for this product. These can be overridden for specific colors if attributes are defined."
                                 }
                             </p>
@@ -855,7 +850,7 @@ function ProductOptionsPage() {
                                     <span className="font-medium">{color.name}</span>
                                 </div>
                                 <Button variant="outline" size="sm" onClick={() => handleOpenViewEditor(color.name)}>
-                                    <Pencil className="mr-2 h-3 w-3" /> 
+                                    <Pencil className="mr-2 h-3 w-3" />
                                     {productOptions.optionsByColor[color.name]?.views?.length > 0 ? `Edit ${productOptions.optionsByColor[color.name]?.views?.length} Views` : 'Set Custom Views'}
                                 </Button>
                                 </div>
@@ -864,7 +859,53 @@ function ProductOptionsPage() {
                         </CardContent>
                     </Card>
                     
-                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{currentVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(currentVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{currentVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variation.price} onChange={e => { handleVariationPriceChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationPriceBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variation.salePrice ?? ''} onChange={e => handleVariationPriceChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationPriceBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && (
+                        <Card className="shadow-md">
+                            <CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader>
+                            <CardContent>
+                                {productOptions.nativeVariations.length === 0 ? (
+                                    <div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                            <div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div>
+                                            <div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div>
+                                        </div>
+                                        <div className="max-h-96 overflow-y-auto border rounded-md">
+                                            <Table>
+                                                <TableHeader className="sticky top-0 bg-muted/50 z-10">
+                                                    <TableRow>
+                                                        {Object.keys(productOptions.nativeVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}
+                                                        <TableHead className="text-right">Price</TableHead>
+                                                        <TableHead className="text-right">Sale Price</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {productOptions.nativeVariations.map(variation => (
+                                                        <TableRow key={variation.id}>
+                                                            {Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}
+                                                            <TableCell className="text-right">
+                                                                <div className="relative flex items-center justify-end">
+                                                                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                                    <Input type="text" value={variation.price} onChange={e => handleVariationPriceChange(variation.id, 'price', e.target.value)} onBlur={() => handleVariationPriceBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" />
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className="relative flex items-center justify-end">
+                                                                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                                    <Input type="text" placeholder="None" value={variation.salePrice ?? ''} onChange={e => handleVariationPriceChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationPriceBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" />
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 <div className="md:col-span-1 space-y-6">
@@ -1003,4 +1044,3 @@ export default function ProductOptions() {
   );
 }
 
-    
