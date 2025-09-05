@@ -299,77 +299,92 @@ function ProductOptionsPage() {
     };
 
     const handleSaveChanges = async () => {
-        if (!productOptions || !user?.uid || !db || !firestoreDocId) { toast({ title: "Error", description: "Cannot save. Missing required data.", variant: "destructive" }); return; }
-        setIsSaving(true);
-        const productOptionsToSave = JSON.parse(JSON.stringify(productOptions));
-        const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
-        for (const colorKey in productOptionsToSave.optionsByColor) {
-            const group = productOptionsToSave.optionsByColor[colorKey];
-            cleanOptionsByColor[colorKey] = { selectedVariationIds: group.selectedVariationIds || [], views: (group.views || []).map((view: any) => ({ ...view, boundaryBoxes: view.boundaryBoxes || [], price: Number(view.price) || 0 })) };
-        }
-        const dataToSave: { [key: string]: any } = {
-            id: productOptionsToSave.id,
-            price: Number(productOptions.price) || 0, // Correctly use the state value
-            type: productOptionsToSave.type,
-            allowCustomization: productOptionsToSave.allowCustomization, 
-            defaultViews: productOptionsToSave.defaultViews || [],
-            optionsByColor: cleanOptionsByColor, 
-            groupingAttributeName: productOptionsToSave.groupingAttributeName || null,
-            nativeAttributes: { colors: productOptionsToSave.nativeAttributes.colors || [], sizes: productOptionsToSave.nativeAttributes.sizes.map((s: any) => ({ id: s.id, name: s.name })) || [], },
-            lastSaved: serverTimestamp(),
+      if (!productOptions || !user?.uid || !db || !firestoreDocId) {
+        toast({ title: "Error", description: "Cannot save. Missing required data.", variant: "destructive" });
+        return;
+      }
+      setIsSaving(true);
+    
+      const cleanOptionsByColor: Record<string, ColorGroupOptions> = {};
+      for (const colorKey in productOptions.optionsByColor) {
+        const group = productOptions.optionsByColor[colorKey];
+        cleanOptionsByColor[colorKey] = {
+          selectedVariationIds: group.selectedVariationIds || [],
+          views: (group.views || []).map((view: any) => ({
+            ...view,
+            boundaryBoxes: view.boundaryBoxes || [],
+            price: Number(view.price) || 0
+          }))
         };
-
-        if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
-            dataToSave.salePrice = Number(productOptions.salePrice);
-        } else {
-            dataToSave.salePrice = deleteField();
-        }
+      }
+    
+      const dataToSave: { [key: string]: any } = {
+        id: productOptions.id,
+        price: Number(productOptions.price) || 0,
+        type: productOptions.type,
+        allowCustomization: productOptions.allowCustomization,
+        defaultViews: productOptions.defaultViews || [],
+        optionsByColor: cleanOptionsByColor,
+        groupingAttributeName: productOptions.groupingAttributeName || null,
+        nativeAttributes: {
+          colors: productOptions.nativeAttributes.colors || [],
+          sizes: (productOptions.nativeAttributes.sizes || []).map((s: any) => ({ id: s.id, name: s.name })),
+        },
+        lastSaved: serverTimestamp(),
+      };
+    
+      if (productOptions.salePrice !== null && productOptions.salePrice !== undefined && String(productOptions.salePrice).trim() !== '') {
+        dataToSave.salePrice = Number(productOptions.salePrice);
+      } else {
+        dataToSave.salePrice = deleteField();
+      }
+    
+      if (productOptions.source === 'customizer-studio') {
+        const productBaseData: { [key: string]: any } = {
+          name: productOptions.name,
+          description: productOptions.description,
+          lastModified: serverTimestamp()
+        };
+        // Use deleteField() for optional fields to remove them if empty
+        productBaseData.brand = productOptions.brand || deleteField();
+        productBaseData.sku = productOptions.sku || deleteField();
+        productBaseData.category = productOptions.category || deleteField();
+        productBaseData.customizationTechniques = productOptions.customizationTechniques?.length ? productOptions.customizationTechniques : deleteField();
         
-        if (productOptions.source === 'customizer-studio') {
-            const productBaseData: { [key: string]: any } = {
-                name: productOptionsToSave.name,
-                description: productOptionsToSave.description,
-                lastModified: serverTimestamp()
-            };
-            if (productOptionsToSave.brand) {
-                productBaseData.brand = productOptionsToSave.brand;
-            } else {
-                productBaseData.brand = deleteField();
-            }
-            if (productOptionsToSave.sku) {
-                productBaseData.sku = productOptionsToSave.sku;
-            } else {
-                productBaseData.sku = deleteField();
-            }
-            if (productOptionsToSave.category) {
-                productBaseData.category = productOptionsToSave.category;
-            } else {
-                productBaseData.category = deleteField();
-            }
-            if (productOptionsToSave.customizationTechniques) {
-                productBaseData.customizationTechniques = productOptionsToSave.customizationTechniques;
-            } else {
-                productBaseData.customizationTechniques = deleteField();
-            }
-            await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
+        await setDoc(doc(db, `users/${user.uid}/products`, firestoreDocId), productBaseData, { merge: true });
+      }
+    
+      if (Array.isArray(productOptions.nativeVariations)) {
+        dataToSave.nativeVariations = productOptions.nativeVariations.map((variation: any) => {
+          const cleanVariation: { [key: string]: any } = {
+            id: variation.id,
+            attributes: variation.attributes,
+            price: Number(variation.price) || 0,
+          };
+          if (variation.salePrice !== null && variation.salePrice !== undefined && String(variation.salePrice).trim() !== '') {
+            cleanVariation.salePrice = Number(variation.salePrice);
+          }
+          return cleanVariation;
+        });
+      } else {
+        dataToSave.nativeVariations = [];
+      }
+      
+      dataToSave.shipping = productOptions.shipping || { weight: 0, length: 0, width: 0, height: 0 };
+    
+      try {
+        await setDoc(doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId), dataToSave, { merge: true });
+        toast({ title: "Saved", description: "Your product configurations have been saved." });
+        setHasUnsavedChanges(false);
+      } catch (error: any) {
+        let description = `Failed to save options: ${error.message || "Unknown Firestore error"}`;
+        if (error.code === 'permission-denied') {
+          description = "Save failed due to permissions. Please check your Firestore security rules for writes.";
         }
-        if (Array.isArray(productOptionsToSave.nativeVariations)) {
-            dataToSave.nativeVariations = productOptionsToSave.nativeVariations.map((variation: any) => {
-                const cleanVariation: { [key: string]: any } = { id: variation.id, attributes: variation.attributes, price: Number(variation.price) || 0, };
-                if (variation.salePrice !== null && variation.salePrice !== undefined && String(variation.salePrice).trim() !== '') { cleanVariation.salePrice = Number(variation.salePrice); }
-                return cleanVariation;
-            });
-        } else { dataToSave.nativeVariations = []; }
-        dataToSave.shipping = productOptionsToSave.shipping || { weight: 0, length: 0, width: 0, height: 0 };
-        try {
-            await setDoc(doc(db, 'userProductOptions', user.uid, 'products', firestoreDocId), dataToSave, { merge: true });
-            toast({ title: "Saved", description: "Your product configurations have been saved." });
-            setHasUnsavedChanges(false);
-        } catch (error: any) {
-            let description = `Failed to save options: ${error.message || "Unknown Firestore error"}`;
-            if (error.code === 'permission-denied') { description = "Save failed due to permissions. Please check your Firestore security rules for writes."; }
-            toast({ title: "Save Error", description, variant: "destructive" });
-        } finally { setIsSaving(false); }
+        toast({ title: "Save Error", description, variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
     };
 
     const handleOpenInCustomizer = () => {
@@ -1014,4 +1029,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
