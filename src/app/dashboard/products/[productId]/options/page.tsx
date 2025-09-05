@@ -656,51 +656,49 @@ function ProductOptionsPage() {
           setEditorViews(currentViews => currentViews.map(view => {
             if (view.id !== activeViewIdInEditor) return view;
     
-            return {
-              ...view,
-              boundaryBoxes: view.boundaryBoxes.map(box => {
-                if (box.id !== activeDrag.boxId) return box;
+            const newBoundaryBoxes = view.boundaryBoxes.map(box => {
+              if (box.id !== activeDrag.boxId) return box;
     
-                let newX = box.x;
-                let newY = box.y;
-                let newWidth = box.width;
-                let newHeight = box.height;
+              let newX = box.x;
+              let newY = box.y;
+              let newWidth = box.width;
+              let newHeight = box.height;
     
-                switch (activeDrag.type) {
-                  case 'move':
-                    newX = activeDrag.initialBoxX + dxPercent;
-                    newY = activeDrag.initialBoxY + dyPercent;
-                    break;
-                  case 'resize_br':
-                    newWidth = activeDrag.initialBoxWidth + dxPercent;
-                    newHeight = activeDrag.initialBoxHeight + dyPercent;
-                    break;
-                  case 'resize_bl':
-                    newX = activeDrag.initialBoxX + dxPercent;
-                    newWidth = activeDrag.initialBoxWidth - dxPercent;
-                    newHeight = activeDrag.initialBoxHeight + dyPercent;
-                    break;
-                  case 'resize_tr':
-                    newY = activeDrag.initialBoxY + dyPercent;
-                    newWidth = activeDrag.initialBoxWidth + dxPercent;
-                    newHeight = activeDrag.initialBoxHeight - dyPercent;
-                    break;
-                  case 'resize_tl':
-                    newX = activeDrag.initialBoxX + dxPercent;
-                    newY = activeDrag.initialBoxY + dyPercent;
-                    newWidth = activeDrag.initialBoxWidth - dxPercent;
-                    newHeight = activeDrag.initialBoxHeight - dyPercent;
-                    break;
-                }
+              switch (activeDrag.type) {
+                case 'move':
+                  newX = activeDrag.initialBoxX + dxPercent;
+                  newY = activeDrag.initialBoxY + dyPercent;
+                  break;
+                case 'resize_br':
+                  newWidth = activeDrag.initialBoxWidth + dxPercent;
+                  newHeight = activeDrag.initialBoxHeight + dyPercent;
+                  break;
+                case 'resize_bl':
+                  newX = activeDrag.initialBoxX + dxPercent;
+                  newWidth = activeDrag.initialBoxWidth - dxPercent;
+                  newHeight = activeDrag.initialBoxHeight + dyPercent;
+                  break;
+                case 'resize_tr':
+                  newY = activeDrag.initialBoxY + dyPercent;
+                  newWidth = activeDrag.initialBoxWidth + dxPercent;
+                  newHeight = activeDrag.initialBoxHeight - dyPercent;
+                  break;
+                case 'resize_tl':
+                  newX = activeDrag.initialBoxX + dxPercent;
+                  newY = activeDrag.initialBoxY + dyPercent;
+                  newWidth = activeDrag.initialBoxWidth - dxPercent;
+                  newHeight = activeDrag.initialBoxHeight - dyPercent;
+                  break;
+              }
     
-                newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
-                newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
-                newX = Math.max(0, Math.min(newX, 100 - newWidth));
-                newY = Math.max(0, Math.min(newY, 100 - newHeight));
+              newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
+              newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
+              newX = Math.max(0, Math.min(newX, 100 - newWidth));
+              newY = Math.max(0, Math.min(newY, 100 - newHeight));
     
-                return { ...box, id: box.id, x: newX, y: newY, width: newWidth, height: newHeight, name: box.name };
-              })
-            };
+              return { ...box, x: newX, y: newY, width: newWidth, height: newHeight };
+            });
+            return { ...view, boundaryBoxes: newBoundaryBoxes };
           }));
         });
       }, [activeDrag, activeViewIdInEditor]);
