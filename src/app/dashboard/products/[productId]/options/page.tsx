@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, Pencil, PlusCircle, Maximize2, Trash2, UploadCloud } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, Pencil, PlusCircle, Maximize2, Trash2, UploadCloud, FolderIcon } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +19,7 @@ import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
 import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import { db, storage } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, deleteField, collection, query, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import type { ProductOptionsFirestoreData, BoundaryBox, ProductView, ColorGroupOptions, ProductAttributeOptions, NativeProductVariation, ShippingAttributes } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
@@ -44,6 +44,11 @@ import { Progress } from '@/components/ui/progress';
 export interface SizeAttribute {
     id: string;
     name: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
 }
 
 // This is the internal state representation. Note that salePrice can be null.
@@ -119,6 +124,8 @@ function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
   
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+
   // State for the View Editor Modal
   const [isViewEditorOpen, setIsViewEditorOpen] = useState(false);
   const [activeEditingColor, setActiveEditingColor] = useState('');
@@ -135,6 +142,21 @@ function ProductOptionsPage() {
   const dragUpdateRef = useRef(0);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchCategories = async () => {
+            const catRef = collection(db, `users/${user.uid}/productCategories`);
+            const q = query(catRef);
+            const querySnapshot = await getDocs(q);
+            const fetchedCategories: ProductCategory[] = [];
+            querySnapshot.forEach((doc) => {
+                fetchedCategories.push({ id: doc.id, name: doc.data().name } as ProductCategory);
+            });
+            setCategories(fetchedCategories);
+        };
+        fetchCategories();
+    }, [user]);
 
     const handleImageUpload = async (file: File, viewId: string, isDefaultImage: boolean = false) => {
         if (!user || !storage) {
@@ -743,9 +765,28 @@ function ProductOptionsPage() {
                         <CardHeader><CardTitle className="font-headline text-lg">Base Product Information</CardTitle><CardDescription>From your {source} store {source !== 'customizer-studio' && '(Read-only)'}.</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
                             <div><Label htmlFor="productName">Product Name</Label><Input id="productName" value={productOptions.name} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, name: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div><Label htmlFor="productBrand">Brand</Label><Input id="productBrand" value={productOptions.brand || ''} placeholder="e.g., Gildan" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, brand: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                                 <div><Label htmlFor="productSku">SKU</Label><Input id="productSku" value={productOptions.sku || ''} placeholder="e.g., G5000-WHT-LG" className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, sku: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
+                                {source === 'customizer-studio' && (
+                                    <div>
+                                        <Label htmlFor="productCategory">Category</Label>
+                                        <Select 
+                                            value={productOptions.category || ''} 
+                                            onValueChange={(value) => setProductOptions(prev => prev ? { ...prev, category: value } : null)}
+                                        >
+                                            <SelectTrigger id="productCategory" className="mt-1">
+                                                <SelectValue placeholder="Select a category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="">Uncategorized</SelectItem>
+                                                {categories.map(cat => (
+                                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </div>
                             <div><Label htmlFor="productDescription">Description</Label><Textarea id="productDescription" value={productOptions.description} className={cn("mt-1", source !== 'customizer-studio' ? "bg-muted/50" : "bg-background")} rows={4} readOnly={source !== 'customizer-studio'} onChange={(e) => { setProductOptions(prev => prev ? { ...prev, description: e.target.value } : null); setHasUnsavedChanges(true); }} /></div>
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1047,3 +1088,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
