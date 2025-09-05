@@ -78,7 +78,7 @@ interface ProductOptionsData {
 const MAX_PRODUCT_VIEWS = 5;
 const MIN_BOX_SIZE_PERCENT = 5;
 
-const CUSTOMIZATION_TECHNIQUES: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
+const CUSTOMIZATION_TECHNIQUES_OPTIONS: CustomizationTechnique[] = ['Embroidery', 'DTF', 'DTG', 'Sublimation', 'Screen Printing'];
 
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
@@ -468,39 +468,39 @@ function ProductOptionsPage() {
     };
     
     const handleVariationPriceChange = (id: string, field: 'price' | 'salePrice', value: string) => {
-      setHasUnsavedChanges(true);
-      setProductOptions(prev => {
-        if (!prev) return null;
-        const newVariations = prev.nativeVariations.map(v =>
-          v.id === id ? { ...v, [field]: value } : v
-        );
-        return { ...prev, nativeVariations: newVariations };
-      });
-    };
-    
-    const handleVariationPriceBlur = (id: string, field: 'price' | 'salePrice') => {
-      setProductOptions(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          nativeVariations: prev.nativeVariations.map(v => {
-            if (v.id === id) {
-              const value = v[field];
-              const numValue = Number(value);
-              if (value === '' || value == null) {
-                return { ...v, [field]: field === 'price' ? 0 : null };
+        setHasUnsavedChanges(true);
+        setProductOptions(prev => {
+          if (!prev) return null;
+          const newVariations = prev.nativeVariations.map(v =>
+            v.id === id ? { ...v, [field]: value } : v
+          );
+          return { ...prev, nativeVariations: newVariations };
+        });
+      };
+      
+      const handleVariationPriceBlur = (id: string, field: 'price' | 'salePrice') => {
+        setProductOptions(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            nativeVariations: prev.nativeVariations.map(v => {
+              if (v.id === id) {
+                const value = v[field];
+                const numValue = Number(value);
+                if (value === '' || value == null) {
+                  return { ...v, [field]: field === 'price' ? 0 : null };
+                }
+                if (isNaN(numValue)) {
+                  toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
+                  return { ...v, [field]: field === 'price' ? 0 : null };
+                }
+                return { ...v, [field]: numValue };
               }
-              if (isNaN(numValue)) {
-                toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
-                return { ...v, [field]: field === 'price' ? 0 : null };
-              }
-              return { ...v, [field]: numValue };
-            }
-            return v;
-          })
-        };
-      });
-    };
+              return v;
+            })
+          };
+        });
+      };
 
     const handleBulkUpdate = (field: 'price' | 'salePrice') => {
         if (!productOptions) return;
@@ -698,7 +698,7 @@ function ProductOptionsPage() {
                 newX = Math.max(0, Math.min(newX, 100 - newWidth));
                 newY = Math.max(0, Math.min(newY, 100 - newHeight));
     
-                return { ...box, x: newX, y: newY, width: newWidth, height: newHeight };
+                return { ...box, id: box.id, x: newX, y: newY, width: newWidth, height: newHeight, name: box.name };
               })
             };
           }));
@@ -858,7 +858,7 @@ function ProductOptionsPage() {
                         <Card className="shadow-md">
                             <CardHeader><CardTitle className="font-headline text-lg">Product Attributes &amp; Techniques</CardTitle><CardDescription>Define colors, sizes, and available customization methods for this product.</CardDescription></CardHeader>
                             <CardContent className="space-y-6">
-                                <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)} /><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
+                                <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES_OPTIONS.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)} /><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
                                 <Separator />
                                 <div className="grid md:grid-cols-2 gap-6">
                                     <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
