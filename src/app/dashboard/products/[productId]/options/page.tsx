@@ -120,9 +120,6 @@ function ProductOptionsPage() {
   const [bulkPrice, setBulkPrice] = useState<string>('');
   const [bulkSalePrice, setBulkSalePrice] = useState<string>('');
   
-  const [variationPriceInputs, setVariationPriceInputs] = useState<Record<string, string>>({});
-  const [variationSalePriceInputs, setVariationSalePriceInputs] = useState<Record<string, string>>({});
-
   // State for the View Editor Modal
   const [isViewEditorOpen, setIsViewEditorOpen] = useState(false);
   const [activeEditingColor, setActiveEditingColor] = useState('');
@@ -266,13 +263,6 @@ function ProductOptionsPage() {
                 allowCustomization: firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true,
             };
             setProductOptions(finalOptions);
-
-            const priceInputs: Record<string, string> = {};
-            const salePriceInputs: Record<string, string> = {};
-            finalOptions.nativeVariations.forEach(v => { priceInputs[v.id] = String(v.price ?? ''); salePriceInputs[v.id] = v.salePrice != null ? String(v.salePrice) : ''; });
-            setVariationPriceInputs(priceInputs);
-            setVariationSalePriceInputs(salePriceInputs);
-
             setHasUnsavedChanges(false);
             if (isRefresh) toast({ title: "Product Data Refreshed", description: "Details updated from your store." });
         } catch (e: any) {
@@ -362,10 +352,12 @@ function ProductOptionsPage() {
             attributes: variation.attributes,
             price: Number(variation.price) || 0,
           };
-          // Correctly handle null/undefined/empty string for salePrice
           const salePriceNum = Number(variation.salePrice);
           if (variation.salePrice != null && String(variation.salePrice).trim() !== '' && !isNaN(salePriceNum)) {
             cleanVariation.salePrice = salePriceNum;
+          } else {
+             // Explicitly delete salePrice if it's null, undefined, or empty string
+             // This is not needed if we just don't add it to cleanVariation
           }
           return cleanVariation;
         });
@@ -434,17 +426,6 @@ function ProductOptionsPage() {
             }
             const updatedOptions = { ...prev, nativeAttributes: updatedAttributes };
             const newVariations = regenerateVariations(updatedOptions);
-            
-            const priceInputs: Record<string, string> = {};
-            const salePriceInputs: Record<string, string> = {};
-            newVariations.forEach(v => {
-                const existing = updatedOptions.nativeVariations.find(ov => ov.id === v.id);
-                priceInputs[v.id] = String(existing?.price ?? v.price ?? '');
-                salePriceInputs[v.id] = existing?.salePrice != null ? String(existing.salePrice) : (v.salePrice != null ? String(v.salePrice) : '');
-            });
-
-            setVariationPriceInputs(priceInputs);
-            setVariationSalePriceInputs(salePriceInputs);
 
             if (type === 'colors') { setColorInputValue(""); setColorHexValue("#000000"); }
             else { setSizeInputValue(""); }
@@ -479,45 +460,55 @@ function ProductOptionsPage() {
             return { ...prev, customizationTechniques: Array.from(new Set(newTechniques)) };
         });
     };
-    const handleVariationFieldChange = (id: string, field: 'price' | 'salePrice', value: string) => {
-        setHasUnsavedChanges(true);
-        if (field === 'price') setVariationPriceInputs(prev => ({ ...prev, [id]: value }));
-        else setVariationSalePriceInputs(prev => ({ ...prev, [id]: value }));
+    
+    const handleVariationPriceChange = (id: string, field: 'price' | 'salePrice', value: string) => {
+      setHasUnsavedChanges(true);
+      setProductOptions(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          nativeVariations: prev.nativeVariations.map(v => 
+            v.id === id ? { ...v, [field]: value } : v
+          )
+        };
+      });
     };
-    const handleVariationFieldBlur = (id: string, field: 'price' | 'salePrice') => {
-        const value = field === 'price' ? variationPriceInputs[id] : variationSalePriceInputs[id];
-        const numValue = value.trim() === '' ? null : parseFloat(value);
-        if (field === 'price' && (numValue === null || isNaN(numValue))) {
-            toast({ title: "Invalid Price", description: "Base price for a variation cannot be empty.", variant: "destructive" });
-            setVariationPriceInputs(prev => ({ ...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.price.toString() || '0' }));
-            return;
-        }
-        if (value.trim() !== '' && isNaN(numValue as number)) {
-            toast({ title: "Invalid Number", description: "Please enter a valid number for the price.", variant: "destructive" });
-            if (field === 'price') setVariationPriceInputs(prev => ({ ...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.price.toString() || '0' }));
-            else setVariationSalePriceInputs(prev => ({ ...prev, [id]: productOptions?.nativeVariations.find(v => v.id === id)?.salePrice?.toString() || '' }));
-            return;
-        }
-        setProductOptions(prev => prev ? { ...prev, nativeVariations: prev.nativeVariations.map(v => v.id === id ? { ...v, [field]: numValue } : v) } : null);
+    
+    const handleVariationPriceBlur = (id: string, field: 'price' | 'salePrice') => {
+      setProductOptions(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          nativeVariations: prev.nativeVariations.map(v => {
+            if (v.id === id) {
+              const value = v[field];
+              if (value === '' || value == null) {
+                return { ...v, [field]: field === 'price' ? 0 : null };
+              }
+              const numValue = Number(value);
+              if (isNaN(numValue)) {
+                toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" });
+                // Revert to original value if parsing fails
+                const originalVariation = regenerateVariations(prev).find(ov => ov.id === id);
+                return { ...v, [field]: originalVariation?.[field] ?? (field === 'price' ? 0 : null) };
+              }
+              return { ...v, [field]: numValue };
+            }
+            return v;
+          })
+        };
+      });
     };
+
     const handleBulkUpdate = (field: 'price' | 'salePrice') => {
         const valueStr = field === 'price' ? bulkPrice : bulkSalePrice;
         if (valueStr === '' && field === 'price') { toast({ title: "Invalid Price", description: "Base price cannot be empty.", variant: "destructive" }); return; }
         const value = valueStr.trim() === '' ? null : parseFloat(valueStr);
         if (valueStr.trim() !== '' && isNaN(value as number)) { toast({ title: "Invalid Price", description: "Please enter a valid number.", variant: "destructive" }); return; }
-        const updatedPriceInputs = { ...variationPriceInputs };
-        const updatedSalePriceInputs = { ...variationSalePriceInputs };
         
-        const variationsToUpdate = regenerateVariations(productOptions!);
-
-        variationsToUpdate.forEach(genVar => {
-            if (field === 'price' && value !== null) updatedPriceInputs[genVar.id] = value.toString();
-            else if (field === 'salePrice') updatedSalePriceInputs[genVar.id] = value !== null ? value.toString() : '';
-        });
-        setVariationPriceInputs(updatedPriceInputs); setVariationSalePriceInputs(updatedSalePriceInputs);
         setProductOptions(prev => {
             if (!prev) return null;
-            const updatedVariations = variationsToUpdate.map(genVar => ({ ...(prev.nativeVariations.find(v => v.id === genVar.id) || genVar), [field]: value }));
+            const updatedVariations = prev.nativeVariations.map(genVar => ({ ...genVar, [field]: value }));
             return { ...prev, nativeVariations: updatedVariations };
         });
         setHasUnsavedChanges(true); toast({ title: "Prices Updated", description: `All variations' ${field}s have been updated.` });
@@ -754,6 +745,7 @@ function ProductOptionsPage() {
     const currentViewInEditor = editorViews.find(v => v.id === activeViewIdInEditor);
     const defaultProductImage = productOptions.defaultViews[0]?.imageUrl || 'https://placehold.co/600x600/eee/ccc?text=Default';
     const defaultProductViewId = productOptions.defaultViews[0]?.id || 'default_plp_view';
+    const currentVariations = regenerateVariations(productOptions);
 
     return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-background min-h-screen">
@@ -893,7 +885,7 @@ function ProductOptionsPage() {
                         </CardContent>
                     </Card>
                     
-                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{!regenerateVariations(productOptions) || regenerateVariations(productOptions).length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(regenerateVariations(productOptions)[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{regenerateVariations(productOptions).map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variationPriceInputs[variation.id] ?? ''} onChange={e => { handleVariationFieldChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationFieldBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variationSalePriceInputs[variation.id] ?? ''} onChange={e => handleVariationFieldChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationFieldBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
+                    {productOptions.type === 'variable' && productOptions.source === 'customizer-studio' && <Card className="shadow-md"><CardHeader><CardTitle className="font-headline text-lg">Variation Pricing</CardTitle><CardDescription>Set individual prices for each product variant.</CardDescription></CardHeader><CardContent>{currentVariations.length === 0 ? (<div className="text-center py-6 text-muted-foreground"><Info className="mx-auto h-10 w-10 mb-2" /><p>Define at least one color or size to create variations.</p></div>) : (<><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="flex gap-2"><Input type="text" placeholder="Set all prices..." value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('price')} variant="secondary" size="sm">Apply Price</Button></div><div className="flex gap-2"><Input type="text" placeholder="Set all sale prices..." value={bulkSalePrice} onChange={(e) => setBulkSalePrice(e.target.value)} className="h-9" /><Button onClick={() => handleBulkUpdate('salePrice')} variant="secondary" size="sm">Apply Sale Price</Button></div></div><div className="max-h-96 overflow-y-auto border rounded-md"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow>{Object.keys(currentVariations[0].attributes).map(attrName => (<TableHead key={attrName}>{attrName}</TableHead>))}<TableHead className="text-right">Price</TableHead><TableHead className="text-right">Sale Price</TableHead></TableRow></TableHeader><TableBody>{currentVariations.map(variation => { return (<TableRow key={variation.id}>{Object.values(variation.attributes).map((val, i) => (<TableCell key={`${variation.id}-attr-${i}`}>{val}</TableCell>))}<TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" value={variation.price} onChange={e => { handleVariationPriceChange(variation.id, 'price', e.target.value); }} onBlur={() => handleVariationPriceBlur(variation.id, 'price')} className="h-8 w-28 pl-7 text-right" /></div></TableCell><TableCell className="text-right"><div className="relative flex items-center justify-end"><DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input type="text" placeholder="None" value={variation.salePrice ?? ''} onChange={e => handleVariationPriceChange(variation.id, 'salePrice', e.target.value)} onBlur={() => handleVariationPriceBlur(variation.id, 'salePrice')} className="h-8 w-28 pl-7 text-right" /></div></TableCell></TableRow>);})}</TableBody></Table></div></>)}</CardContent></Card>}
                 </div>
 
                 <div className="md:col-span-1 space-y-6">
