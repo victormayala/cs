@@ -331,7 +331,7 @@ export default function ProductDetailPage() {
                                     <div className="flex flex-wrap gap-2">
                                         {product.attributes.colors.map(color => (
                                             <Button 
-                                                key={color.name + '-' + color.hex} 
+                                                key={color.name} 
                                                 variant="outline" 
                                                 size="icon" 
                                                 className={cn(
