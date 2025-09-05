@@ -733,7 +733,7 @@ function ProductOptionsPage() {
         return tree;
       }, [categories]);
 
-      const renderCategoryOptions = (categoriesToRender: ProductCategory[], level = 0) => {
+      const renderCategoryOptions = (categoriesToRender: ProductCategory[], level = 0): JSX.Element[] => {
         let options: JSX.Element[] = [];
         categoriesToRender.forEach(cat => {
             options.push(
@@ -1008,7 +1008,7 @@ function ProductOptionsPage() {
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {currentViewInEditor?.boundaryBoxes.map((box, index) => (
-                             <div 
+                             <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
