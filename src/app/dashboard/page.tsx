@@ -901,19 +901,19 @@ function DashboardPageContent() {
             <SidebarContent className="px-4 pt-6">
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="lg" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="default" className="w-full justify-start">
                     <PackageIcon className="mr-2 h-5 w-5" />
                     <span>Products</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                   <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="lg" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="default" className="w-full justify-start">
                     <FolderIcon className="mr-2 h-5 w-5" />
                     <span>Categories</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="lg" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="default" className="w-full justify-start">
                     <Server className="mr-2 h-5 w-5" />
                     <span>Store Integration</span>
                   </SidebarMenuButton>
@@ -923,13 +923,13 @@ function DashboardPageContent() {
             <SidebarFooter>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="lg" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="default" className="w-full justify-start">
                     <Settings className="mr-2 h-5 w-5" />
                     <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('profile')} isActive={activeTab === 'profile'} size="lg" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('profile')} isActive={activeTab === 'profile'} size="default" className="w-full justify-start">
                     <UserCircle className="mr-2 h-5 w-5" />
                     <span>Profile</span>
                   </SidebarMenuButton>
