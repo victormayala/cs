@@ -634,21 +634,19 @@ function CustomizerLayoutAndLogic() {
       const designNode = document.querySelector('.centered-square-container') as HTMLElement;
       if (!designNode) throw new Error("Could not find the design canvas element to capture.");
 
-      previewImageUrl = await htmlToImage.toPng(designNode, {
-          quality: 0.95,
-          pixelRatio: 1, // Use 1 for cart previews to keep size down
-          // This is the crucial part to handle external images (from picsum.photos, etc.) and fonts
-          fetchRequestInit: {
-              mode: 'cors',
-              cache: 'no-cache', // Use 'no-cache' to avoid stale images
-          }
-      });
+      previewImageUrl = await htmlToImage.toPng(designNode, { quality: 0.95 });
 
     } catch (err: any) {
       console.error("Preview screenshot failed:", err);
+      let errorDescription = "Could not generate a preview image. Please try again.";
+      if (err.message?.includes('Cannot access rules')) {
+        errorDescription = "Could not generate preview due to a cross-origin security issue with an external resource (like a font). Please check the console for details.";
+      } else if (err.message) {
+        errorDescription = `Error: ${err.message}`;
+      }
       toast({
         title: "Preview Failed",
-        description: "Could not generate a preview image. Please try again. Error: " + (err.message || 'Unknown error'),
+        description: errorDescription,
         variant: "destructive",
       });
       setIsAddingToCart(false);
