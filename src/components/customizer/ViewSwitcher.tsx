@@ -1,4 +1,3 @@
-
 "use client";
 
 import NextImage from 'next/image';
@@ -27,10 +26,10 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
         {productViews.length > 1 ? "Select View" : "Current View"}
       </h4>
       <div className="flex flex-wrap justify-start gap-2">
-        {productViews.map(view => {
+        {productViews.map((view, index) => {
           return (
             <button
-              key={view.id}
+              key={`${view.id}-${index}`}
               onClick={() => setActiveViewId(view.id)}
               className={cn(
                 "rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center w-[70px]",
