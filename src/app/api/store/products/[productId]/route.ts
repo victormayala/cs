@@ -50,6 +50,11 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const storeData = storeSnap.data() as UserStoreConfig;
     const configUserId = storeData.userId;
 
+    // Check if the product is actually part of the store
+    if (!storeData.productIds?.includes(productId)) {
+        return NextResponse.json({ error: 'Product not found in this store.' }, { status: 404 });
+    }
+
     const productRef = doc(db, `users/${configUserId}/products`, productId);
     const optionsRef = doc(db, 'userProductOptions', configUserId, 'products', productId);
 

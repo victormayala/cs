@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, Suspense, useEffect, useCallback } from "react";
+import { useState, Suspense, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,12 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, collection, type FieldValue, deleteField, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, type FieldValue, deleteField } from 'firebase/firestore';
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
-import { deployStore } from "@/ai/flows/deploy-store";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useMemo } from 'react';
-
 
 const generatedPages = [
   'Homepage', 'About', 'FAQ', 'Contact', 
@@ -75,12 +72,12 @@ async function saveUserStoreConfig(config: Omit<UserStoreConfig, 'id' | 'created
 
   if (isNew) {
     dataToSave.createdAt = serverTimestamp();
-    // When creating, we must not have any `undefined` values.
+    // Ensure productIds is initialized
+    dataToSave.productIds = config.productIds || [];
     if (dataToSave.branding && dataToSave.branding.logoUrl === undefined) {
       delete dataToSave.branding.logoUrl;
     }
   } else {
-    // When updating, we can use deleteField for fields that should be removed.
     if (dataToSave.branding && dataToSave.branding.logoUrl === undefined) {
       dataToSave.branding.logoUrl = deleteField();
     }
@@ -212,8 +209,6 @@ function CreateStorePageContent() {
     }
 
     setIsSaving(true);
-    let finalStoreId = storeId;
-    let storeRef;
 
     try {
       const storeConfigData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'> = {
@@ -234,46 +229,24 @@ function CreateStorePageContent() {
               localDeliveryFee: Number(localDeliveryFee),
               localDeliveryText,
           },
-          deployment: {
-              status: 'pending',
-          },
       };
 
       const { storeId: savedStoreId, isNew } = await saveUserStoreConfig(storeConfigData, storeId);
-      finalStoreId = savedStoreId;
-      storeRef = doc(db, 'userStores', finalStoreId);
-
-      if (isNew) {
-        toast({ title: "Store Created!", description: "Your new store has been configured. Now starting deployment..." });
-      } else {
-        toast({ title: "Configuration Updated!", description: "Your store settings have been saved. Re-deploying..." });
-      }
       
-      const flowConfigData = { ...storeConfigData, id: finalStoreId, createdAt: serverTimestamp() };
-      const plainStoreConfig = JSON.parse(JSON.stringify(flowConfigData));
-      const deploymentResult = await deployStore(plainStoreConfig);
+      toast({
+        title: isNew ? "Store Created!" : "Store Updated!",
+        description: "Now, let's add some products.",
+      });
 
-      await setDoc(storeRef, {
-        deployment: {
-          status: 'active',
-          deployedUrl: deploymentResult.deploymentUrl,
-          lastDeployedAt: serverTimestamp(),
-        }
-      }, { merge: true });
-
-      toast({ title: "Deployment Succeeded!", description: `Your store is now active.` });
-      router.push(`/store/${finalStoreId}`);
+      router.push(`/dashboard/store/${savedStoreId}/select-products`);
 
     } catch (error: any) {
-      let errorMessage = `Failed to save or deploy: ${error.message}`;
+      let errorMessage = `Failed to save store: ${error.message}`;
       if (error.code === 'permission-denied') {
           errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
       }
-      toast({ title: "Operation Failed", description: errorMessage, variant: "destructive" });
-      console.error("Save/Deploy error:", error);
-      if (finalStoreId) {
-          await setDoc(doc(db, 'userStores', finalStoreId), { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
-      }
+      toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
+      console.error("Save store error:", error);
     } finally {
       setIsSaving(false);
     }
@@ -305,7 +278,7 @@ function CreateStorePageContent() {
                 {storeId ? 'Edit Store' : 'Build Your Store'}
               </h1>
               <p className="text-muted-foreground">
-                {storeId ? 'Update and re-deploy your e-commerce storefront.' : 'Create and configure your new e-commerce storefront.'}
+                {storeId ? 'Update your e-commerce storefront.' : 'Create and configure your new e-commerce storefront.'}
               </p>
             </div>
           </div>
@@ -574,16 +547,16 @@ function CreateStorePageContent() {
                 {isSaving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Save className="mr-2 h-4 w-4" />
+                  <PackageCheck className="mr-2 h-4 w-4" />
                 )}
-                {isSaving ? (storeId ? "Saving & Re-deploying..." : "Saving & Deploying...") : (storeId ? "Save & Re-deploy" : "Save & Deploy Store")}
+                {isSaving ? "Saving..." : "Save & Select Products"}
               </Button>
                {isSaving && (
                 <Alert variant="default" className="bg-primary/5 border-primary/20">
                   <Zap className="h-4 w-4 text-primary" />
-                  <AlertTitle className="text-primary/90 font-medium">Deployment In Progress</AlertTitle>
+                  <AlertTitle className="text-primary/90 font-medium">Saving Store...</AlertTitle>
                   <AlertDescription className="text-primary/80">
-                    Your store is being built. This may take a few minutes. You will be redirected when it's complete.
+                    Your store configuration is being saved. You will be redirected shortly.
                   </AlertDescription>
                 </Alert>
                )}
@@ -607,5 +580,3 @@ export default function CreateStorePage() {
     </Suspense>
   );
 }
-
-    

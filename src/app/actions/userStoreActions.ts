@@ -53,6 +53,9 @@ export interface UserStoreConfig {
     localDeliveryText: string;
   };
 
+  // NEW: Added to store which products are part of this store
+  productIds?: string[];
+
   // Timestamps
   createdAt: FieldValue;
   lastSaved: FieldValue;
