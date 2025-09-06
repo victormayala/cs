@@ -20,7 +20,7 @@ import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { NativeProduct } from '@/app/actions/productActions';
 import { fetchShopifyProducts } from '@/app/actions/shopifyActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
-import { fetchWooCommerceProducts } from '@/app/actions/woocommerceActions';
+import { fetchWooCommerceProducts, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import { deployStore } from '@/ai/flows/deploy-store';
 
@@ -98,7 +98,12 @@ function SelectProductsStorePage() {
       const wcCredsSnap = await getDoc(wcCredsRef);
       if (wcCredsSnap.exists()) {
           const creds = wcCredsSnap.data() as UserWooCommerceCredentials;
-          const { products } = await fetchWooCommerceProducts(creds);
+          const plainCreds: WooCommerceCredentials = {
+            storeUrl: creds.storeUrl,
+            consumerKey: creds.consumerKey,
+            consumerSecret: creds.consumerSecret
+          };
+          const { products } = await fetchWooCommerceProducts(plainCreds);
            if (products) {
               fetchedProducts.push(...products.map(p => ({
                   id: p.id.toString(),
