@@ -63,7 +63,7 @@ const compositeImagesFlow = ai.defineFlow(
         { media: { url: input.baseImageDataUri, mimeType: input.baseImageDataUri.split(';')[0].split(':')[1] } },
         { text: `
           You are an expert image composition AI.
-          The first image provided is the base image (dimensions: ${input.baseImageWidthPx}px width, ${input.baseImageHeightPx}px height).
+          The first image provided is the base image. Its container has dimensions: ${input.baseImageWidthPx}px width, ${input.baseImageHeightPx}px height. Render the final output with these dimensions and a 1:1 aspect ratio.
           The subsequent images are overlays that need to be placed onto this base image.
           For each overlay, I will provide its image data, its intended center X and Y coordinates as percentages of the base image dimensions (0-100),
           its scale factor, its rotation in degrees, and optionally its original size on the design canvas to give context for its intended final size.
