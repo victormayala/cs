@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
@@ -112,15 +113,19 @@ const SidebarMenuButton = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> & {
     isActive?: boolean
+    asChild?: boolean
   } & VariantProps<typeof sidebarMenuButtonVariants>
->(({ isActive = false, size = "default", className, ...props }, ref) => (
-  <button
-    ref={ref}
-    data-active={isActive}
-    className={cn(sidebarMenuButtonVariants({ size }), className)}
-    {...props}
-  />
-))
+>(({ isActive = false, asChild = false, size = "default", className, ...props }, ref) => {
+  const Comp = asChild ? Slot : "button"
+  return (
+    <Comp
+      ref={ref}
+      data-active={isActive}
+      className={cn(sidebarMenuButtonVariants({ size }), className)}
+      {...props}
+    />
+  )
+})
 SidebarMenuButton.displayName = "SidebarMenuButton"
 
 
