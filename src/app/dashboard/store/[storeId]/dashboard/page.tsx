@@ -57,10 +57,10 @@ function StoreDashboardPage() {
         orderBy("createdAt", "desc"),
         limit(5)
     );
+    // Removed orderBy from customers query to avoid needing a composite index for now.
     const customersQuery = query(
         collection(db, `users/${user.uid}/customers`), 
         where("storeId", "==", storeId),
-        orderBy("createdAt", "desc"),
         limit(50) // Fetch more customers for stats
     );
 
