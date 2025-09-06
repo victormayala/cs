@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3 } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -944,6 +944,16 @@ function DashboardPageContent() {
             </SidebarContent>
             <SidebarFooter>
               <SidebarMenu className="gap-2">
+                {user.role === 'admin' && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild size="default" className="w-full justify-start font-semibold text-primary border-2 border-primary/50 bg-primary/10 hover:bg-primary/20">
+                      <Link href="/admin">
+                        <ShieldCheck className="mr-2 h-5 w-5" />
+                        <span>Admin Panel</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="default" className="w-full justify-start">
                     <Settings className="mr-2 h-5 w-5" />
