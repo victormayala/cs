@@ -295,7 +295,7 @@ export default function ProductDetailPage() {
                                     <div className="relative w-full h-full">
                                          <Image
                                             src={view.imageUrl}
-                                            alt={view.name}
+                                            alt={view.name || product.name}
                                             fill
                                             className="object-contain"
                                         />
