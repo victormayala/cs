@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import AppHeader from '@/components/layout/AppHeader';
 import { ArrowLeft, Loader2, Package, AlertTriangle, ExternalLink, PackageCheck } from 'lucide-react';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
