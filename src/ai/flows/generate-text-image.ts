@@ -46,12 +46,15 @@ const generateTextImageFlow = ai.defineFlow(
       const { text, media } = await ai.generate({
         model: model,
         prompt: `Generate a high-quality PNG image of the following text: "${input.text}".
-        The text should be rendered with these properties:
-        - Font Family: ${input.fontFamily} (or a very similar common sans-serif font if exact match unavailable)
-        - Font Size: Approximately ${input.fontSize}px (this is relative, focus on clear legibility for a typical design element)
-        - Text Color: ${input.color}
+        The text must be rendered with these exact properties:
+        - Font Family: A font that is very similar to ${input.fontFamily}. A standard sans-serif is acceptable if the specific font is unavailable.
+        - Text Color: The text color *MUST* be the hex code ${input.color}. Do not use any other color.
+        - Font Size: Approximately ${input.fontSize}px relative to a standard canvas. The text should be clear and legible.
+        
         The image MUST have a transparent background.
         Do NOT add any other elements, text, or background colors to the image.
+        The final image should contain only the requested text, in the specified color, on a transparent background.
+        
         Return only the image and a short, one-sentence alt text describing the image (e.g., "The text 'Hello World' in red Arial font.").`,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],

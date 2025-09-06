@@ -44,15 +44,19 @@ const generateShapeImageFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      const strokeInstruction = input.strokeWidth > 0 ? `with a ${input.strokeWidth}px ${input.strokeColor} stroke (outline)` : 'with no stroke (outline)';
+      const strokeInstruction = input.strokeWidth > 0 
+        ? `with a ${input.strokeWidth}px stroke (outline) using the exact hex color ${input.strokeColor}` 
+        : 'with no stroke (outline)';
+
       const { text, media } = await ai.generate({
         model: model,
         prompt: `Generate a high-quality PNG image of a simple geometric ${input.shapeType}.
-        The shape should be filled with the color ${input.color} and have ${strokeInstruction}.
+        The shape MUST be filled with the exact hex color ${input.color}.
+        The shape must have ${strokeInstruction}.
         The shape should have an approximate aspect ratio of ${input.aspectRatio}.
         The image MUST have a transparent background.
         Do NOT add any other elements, text, or background colors to the image.
-        Return only the image and a short, one-sentence alt text describing the image (e.g., "A red circle with no outline.").`,
+        Return only the image and a short, one-sentence alt text describing the image (e.g., "A red circle with a black outline.").`,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
            safetySettings: [
