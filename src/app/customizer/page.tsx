@@ -3,6 +3,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
+import * as htmlToImage from 'html-to-image';
 import AppHeader from '@/components/layout/AppHeader';
 import DesignCanvas from '@/components/customizer/DesignCanvas';
 import RightPanel from '@/components/customizer/RightPanel';
@@ -627,35 +628,42 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. Please wait." });
   
-    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
-    const activeViewDetails = productDetails?.views.find(v => v.id === activeViewId);
-    
-    // Ensure canvas wrapper ref has dimensions
-    if (!designCanvasWrapperRef.current?.offsetWidth || !designCanvasWrapperRef.current?.offsetHeight) {
-      toast({ title: "Preview Error", description: "Cannot generate preview, canvas dimensions are not available.", variant: "destructive" });
-      setIsAddingToCart(false);
-      return;
+    let previewImageUrl = '';
+    try {
+        const designNode = document.getElementById('product-image-canvas-area');
+        if (!designNode) throw new Error("Could not find the design canvas element to capture.");
+
+        // Define the CSS for @font-face to embed it directly.
+        const fontFaceCss = `
+            @font-face {
+                font-family: 'Roboto';
+                font-style: normal;
+                font-weight: 400;
+                src: url(https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2) format('woff2');
+            }
+            @font-face {
+                font-family: 'Roboto';
+                font-style: normal;
+                font-weight: 700;
+                src: url(https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.woff2) format('woff2');
+            }
+        `;
+        
+        previewImageUrl = await htmlToImage.toPng(designNode, { 
+            quality: 0.95,
+            fontEmbedCss: fontFaceCss, // Embed the font rules
+        });
+        
+    } catch (err: any) {
+        console.error("Preview screenshot failed:", err);
+        toast({ title: "Preview Error", description: `Could not generate preview: ${err.message}`, variant: "destructive" });
+        setIsAddingToCart(false);
+        return;
     }
 
+    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
+    
     try {
-        const previewResponse = await fetch('/api/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                baseImageDataUri: activeViewDetails?.imageUrl,
-                elements: allCustomizedElements.filter(el => el.viewId === activeViewId),
-                widthPx: designCanvasWrapperRef.current.offsetWidth,
-                heightPx: designCanvasWrapperRef.current.offsetHeight,
-            }),
-        });
-
-        if (!previewResponse.ok) {
-            const errorData = await previewResponse.json();
-            throw new Error(errorData.error || `Preview generation failed with status ${previewResponse.status}`);
-        }
-
-        const { previewImageUrl, altText } = await previewResponse.json();
-
         const designData = {
           productId: productIdFromUrl || productDetails?.id,
           variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
@@ -664,6 +672,7 @@ function CustomizerLayoutAndLogic() {
           customizationDetails: {
             elements: allCustomizedElements.map(el => {
                 if (el.itemType === 'image') {
+                    // Slim down the image object before saving to avoid large data in localStorage
                     const { dataUrl, ...rest } = el as CanvasImage;
                     return rest;
                 }
@@ -672,8 +681,6 @@ function CustomizerLayoutAndLogic() {
             selectedOptions: selectedVariationOptions,
             baseProductPrice: productDetails?.basePrice ?? 0,
             totalCustomizationPrice: totalCustomizationPrice,
-            previewImageUrl: previewImageUrl,
-            previewImageAltText: altText,
           },
           userId: user?.uid || null,
           configUserId: productDetails?.meta?.configUserIdUsed || null,
@@ -702,7 +709,7 @@ function CustomizerLayoutAndLogic() {
               quantity: 1,
               productName: designData.productName,
               totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-              previewImageUrl: previewImageUrl,
+              previewImageUrl: previewImageUrl, // Save the generated screenshot URL
               customizationDetails: designData.customizationDetails,
             };
             currentCart.push(newCartItem);
@@ -721,7 +728,6 @@ function CustomizerLayoutAndLogic() {
             toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
             console.log("Add to Cart - Design Data:", designData);
         }
-
     } catch(err: any) {
         console.error("Error during 'Add to Cart' process:", err);
         toast({ title: "Add to Cart Failed", description: err.message, variant: "destructive" });
