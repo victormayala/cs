@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,20 +13,23 @@ import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import { CreditCard, Lock, AlertTriangle, ArrowRight, Loader2, ShoppingCart } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import type { StoreOrder, StoreCustomer } from '@/lib/data-types';
 
 // Represents a single item in the shopping cart
 interface CartItem {
-    id: string;
+    id: string; // Unique ID for this cart item instance (e.g., crypto.randomUUID())
     productId: string;
-    productName: string;
+    productName: string; 
     quantity: number;
     totalCustomizationPrice: number;
-    previewImageUrl?: string;
+    previewImageUrl?: string; 
+    customizationDetails: any; 
 }
 
 
@@ -71,12 +74,23 @@ export default function CheckoutPage() {
   const router = useRouter();
   const storeId = params.storeId as string;
   const { toast } = useToast();
+  const { user } = useAuth(); // We don't require login for checkout, but can use if available
 
   const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [customerInfo, setCustomerInfo] = useState({
+      firstName: '',
+      lastName: '',
+      email: '',
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+  });
   
   const getCartStorageKey = useCallback(() => `cs_cart_${storeId}`, [storeId]);
 
@@ -91,7 +105,6 @@ export default function CheckoutPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetch store config
         const storeDocRef = doc(db, 'userStores', storeId);
         const storeDocSnap = await getDoc(storeDocRef);
         if (storeDocSnap.exists()) {
@@ -100,7 +113,6 @@ export default function CheckoutPage() {
           throw new Error("Store configuration not found.");
         }
 
-        // Get cart items from localStorage
         const storedCart = localStorage.getItem(getCartStorageKey());
         const parsedCart = storedCart ? JSON.parse(storedCart) : [];
         if (parsedCart.length === 0) {
@@ -119,23 +131,58 @@ export default function CheckoutPage() {
     };
     fetchPageData();
   }, [storeId, router, toast, getCartStorageKey]);
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { id, value } = e.target;
+      setCustomerInfo(prev => ({...prev, [id]: value }));
+  }
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0);
-  const shippingCost = 5.00; // Example flat rate
+  const subtotal = useMemo(() => cartItems.reduce((acc, item) => acc + (item.totalCustomizationPrice * item.quantity), 0), [cartItems]);
+  const shippingCost = useMemo(() => storeConfig?.shipping?.localDeliveryEnabled ? storeConfig.shipping.localDeliveryFee : 5.00, [storeConfig]);
   const total = subtotal + shippingCost;
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!storeConfig) {
+        toast({ title: "Error", description: "Store config not loaded.", variant: "destructive" });
+        return;
+    }
     setIsPlacingOrder(true);
     toast({ title: "Processing Order...", description: "Please wait while we finalize your purchase." });
 
-    // Simulate API call
-    setTimeout(() => {
-        // On successful "payment", clear the cart and redirect
+    try {
+        const customerRef = collection(db, `users/${storeConfig.userId}/customers`);
+        const newCustomer: Omit<StoreCustomer, 'id'> = {
+            name: `${customerInfo.firstName} ${customerInfo.lastName}`,
+            email: customerInfo.email,
+            storeId: storeId,
+            createdAt: serverTimestamp(),
+            totalSpent: total,
+            orderCount: 1,
+        };
+        const customerDocRef = await addDoc(customerRef, newCustomer);
+
+        const orderRef = collection(db, `users/${storeConfig.userId}/orders`);
+        const newOrder: Omit<StoreOrder, 'id'> = {
+            storeId: storeId,
+            customerId: customerDocRef.id,
+            customerName: newCustomer.name,
+            totalAmount: total,
+            status: 'processing',
+            items: cartItems,
+            createdAt: serverTimestamp(),
+        };
+        await addDoc(orderRef, newOrder);
+
+        // On successful order creation, clear the cart and redirect
         localStorage.removeItem(getCartStorageKey());
         router.push(`/store/${storeId}/order/success`);
+
+    } catch (err: any) {
+        console.error("Failed to place order:", err);
+        toast({ title: "Order Failed", description: `Could not save your order: ${err.message}`, variant: "destructive" });
         setIsPlacingOrder(false);
-    }, 2000);
+    }
   };
 
 
@@ -156,17 +203,18 @@ export default function CheckoutPage() {
                 {/* Left side: Shipping and Payment */}
                 <div className="space-y-8">
                     <Card>
-                        <CardHeader><CardTitle>Shipping Information</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>Contact & Shipping Information</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
+                            <div className="space-y-1"><Label htmlFor="email">Email Address</Label><Input id="email" type="email" value={customerInfo.email} onChange={handleInputChange} required /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1"><Label htmlFor="firstName">First Name</Label><Input id="firstName" required /></div>
-                                <div className="space-y-1"><Label htmlFor="lastName">Last Name</Label><Input id="lastName" required /></div>
+                                <div className="space-y-1"><Label htmlFor="firstName">First Name</Label><Input id="firstName" value={customerInfo.firstName} onChange={handleInputChange} required /></div>
+                                <div className="space-y-1"><Label htmlFor="lastName">Last Name</Label><Input id="lastName" value={customerInfo.lastName} onChange={handleInputChange} required /></div>
                             </div>
-                            <div className="space-y-1"><Label htmlFor="address">Address</Label><Input id="address" required /></div>
+                            <div className="space-y-1"><Label htmlFor="address">Address</Label><Input id="address" value={customerInfo.address} onChange={handleInputChange} required /></div>
                             <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-1"><Label htmlFor="city">City</Label><Input id="city" required /></div>
-                                <div className="space-y-1"><Label htmlFor="state">State</Label><Input id="state" required /></div>
-                                <div className="space-y-1"><Label htmlFor="zip">ZIP Code</Label><Input id="zip" required /></div>
+                                <div className="space-y-1"><Label htmlFor="city">City</Label><Input id="city" value={customerInfo.city} onChange={handleInputChange} required /></div>
+                                <div className="space-y-1"><Label htmlFor="state">State</Label><Input id="state" value={customerInfo.state} onChange={handleInputChange} required /></div>
+                                <div className="space-y-1"><Label htmlFor="zip">ZIP Code</Label><Input id="zip" value={customerInfo.zip} onChange={handleInputChange} required /></div>
                             </div>
                         </CardContent>
                     </Card>

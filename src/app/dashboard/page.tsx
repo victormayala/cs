@@ -4,13 +4,13 @@
 import { useEffect, useState, useMemo, Suspense, useCallback } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -1088,12 +1088,16 @@ function DashboardPageContent() {
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/${store.id}/dashboard`)}>
+                                        <BarChart3 className="mr-2 h-4 w-4" /> Dashboard
+                                      </DropdownMenuItem>
                                       <DropdownMenuItem onSelect={() => router.push(`/store/${store.id}`)} disabled={store.deployment?.status !== 'active'}>
                                         <ExternalLink className="mr-2 h-4 w-4" /> View Store
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/create?storeId=${store.id}`)}>
                                         <Settings className="mr-2 h-4 w-4" /> Configure
                                       </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
                                       <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => setStoreToDelete(store)}>
                                         <Trash2 className="mr-2 h-4 w-4" /> Delete Store
                                       </DropdownMenuItem>
@@ -1243,4 +1247,3 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
-
