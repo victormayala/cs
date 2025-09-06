@@ -1007,7 +1007,7 @@ function ProductOptionsPage() {
                       <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
-                           {currentViewInEditor?.boundaryBoxes.map((box, index) => (
+                           {(currentViewInEditor?.boundaryBoxes || []).map((box, index) => (
                              <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
