@@ -526,13 +526,13 @@ function CustomizerLayoutAndLogic() {
              }];
         } else {
              // Fallback to the base views from the initial load
-             finalViews = Object.values(viewBaseImages).map((base, index) => ({
-                id: prevProductDetails.views[index].id,
-                name: prevProductDetails.views[index].name,
+             finalViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
+                id,
+                name: prevProductDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
                 imageUrl: base.url,
                 aiHint: base.aiHint,
-                price: prevProductDetails.views[index].price,
-                boundaryBoxes: prevProductDetails.views[index].boundaryBoxes,
+                price: prevProductDetails.views.find(v => v.id === id)?.price,
+                boundaryBoxes: prevProductDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
             }));
         }
 
@@ -634,21 +634,21 @@ function CustomizerLayoutAndLogic() {
       const designNode = document.querySelector('.centered-square-container') as HTMLElement;
       if (!designNode) throw new Error("Could not find the design canvas element to capture.");
 
-      previewImageUrl = await htmlToImage.toPng(designNode, { 
-        quality: 0.95, 
-        backgroundColor: '#FFFFFF',
-        // Make sure external images (like from picsum.photos) can be loaded
-        fetchRequestInit: { 
-          mode: 'cors',
-          cache: 'force-cache'
-        }
+      previewImageUrl = await htmlToImage.toPng(designNode, {
+          quality: 0.95,
+          pixelRatio: 1, // Use 1 for cart previews to keep size down
+          // This is the crucial part to handle external images (from picsum.photos, etc.) and fonts
+          fetchRequestInit: {
+              mode: 'cors',
+              cache: 'no-cache', // Use 'no-cache' to avoid stale images
+          }
       });
 
     } catch (err: any) {
       console.error("Preview screenshot failed:", err);
       toast({
         title: "Preview Failed",
-        description: "Could not generate a preview image. Please try again.",
+        description: "Could not generate a preview image. Please try again. Error: " + (err.message || 'Unknown error'),
         variant: "destructive",
       });
       setIsAddingToCart(false);
