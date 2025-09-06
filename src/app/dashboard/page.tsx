@@ -71,7 +71,7 @@ export interface ProductCategory {
   productCount?: number;
 }
 
-type ActiveDashboardTab = 'products' | 'categories' | 'storeIntegration' | 'settings' | 'profile';
+type ActiveDashboardTab = 'products' | 'categories' | 'my-stores' | 'storeIntegration' | 'settings' | 'profile';
 
 interface ProductToDelete {
   id: string;
@@ -423,9 +423,11 @@ function DashboardPageContent() {
   const [productToDelete, setProductToDelete] = useState<ProductToDelete | null>(null);
   const [copiedUserId, setCopiedUserId] = useState(false);
 
-  // New state for user-built store
-  const [userStore, setUserStore] = useState<UserStoreConfig | null>(null);
-  const [isLoadingUserStore, setIsLoadingUserStore] = useState(true);
+  // New state for user stores list
+  const [userStores, setUserStores] = useState<UserStoreConfig[]>([]);
+  const [isLoadingUserStores, setIsLoadingUserStores] = useState(true);
+  const [storeToDelete, setStoreToDelete] = useState<UserStoreConfig | null>(null);
+
 
   // Effect to handle Shopify OAuth error callback
   useEffect(() => {
@@ -699,26 +701,26 @@ function DashboardPageContent() {
     }
   }, [user, toast]);
 
-  // Load User Store Config
+  // Load User Stores list
   useEffect(() => {
-    if (user?.uid && db) {
-      setIsLoadingUserStore(true);
-      const storeDocRef = doc(db, 'userStores', user.uid);
-      getDoc(storeDocRef)
-        .then(docSnap => {
-          if (docSnap.exists()) {
-            setUserStore({ id: docSnap.id, ...docSnap.data() } as UserStoreConfig);
-          } else {
-            setUserStore(null);
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching user store config:", error);
-          toast({ title: "Store Info Error", description: "Could not fetch your custom store information.", variant: "destructive" });
-        })
-        .finally(() => setIsLoadingUserStore(false));
+    if (user?.uid && db && activeTab === 'my-stores') {
+      setIsLoadingUserStores(true);
+      const storesQuery = query(collection(db, 'userStores'), where('userId', '==', user.uid));
+      const unsubscribe = onSnapshot(storesQuery, (querySnapshot) => {
+        const stores: UserStoreConfig[] = [];
+        querySnapshot.forEach((doc) => {
+          stores.push({ id: doc.id, ...doc.data() } as UserStoreConfig);
+        });
+        setUserStores(stores);
+        setIsLoadingUserStores(false);
+      }, (error) => {
+        console.error("Error fetching user stores:", error);
+        toast({ title: "Store List Error", description: "Could not fetch your stores.", variant: "destructive" });
+        setIsLoadingUserStores(false);
+      });
+      return () => unsubscribe();
     }
-  }, [user, toast]);
+  }, [user, db, activeTab, toast]);
 
 
   const handleSaveWcCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -882,6 +884,20 @@ function DashboardPageContent() {
     }
   };
 
+  const handleConfirmDeleteStore = async () => {
+    if (!storeToDelete || !user) return;
+    try {
+      const storeRef = doc(db, 'userStores', storeToDelete.id);
+      await deleteDoc(storeRef);
+      toast({ title: "Store Deleted", description: `"${storeToDelete.storeName}" has been permanently deleted.` });
+      setStoreToDelete(null);
+      // The onSnapshot listener will update the UI automatically.
+    } catch (error: any) {
+      console.error("Error deleting store:", error);
+      toast({ title: "Deletion Failed", description: `Could not delete store: ${error.message}`, variant: "destructive" });
+    }
+  };
+
   if (authIsLoading || !user) {
     return <div className="flex min-h-svh w-full items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
@@ -914,9 +930,15 @@ function DashboardPageContent() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setActiveTab('my-stores')} isActive={activeTab === 'my-stores'} size="default" className="w-full justify-start">
+                    <Store className="mr-2 h-5 w-5" />
+                    <span>My Stores</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="default" className="w-full justify-start">
                     <Server className="mr-2 h-5 w-5" />
-                    <span>Store Integration</span>
+                    <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -945,7 +967,7 @@ function DashboardPageContent() {
                   <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">Your Dashboard</h1>
                   <p className="text-muted-foreground">Welcome, {user?.displayName || user?.email}!</p>
                 </div>
-                {activeTab === 'products' && (
+                 {activeTab === 'products' && (
                   <div className="flex items-center gap-2">
                     <Button asChild className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
                       <Link href="/dashboard/products/create">
@@ -958,6 +980,14 @@ function DashboardPageContent() {
                       Refresh Product Data
                     </Button>
                   </div>
+                )}
+                 {activeTab === 'my-stores' && (
+                  <Button asChild>
+                    <Link href="/dashboard/store/create">
+                      <PlusCircle className="mr-2 h-5 w-5" />
+                      Create New Store
+                    </Link>
+                  </Button>
                 )}
               </div>
 
@@ -1018,52 +1048,70 @@ function DashboardPageContent() {
                 <CategoriesManager />
               )}
 
+              {activeTab === 'my-stores' && (
+                <Card className="shadow-lg border-border bg-card">
+                   <CardHeader>
+                    <CardTitle className="font-headline text-xl text-card-foreground">Your Native Stores</CardTitle>
+                    <CardDescription className="text-muted-foreground">Manage your generated Customizer Studio storefronts.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {isLoadingUserStores ? (
+                        <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                      ) : userStores.length === 0 ? (
+                        <div className="text-center py-10">
+                          <Store className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <p className="mt-4 text-muted-foreground">You haven't created any stores yet.</p>
+                          <Button asChild variant="link" className="mt-2">
+                             <Link href="/dashboard/store/create">Create your first store</Link>
+                          </Button>
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Store Name</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Layout</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {userStores.map((store) => (
+                              <TableRow key={store.id}>
+                                <TableCell className="font-medium">{store.storeName}</TableCell>
+                                <TableCell>
+                                  <Badge variant={store.deployment?.status === 'active' ? 'default' : 'secondary'} className={cn(store.deployment?.status === 'active' ? 'bg-green-500/10 text-green-700 border-green-500/30' : '')}>
+                                    {store.deployment?.status || 'uninitialized'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="capitalize">{store.layout}</TableCell>
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Toggle menu</span></Button></DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onSelect={() => router.push(`/store/${store.id}`)} disabled={store.deployment?.status !== 'active'}>
+                                        <ExternalLink className="mr-2 h-4 w-4" /> View Store
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/create?storeId=${store.id}`)}>
+                                        <Settings className="mr-2 h-4 w-4" /> Configure
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => setStoreToDelete(store)}>
+                                        <Trash2 className="mr-2 h-4 w-4" /> Delete Store
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                  </CardContent>
+                </Card>
+              )}
+
               {activeTab === 'storeIntegration' && (
                 <div className="space-y-8">
-                  {/* Custom Store Card */}
-                  <Card className="shadow-lg border-border bg-card">
-                    <CardHeader>
-                      <CardTitle className="font-headline text-xl text-card-foreground">Build Your Own Store</CardTitle>
-                      <CardDescription className="text-muted-foreground">Generate and deploy a complete storefront powered by Customizer Studio.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoadingUserStore ? (
-                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                        ) : userStore ? (
-                            <div className="space-y-4">
-                            <ShadCnAlert variant="default" className="bg-primary/5 border-primary/20">
-                                <Store className="h-5 w-5 text-primary" />
-                                <ShadCnAlertTitle className="text-primary/90 font-medium">Your Store is Active!</ShadCnAlertTitle>
-                                <ShadCnAlertDescription className="text-primary/80">
-                                    Your store "{userStore.storeName}" is deployed and ready to visit.
-                                </ShadCnAlertDescription>
-                            </ShadCnAlert>
-                            <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                                <Link href={`/store/${user.uid}`} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                View Your Store
-                                </Link>
-                            </Button>
-                            <Button asChild variant="outline" className="w-full">
-                                <Link href="/dashboard/store/create">
-                                <Settings className="mr-2 h-4 w-4" />
-                                Re-configure Store
-                                </Link>
-                            </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                            <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                                <Link href="/dashboard/store/create">
-                                <Store className="mr-2 h-4 w-4" />
-                                Build a New Store
-                                </Link>
-                            </Button>
-                            </div>
-                        )}
-                    </CardContent>
-                  </Card>
-
                   {/* WooCommerce Card */}
                   <Card className="shadow-lg border-border bg-card">
                     <CardHeader>
@@ -1164,6 +1212,22 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={!!storeToDelete} onOpenChange={(open) => !open && setStoreToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Delete Store "{storeToDelete?.storeName}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently delete your generated store and all its settings. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDeleteStore} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </UploadProvider>
   );
 }
@@ -1180,3 +1244,4 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
+

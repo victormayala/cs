@@ -1,8 +1,9 @@
 
+
 "use client";
 
-import { useState, Suspense, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, type FieldValue } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection, type FieldValue } from 'firebase/firestore';
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { deployStore } from "@/ai/flows/deploy-store";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,9 +60,12 @@ type LayoutName = typeof layouts[number]['name'];
 
 function CreateStorePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   
+  const storeId = useMemo(() => searchParams.get('storeId'), [searchParams]);
+
   const [storeName, setStoreName] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#468189");
   const [secondaryColor, setSecondaryColor] = useState("#8A56AC");
@@ -82,31 +86,43 @@ function CreateStorePageContent() {
   const [localDeliveryFee, setLocalDeliveryFee] = useState<number | string>(0);
   const [localDeliveryText, setLocalDeliveryText] = useState("Available for local delivery");
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchExistingConfig = async () => {
-      setIsLoadingExisting(true);
-      const storeRef = doc(db, 'userStores', user.uid);
-      const docSnap = await getDoc(storeRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data() as UserStoreConfig;
-        setStoreName(data.storeName || "");
-        setSelectedLayout(data.layout || 'casual');
-        setPrimaryColor(data.branding?.primaryColorHex || "#468189");
-        setSecondaryColor(data.branding?.secondaryColorHex || "#8A56AC");
-        setLogoDataUrl(data.branding?.logoUrl || null);
-        setDiscountsEnabled(data.volumeDiscounts?.enabled || false);
-        if (data.volumeDiscounts?.tiers && data.volumeDiscounts.tiers.length > 0) {
-          setDiscountTiers(data.volumeDiscounts.tiers);
-        }
-        setLocalDeliveryEnabled(data.shipping?.localDeliveryEnabled || false);
-        setLocalDeliveryFee(data.shipping?.localDeliveryFee || 0);
-        setLocalDeliveryText(data.shipping?.localDeliveryText || "Available for local delivery");
-      }
+  const fetchExistingConfig = useCallback(async () => {
+    if (!user || !storeId) {
       setIsLoadingExisting(false);
-    };
+      return;
+    }
+    setIsLoadingExisting(true);
+    const storeRef = doc(db, 'userStores', storeId);
+    const docSnap = await getDoc(storeRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data() as UserStoreConfig;
+      if (data.userId !== user.uid) {
+        toast({ title: "Unauthorized", description: "You do not have permission to edit this store.", variant: "destructive" });
+        router.push('/dashboard');
+        return;
+      }
+      setStoreName(data.storeName || "");
+      setSelectedLayout(data.layout || 'casual');
+      setPrimaryColor(data.branding?.primaryColorHex || "#468189");
+      setSecondaryColor(data.branding?.secondaryColorHex || "#8A56AC");
+      setLogoDataUrl(data.branding?.logoUrl || null);
+      setDiscountsEnabled(data.volumeDiscounts?.enabled || false);
+      if (data.volumeDiscounts?.tiers && data.volumeDiscounts.tiers.length > 0) {
+        setDiscountTiers(data.volumeDiscounts.tiers);
+      }
+      setLocalDeliveryEnabled(data.shipping?.localDeliveryEnabled || false);
+      setLocalDeliveryFee(data.shipping?.localDeliveryFee || 0);
+      setLocalDeliveryText(data.shipping?.localDeliveryText || "Available for local delivery");
+    } else if (storeId) {
+      toast({ title: "Not Found", description: "The requested store could not be found.", variant: "destructive" });
+      router.push('/dashboard');
+    }
+    setIsLoadingExisting(false);
+  }, [user, storeId, toast, router]);
+
+  useEffect(() => {
     fetchExistingConfig();
-  }, [user]);
+  }, [fetchExistingConfig]);
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -163,11 +179,11 @@ function CreateStorePageContent() {
     }
 
     setIsSaving(true);
-    const storeRef = doc(db, 'userStores', user.uid);
+    let finalStoreId = storeId;
+    let storeRef;
 
     try {
-      // Step 1: Save initial config with 'pending' status
-      const initialStoreData: Omit<UserStoreConfig, 'createdAt' | 'id'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
+      const storeData: Omit<UserStoreConfig, 'id' | 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
         userId: user.uid,
         storeName,
         layout: selectedLayout,
@@ -186,35 +202,29 @@ function CreateStorePageContent() {
           localDeliveryText,
         },
         deployment: {
-          status: 'pending', // Start as pending
+          status: 'pending',
         },
         lastSaved: serverTimestamp(),
       };
 
-      const docSnap = await getDoc(storeRef);
-      if (!docSnap.exists()) {
-        initialStoreData.createdAt = serverTimestamp();
+      if (storeId) {
+        // Updating existing store
+        storeRef = doc(db, 'userStores', storeId);
+        await setDoc(storeRef, storeData, { merge: true });
+        toast({ title: "Configuration Updated!", description: "Your store settings have been saved. Re-deploying..." });
+      } else {
+        // Creating new store
+        storeData.createdAt = serverTimestamp();
+        const newDocRef = await addDoc(collection(db, 'userStores'), storeData);
+        finalStoreId = newDocRef.id;
+        storeRef = newDocRef;
+        toast({ title: "Store Created!", description: "Your new store has been configured. Now starting deployment..." });
       }
-
-      await setDoc(storeRef, initialStoreData, { merge: true });
       
-      toast({
-        title: "Configuration Saved!",
-        description: "Your store settings have been saved. Now starting deployment...",
-      });
-      
-      // Step 2: Call the deployment flow (which no longer touches the DB)
-      const storeConfigForFlow: UserStoreConfig = {
-        ...initialStoreData,
-        id: user.uid,
-        createdAt: docSnap.data()?.createdAt || serverTimestamp(), // Use existing or new timestamp
-        deployment: { status: 'pending' }, // Pass current deployment state
-      };
-      
-      const plainStoreConfig = JSON.parse(JSON.stringify(storeConfigForFlow));
+      const flowConfigData = { ...storeData, id: finalStoreId, createdAt: serverTimestamp() };
+      const plainStoreConfig = JSON.parse(JSON.stringify(flowConfigData));
       const deploymentResult = await deployStore(plainStoreConfig);
 
-      // Step 3: Update the doc with the deployment result from the client
       await setDoc(storeRef, {
         deployment: {
           status: 'active',
@@ -223,27 +233,19 @@ function CreateStorePageContent() {
         }
       }, { merge: true });
 
-      toast({
-        title: "Deployment Succeeded!",
-        description: `Your store is now active.`,
-      });
-
-      router.push(`/store/${user.uid}`);
+      toast({ title: "Deployment Succeeded!", description: `Your store is now active.` });
+      router.push(`/store/${finalStoreId}`);
 
     } catch (error: any) {
       let errorMessage = `Failed to save or deploy: ${error.message}`;
       if (error.code === 'permission-denied') {
           errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
       }
-      toast({
-        title: "Operation Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Operation Failed", description: errorMessage, variant: "destructive" });
       console.error("Save/Deploy error:", error);
-      // Optional: Set status to 'error' in Firestore
-      await setDoc(storeRef, { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
-
+      if (storeId) {
+          await setDoc(doc(db, 'userStores', storeId), { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
+      }
     } finally {
       setIsSaving(false);
     }
@@ -272,10 +274,10 @@ function CreateStorePageContent() {
             </Button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">
-                Build Your Store
+                {storeId ? 'Edit Store' : 'Build Your Store'}
               </h1>
               <p className="text-muted-foreground">
-                Create and configure your new e-commerce storefront.
+                {storeId ? 'Update and re-deploy your e-commerce storefront.' : 'Create and configure your new e-commerce storefront.'}
               </p>
             </div>
           </div>
@@ -546,7 +548,7 @@ function CreateStorePageContent() {
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                {isSaving ? "Saving & Deploying..." : "Save & Deploy Store"}
+                {isSaving ? (storeId ? "Saving & Re-deploying..." : "Saving & Deploying...") : (storeId ? "Save & Re-deploy" : "Save & Deploy Store")}
               </Button>
                {isSaving && (
                 <Alert variant="default" className="bg-primary/5 border-primary/20">

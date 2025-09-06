@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -142,7 +143,7 @@ export default function ProductDetailPage() {
             // Fetch store config and product data in parallel
             const [storeRes, productRes] = await Promise.all([
                 getDoc(doc(db, 'userStores', storeId)),
-                fetch(`/api/store/products/${productId}?configUserId=${storeId}`, { cache: 'no-store' })
+                fetch(`/api/store/products/${productId}?storeId=${storeId}`, { cache: 'no-store' })
             ]);
 
             // Process store config
@@ -257,7 +258,7 @@ export default function ProductDetailPage() {
   }
 
   // The link to the customizer
-  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeId}`;
+  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}`;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">

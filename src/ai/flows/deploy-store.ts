@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A flow to handle the deployment of a user's generated store.
@@ -51,14 +52,14 @@ const deployStoreFlow = ai.defineFlow(
     outputSchema: DeployStoreOutputSchema,
   },
   async (config) => {
-    console.log(`[deployStoreFlow] Starting deployment simulation for store: ${config.storeName} (User: ${config.userId})`);
+    console.log(`[deployStoreFlow] Starting deployment simulation for store: ${config.storeName} (User: ${config.userId}) (Store ID: ${config.id})`);
 
     // In a real application, this is where you would call a cloud build service,
     // generate files, and run deployment scripts. This flow no longer interacts with Firestore.
     await new Promise(resolve => setTimeout(resolve, 5000)); // Simulate a 5-second deployment
 
     // This is a mock URL. In a real deployment, you'd get this from your hosting provider.
-    const mockDeployedUrl = `https://${config.storeName.toLowerCase().replace(/\s+/g, '-')}-${config.userId.substring(0, 4)}.preview.app`;
+    const mockDeployedUrl = `https://${config.storeName.toLowerCase().replace(/\s+/g, '-')}-${config.id.substring(0, 4)}.preview.app`;
 
     console.log(`[deployStoreFlow] Mock deployment complete for store: ${config.storeName}. URL: ${mockDeployedUrl}`);
     

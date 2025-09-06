@@ -1,4 +1,5 @@
 
+
 'use server';
 
 // This server action file is now deprecated for saving store config, as the operation has been
@@ -21,8 +22,8 @@ export interface VolumeDiscountTier {
  * This data will be stored in Firestore and used to generate/deploy the store.
  */
 export interface UserStoreConfig {
-  id: string; // Corresponds to the user's UID
-  userId: string; // Ensure userId is part of the data
+  id: string; // The unique ID of the store document
+  userId: string; // The UID of the user who owns this store
   storeName: string;
   layout: 'casual' | 'corporate' | 'marketing';
   
@@ -33,7 +34,7 @@ export interface UserStoreConfig {
   };
   
   // Deployment status and details
-  deployment: {
+  deployment?: {
     status: 'uninitialized' | 'pending' | 'active' | 'error';
     deployedUrl?: string;
     lastDeployedAt?: FieldValue;

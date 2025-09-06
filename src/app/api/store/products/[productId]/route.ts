@@ -1,11 +1,13 @@
 
+
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import type { PublicProduct } from '@/types/product';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import type { ProductOptionsFirestoreData, ProductAttributeOptions, VariationImage, NativeProductVariation, ProductView } from '@/app/actions/productOptionsActions';
 import type { SizeAttribute } from '@/app/dashboard/products/[productId]/options/page';
+import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import { ProductCategory } from '@/app/dashboard/categories/page';
 
 interface ProductAttributeOptionsForPDP extends Omit<ProductAttributeOptions, 'sizes'> {
@@ -26,11 +28,11 @@ interface PublicProductDetail extends PublicProduct {
 
 export async function GET(request: Request, { params }: { params: { productId: string } }) {
   const { searchParams } = new URL(request.url);
-  const configUserId = searchParams.get('configUserId');
+  const storeId = searchParams.get('storeId');
   const { productId } = params;
 
-  if (!configUserId || !productId) {
-    return NextResponse.json({ error: 'Config User ID and Product ID are required.' }, { status: 400 });
+  if (!storeId || !productId) {
+    return NextResponse.json({ error: 'Store ID and Product ID are required.' }, { status: 400 });
   }
 
   if (!db) {
@@ -39,6 +41,15 @@ export async function GET(request: Request, { params }: { params: { productId: s
   }
 
   try {
+    const storeRef = doc(db, 'userStores', storeId);
+    const storeSnap = await getDoc(storeRef);
+
+    if (!storeSnap.exists()) {
+      return NextResponse.json({ error: 'Store not found.' }, { status: 404 });
+    }
+    const storeData = storeSnap.data() as UserStoreConfig;
+    const configUserId = storeData.userId;
+
     const productRef = doc(db, `users/${configUserId}/products`, productId);
     const optionsRef = doc(db, 'userProductOptions', configUserId, 'products', productId);
 
@@ -59,7 +70,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const views = optionsData?.defaultViews?.map(view => ({
       ...view, // Spread to include all properties like boundaryBoxes
       imageUrl: view.imageUrl && !view.imageUrl.includes('placehold.co') ? view.imageUrl : `${defaultPlaceholderImage}&txtsize=30&text=${encodeURIComponent(view.name)}`,
-    })) || [{ id: 'default_view', name: 'Front', imageUrl: defaultPlaceholderImage, boundaryBoxes: [] }];
+    })) || [{ id: 'default_view', name: 'Front', imageUrl: defaultPlaceholderImage, boundaryBoxes: [], price: 0 }];
     
     const primaryImageUrl = views[0]?.imageUrl || defaultPlaceholderImage;
 
@@ -90,7 +101,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       price: optionsData?.price ?? 0,
       salePrice: optionsData?.salePrice ?? null,
       imageUrl: primaryImageUrl,
-      productUrl: `/store/${configUserId}/products/${productId}`,
+      productUrl: `/store/${storeId}/products/${productId}`, // Use storeId in the URL
       views: views,
       attributes: optionsData?.nativeAttributes as ProductAttributeOptionsForPDP | undefined,
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
@@ -108,7 +119,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
     });
 
   } catch (error: any) {
-    console.error(`Error fetching product ${productId} for user ${configUserId}:`, error);
+    console.error(`Error fetching product ${productId} for store ${storeId}:`, error);
     return NextResponse.json({ error: `Failed to fetch product details: ${error.message}` }, { status: 500 });
   }
 }
