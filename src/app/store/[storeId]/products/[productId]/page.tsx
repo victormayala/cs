@@ -283,9 +283,9 @@ export default function ProductDetailPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            {displayedImages.map(view => (
+                            {displayedImages.map((view, index) => (
                                 <button
-                                    key={view.id}
+                                    key={`${view.id}-${index}`}
                                     className={cn(
                                         "w-20 h-20 rounded-md border-2 overflow-hidden bg-muted/50 transition",
                                         activeImage === view.imageUrl ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'
