@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -32,8 +33,6 @@ export async function POST(request: Request) {
     if (!baseImageDataUri || !elements || !widthPx || !heightPx) {
       return NextResponse.json({ error: 'Missing required parameters: baseImageDataUri, elements, widthPx, heightPx.' }, { status: 400 });
     }
-
-    const overlayTransforms: ImageTransform[] = [];
 
     // Process elements in parallel to generate images for text and shapes
     const processingPromises = elements.map(async (element) => {
