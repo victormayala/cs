@@ -19,9 +19,9 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="data:," />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <style dangerouslySetInnerHTML={{ __html: `
-          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-        `}} />
+        {/* The @import rule was causing a cross-origin error with the html-to-image library.
+            The font is now embedded directly in the customizer when the screenshot is taken.
+            The 'font-sans' class in globals.css will provide a fallback. */}
       </head>
       <body className="font-sans antialiased" suppressHydrationWarning={true}>
         <AuthProvider>
