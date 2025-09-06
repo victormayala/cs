@@ -36,7 +36,6 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
-import * as htmlToImage from 'html-to-image';
 
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
@@ -628,115 +627,107 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. Please wait." });
   
-    let previewImageUrl: string | undefined;
+    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
+    const activeViewDetails = productDetails?.views.find(v => v.id === activeViewId);
+    
+    // Ensure canvas wrapper ref has dimensions
+    if (!designCanvasWrapperRef.current?.offsetWidth || !designCanvasWrapperRef.current?.offsetHeight) {
+      toast({ title: "Preview Error", description: "Cannot generate preview, canvas dimensions are not available.", variant: "destructive" });
+      setIsAddingToCart(false);
+      return;
+    }
 
     try {
-      const designNode = document.querySelector('.centered-square-container') as HTMLElement;
-      if (!designNode) throw new Error("Could not find the design canvas element to capture.");
+        const previewResponse = await fetch('/api/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                baseImageDataUri: activeViewDetails?.imageUrl,
+                elements: allCustomizedElements.filter(el => el.viewId === activeViewId),
+                widthPx: designCanvasWrapperRef.current.offsetWidth,
+                heightPx: designCanvasWrapperRef.current.offsetHeight,
+            }),
+        });
 
-      previewImageUrl = await htmlToImage.toPng(designNode, { quality: 0.95 });
-
-    } catch (err: any) {
-      console.error("Preview screenshot failed:", err);
-      let errorDescription = "Could not generate a preview image. Please try again.";
-      if (err.message?.includes('Cannot access rules')) {
-        errorDescription = "Could not generate preview due to a cross-origin security issue with an external resource (like a font). Please check the console for details.";
-      } else if (err.message) {
-        errorDescription = `Error: ${err.message}`;
-      }
-      toast({
-        title: "Preview Failed",
-        description: errorDescription,
-        variant: "destructive",
-      });
-      setIsAddingToCart(false);
-      return; // Stop if preview fails
-    }
-  
-    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
-
-    const designData = {
-      productId: productIdFromUrl || productDetails?.id,
-      variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
-      quantity: 1,
-      productName: productDetails?.name || 'Custom Product',
-      customizationDetails: {
-        elements: allCustomizedElements, // All elements from all views
-        selectedOptions: selectedVariationOptions,
-        baseProductPrice: productDetails?.basePrice ?? 0,
-        totalCustomizationPrice: totalCustomizationPrice,
-        previewImageUrl: previewImageUrl,
-        previewImageAltText: `${productDetails?.name} - Custom Design`,
-      },
-      userId: user?.uid || null,
-      configUserId: productDetails?.meta?.configUserIdUsed || null,
-    };
-  
-    // Determine the action based on the source of the product/customizer
-    const isExternalStore = productDetails?.meta?.source === 'shopify' || productDetails?.meta?.source === 'woocommerce';
-    const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
-
-    if (isEmbedded) {
-      let targetOrigin = '*';
-      if (document.referrer) {
-        try { targetOrigin = new URL(document.referrer).origin; }
-        catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
-      } else {
-        console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
-      }
-      window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
-      toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
-    } else if (isNativeStore) {
-      // This path is for native stores or standalone customizer usage for native products
-      const cartKey = `cs_cart_${productDetails.meta?.configUserIdUsed || user?.uid}`;
-      try {
-        const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-        
-        // Slim down the customization details before saving to local storage
-        const slimCustomizationDetails = {
-          ...designData.customizationDetails,
-          elements: designData.customizationDetails.elements.map(el => {
-            if (el.itemType === 'image') {
-              // For images, we only need the source ID, not the huge dataUrl
-              const { dataUrl, ...rest } = el as CanvasImage;
-              return rest;
-            }
-            return el;
-          })
-        };
-        
-        const newCartItem = {
-          id: crypto.randomUUID(),
-          productId: designData.productId,
-          variationId: designData.variationId,
-          quantity: 1,
-          productName: designData.productName,
-          totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use in the cart
-          customizationDetails: slimCustomizationDetails, // Use the slim version for storage
-        };
-
-        currentCart.push(newCartItem);
-        localStorage.setItem(cartKey, JSON.stringify(currentCart));
-        
-        toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
-
-        window.dispatchEvent(new CustomEvent('cartUpdated'));
-
-      } catch (e: any) {
-        console.error("Error saving to local cart:", e);
-        let errorDescription = "Could not add item to local cart.";
-        if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
-          errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
+        if (!previewResponse.ok) {
+            const errorData = await previewResponse.json();
+            throw new Error(errorData.error || `Preview generation failed with status ${previewResponse.status}`);
         }
-        toast({ title: "Error", description: errorDescription, variant: "destructive" });
-      }
-    } else {
-        toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
-        console.log("Add to Cart - Design Data:", designData);
+
+        const { previewImageUrl, altText } = await previewResponse.json();
+
+        const designData = {
+          productId: productIdFromUrl || productDetails?.id,
+          variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
+          quantity: 1,
+          productName: productDetails?.name || 'Custom Product',
+          customizationDetails: {
+            elements: allCustomizedElements.map(el => {
+                if (el.itemType === 'image') {
+                    const { dataUrl, ...rest } = el as CanvasImage;
+                    return rest;
+                }
+                return el;
+            }),
+            selectedOptions: selectedVariationOptions,
+            baseProductPrice: productDetails?.basePrice ?? 0,
+            totalCustomizationPrice: totalCustomizationPrice,
+            previewImageUrl: previewImageUrl,
+            previewImageAltText: altText,
+          },
+          userId: user?.uid || null,
+          configUserId: productDetails?.meta?.configUserIdUsed || null,
+        };
+      
+        const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
+
+        if (isEmbedded) {
+          let targetOrigin = '*';
+          if (document.referrer) {
+            try { targetOrigin = new URL(document.referrer).origin; }
+            catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
+          } else {
+            console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
+          }
+          window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
+          toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
+        } else if (isNativeStore) {
+          const cartKey = `cs_cart_${productDetails.meta?.configUserIdUsed || user?.uid}`;
+          try {
+            const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+            const newCartItem = {
+              id: crypto.randomUUID(),
+              productId: designData.productId,
+              variationId: designData.variationId,
+              quantity: 1,
+              productName: designData.productName,
+              totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
+              previewImageUrl: previewImageUrl,
+              customizationDetails: designData.customizationDetails,
+            };
+            currentCart.push(newCartItem);
+            localStorage.setItem(cartKey, JSON.stringify(currentCart));
+            toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+            window.dispatchEvent(new CustomEvent('cartUpdated'));
+          } catch (e: any) {
+            console.error("Error saving to local cart:", e);
+            let errorDescription = "Could not add item to local cart.";
+            if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
+              errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
+            }
+            toast({ title: "Error", description: errorDescription, variant: "destructive" });
+          }
+        } else {
+            toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
+            console.log("Add to Cart - Design Data:", designData);
+        }
+
+    } catch(err: any) {
+        console.error("Error during 'Add to Cart' process:", err);
+        toast({ title: "Add to Cart Failed", description: err.message, variant: "destructive" });
+    } finally {
+        setIsAddingToCart(false);
     }
-  
-    setIsAddingToCart(false);
   };
   
   const [isAddingToCart, setIsAddingToCart] = useState(false);
