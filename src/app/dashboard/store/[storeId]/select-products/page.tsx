@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore';
 import AppHeader from '@/components/layout/AppHeader';
 import { ArrowLeft, Loader2, Package, AlertTriangle, ExternalLink, PackageCheck } from 'lucide-react';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
@@ -57,7 +57,7 @@ function SelectProductsStorePage() {
       if (!storeSnap.exists() || storeSnap.data()?.userId !== user.uid) {
         throw new Error("Store not found or you don't have permission to access it.");
       }
-      const config = storeSnap.data() as UserStoreConfig;
+      const config = { id: storeSnap.id, ...storeSnap.data() } as UserStoreConfig;
       setStoreConfig(config);
       setSelectedProductIds(new Set(config.productIds || []));
 
@@ -170,8 +170,14 @@ function SelectProductsStorePage() {
         
         const storeRef = doc(db, 'userStores', storeId);
         await updateDoc(storeRef, { 'deployment.status': 'pending' });
+        
+        // Ensure the config object passed to the flow includes the ID
+        const plainStoreConfig = JSON.parse(JSON.stringify({ 
+            ...storeConfig, 
+            id: storeId, // Explicitly add the store ID here
+            productIds: Array.from(selectedProductIds) 
+        }));
 
-        const plainStoreConfig = JSON.parse(JSON.stringify({ ...storeConfig, productIds: Array.from(selectedProductIds) }));
         const deploymentResult = await deployStore(plainStoreConfig);
         
         await updateDoc(storeRef, {
@@ -305,3 +311,5 @@ function SelectProductsStorePage() {
 }
 
 export default SelectProductsStorePage;
+
+    
