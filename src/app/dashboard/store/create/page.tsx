@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, Suspense, useEffect, useCallback, useMemo } from "react";
+import { useState, Suspense, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection, type FieldValue, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, type FieldValue, deleteField, addDoc } from 'firebase/firestore';
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { deployStore } from "@/ai/flows/deploy-store";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useMemo } from 'react';
 
 
 const generatedPages = [
@@ -56,6 +57,39 @@ const layouts = [
 ] as const;
 
 type LayoutName = typeof layouts[number]['name'];
+
+// Client-side function to save user store configuration
+async function saveUserStoreConfig(config: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'>, existingStoreId?: string | null): Promise<{ storeId: string, isNew: boolean }> {
+  if (!config.userId || !db) {
+    throw new Error("User not authenticated or database not available.");
+  }
+
+  const isNew = !existingStoreId;
+  const storeId = existingStoreId || doc(collection(db, 'userStores')).id;
+  const storeRef = doc(db, 'userStores', storeId);
+
+  const dataToSave: any = {
+    ...config,
+    lastSaved: serverTimestamp(),
+  };
+
+  if (isNew) {
+    dataToSave.createdAt = serverTimestamp();
+    // When creating, we must not have any `undefined` values.
+    if (dataToSave.branding && dataToSave.branding.logoUrl === undefined) {
+      delete dataToSave.branding.logoUrl;
+    }
+  } else {
+    // When updating, we can use deleteField for fields that should be removed.
+    if (dataToSave.branding && dataToSave.branding.logoUrl === undefined) {
+      dataToSave.branding.logoUrl = deleteField();
+    }
+  }
+  
+  await setDoc(storeRef, dataToSave, { merge: !isNew });
+
+  return { storeId, isNew };
+}
 
 function CreateStorePageContent() {
   const router = useRouter();
@@ -138,7 +172,7 @@ function CreateStorePageContent() {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-        setLogoDataUrl(e.target?.result as string);
+        setLogoDataUrl(e.target.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -182,55 +216,40 @@ function CreateStorePageContent() {
     let storeRef;
 
     try {
-      const brandingData: { [key: string]: any } = {
-          primaryColorHex: primaryColor,
-          secondaryColorHex: secondaryColor,
-      };
-      if (logoDataUrl) {
-          brandingData.logoUrl = logoDataUrl;
-      }
-
-      const storeData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'branding'> & { branding: any, lastSaved: FieldValue; createdAt?: FieldValue } = {
-        userId: user.uid,
-        storeName,
-        layout: selectedLayout,
-        branding: brandingData,
-        volumeDiscounts: {
-          enabled: discountsEnabled,
-          tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
-        },
-        shipping: {
-          localDeliveryEnabled,
-          localDeliveryFee: Number(localDeliveryFee),
-          localDeliveryText,
-        },
-        deployment: {
-          status: 'pending',
-        },
-        lastSaved: serverTimestamp(),
+      const storeConfigData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'> = {
+          userId: user.uid,
+          storeName,
+          layout: selectedLayout,
+          branding: {
+              primaryColorHex: primaryColor,
+              secondaryColorHex: secondaryColor,
+              logoUrl: logoDataUrl || undefined,
+          },
+          volumeDiscounts: {
+              enabled: discountsEnabled,
+              tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
+          },
+          shipping: {
+              localDeliveryEnabled,
+              localDeliveryFee: Number(localDeliveryFee),
+              localDeliveryText,
+          },
+          deployment: {
+              status: 'pending',
+          },
       };
 
-      if (storeId) {
-        // Updating existing store: use setDoc with merge to allow deleteField
-        if (!logoDataUrl) {
-          storeData.branding.logoUrl = deleteField();
-        }
-        storeRef = doc(db, 'userStores', storeId);
-        await setDoc(storeRef, storeData, { merge: true });
-        toast({ title: "Configuration Updated!", description: "Your store settings have been saved. Re-deploying..." });
-      } else {
-        // Creating new store: use addDoc and ensure no undefined fields
-        if (!logoDataUrl) {
-          delete storeData.branding.logoUrl;
-        }
-        storeData.createdAt = serverTimestamp();
-        const newDocRef = await addDoc(collection(db, 'userStores'), storeData);
-        finalStoreId = newDocRef.id;
-        storeRef = newDocRef;
+      const { storeId: savedStoreId, isNew } = await saveUserStoreConfig(storeConfigData, storeId);
+      finalStoreId = savedStoreId;
+      storeRef = doc(db, 'userStores', finalStoreId);
+
+      if (isNew) {
         toast({ title: "Store Created!", description: "Your new store has been configured. Now starting deployment..." });
+      } else {
+        toast({ title: "Configuration Updated!", description: "Your store settings have been saved. Re-deploying..." });
       }
       
-      const flowConfigData = { ...storeData, id: finalStoreId, createdAt: serverTimestamp() };
+      const flowConfigData = { ...storeConfigData, id: finalStoreId, createdAt: serverTimestamp() };
       const plainStoreConfig = JSON.parse(JSON.stringify(flowConfigData));
       const deploymentResult = await deployStore(plainStoreConfig);
 
@@ -252,8 +271,8 @@ function CreateStorePageContent() {
       }
       toast({ title: "Operation Failed", description: errorMessage, variant: "destructive" });
       console.error("Save/Deploy error:", error);
-      if (storeId) {
-          await setDoc(doc(db, 'userStores', storeId), { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
+      if (finalStoreId) {
+          await setDoc(doc(db, 'userStores', finalStoreId), { deployment: { status: 'error' } }, { merge: true }).catch(e => console.error("Failed to set error status:", e));
       }
     } finally {
       setIsSaving(false);
@@ -588,3 +607,5 @@ export default function CreateStorePage() {
     </Suspense>
   );
 }
+
+    
