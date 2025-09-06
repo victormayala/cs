@@ -1,53 +1,47 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- USER DATA ---
-    // General rule: Allow logged-in users to read/write their own user-specific documents.
-    // This covers collections like userWooCommerceCredentials, userShopifyCredentials, etc.
+    // Deny all reads and writes by default for security.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // USER-SPECIFIC DATA
+    // Rules for collections inside a user's document.
     match /users/{userId}/{document=**} {
+      // Allow a user to read and write their own documents.
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // --- PUBLIC STOREFRONT DATA ---
-    // Allow PUBLIC read access to a user's native products for their storefront.
-    // Write access remains restricted to the owner.
-    match /users/{userId}/products/{productId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
     
-    // Allow PUBLIC read access to product customization options.
-    // Write access is restricted to the owner.
-    match /userProductOptions/{userId}/products/{productId} {
-        allow read: if true;
-        allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Allow PUBLIC read access to a user's store configuration (for store header/footer/theming).
-    // Write access is restricted to the owner.
-    match /userStores/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Allow PUBLIC read access to product categories for display on the store.
-    // Write/delete access is restricted to the owner.
-    match /productCategories/{userId}/{categoryId} {
-        allow read: if true;
-        allow write, delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // --- SECURE CREDENTIALS (Dashboard-only) ---
-    // These should NOT be publicly readable.
+    // USER CREDENTIALS
+    // Securely store API keys. Only the user can access their own.
     match /userWooCommerceCredentials/{userId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
-    
     match /userShopifyCredentials/{userId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // PRODUCT CONFIGURATIONS
+    // Secure product customization options.
+    match /userProductOptions/{userId}/products/{productId} {
+       // Allow the owner to manage their settings.
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+       // Also allow public reads if a product is part of a store being viewed.
+       // This allows the public storefront to fetch customization settings.
+       allow read: if resource.data.allowCustomization == true;
+    }
+
+    // USER STORES (Public storefronts)
+    // This is the key change to fix the error.
+    match /userStores/{storeId} {
+      // Allow anyone to read the configuration of a public store.
+      allow read;
+      
+      // Allow a user to create, update, or delete a store only if
+      // the 'userId' field in the document matches their own user ID.
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
     }
   }
 }
