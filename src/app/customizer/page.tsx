@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -689,7 +687,7 @@ function CustomizerLayoutAndLogic() {
     const isExternalStore = productDetails?.meta?.source === 'shopify' || productDetails?.meta?.source === 'woocommerce';
     const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
 
-    if (isExternalStore && window.parent !== window) {
+    if (isEmbedded) {
       let targetOrigin = '*';
       if (document.referrer) {
         try { targetOrigin = new URL(document.referrer).origin; }
@@ -705,12 +703,9 @@ function CustomizerLayoutAndLogic() {
       try {
         const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         
-        // ** FIX START **
-        // Create a "slim" version of customization details for localStorage
         const slimCustomizationDetails = {
           ...designData.customizationDetails,
           // Remove the large preview image from the stored object
-          previewImageUrl: undefined, 
           elements: designData.customizationDetails.elements.map(el => {
             // If the element is an image, remove the large dataUrl
             if (el.itemType === 'image') {
@@ -734,12 +729,10 @@ function CustomizerLayoutAndLogic() {
 
         const { previewImageUrl: _, ...itemForStorage } = newCartItem;
 
-        // ** FIX REVERT **
         const correctedItemForStorage = {
             ...itemForStorage,
             previewImageUrl: previewImageUrl // Add it back for the cart page to use
         };
-        // ** FIX REVERT END **
 
         currentCart.push(correctedItemForStorage);
         localStorage.setItem(cartKey, JSON.stringify(currentCart));

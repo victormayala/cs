@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Composites multiple images onto a base image using AI.
