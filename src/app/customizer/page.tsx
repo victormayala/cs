@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -35,6 +36,7 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
+import * as htmlToImage from 'html-to-image';
 
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
@@ -627,37 +629,26 @@ function CustomizerLayoutAndLogic() {
     toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. Please wait." });
   
     let previewImageUrl: string | undefined;
-    let finalAltText: string | undefined;
+
     try {
-      const activeView = productDetails?.views.find(v => v.id === activeViewId);
-      if (!activeView || !designCanvasWrapperRef.current) throw new Error("Active view or canvas not found.");
-  
-      const canvasRect = designCanvasWrapperRef.current.getBoundingClientRect();
-      const allElementsOnView = [...canvasImages, ...canvasTexts, ...canvasShapes].filter(el => el.viewId === activeViewId);
-  
-      const res = await fetch('/api/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          baseImageDataUri: activeView.imageUrl,
-          elements: allElementsOnView,
-          widthPx: canvasRect.width,
-          heightPx: canvasRect.height,
-        }),
+      const designNode = document.querySelector('.centered-square-container') as HTMLElement;
+      if (!designNode) throw new Error("Could not find the design canvas element to capture.");
+
+      previewImageUrl = await htmlToImage.toPng(designNode, { 
+        quality: 0.95, 
+        backgroundColor: '#FFFFFF',
+        // Make sure external images (like from picsum.photos) can be loaded
+        fetchRequestInit: { 
+          mode: 'cors',
+          cache: 'force-cache'
+        }
       });
-  
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Preview generation failed.');
-      }
-      const { previewImageUrl: generatedUrl, altText } = await res.json();
-      previewImageUrl = generatedUrl;
-      finalAltText = altText;
+
     } catch (err: any) {
-      console.error("Preview generation failed:", err);
+      console.error("Preview screenshot failed:", err);
       toast({
         title: "Preview Failed",
-        description: err.message,
+        description: "Could not generate a preview image. Please try again.",
         variant: "destructive",
       });
       setIsAddingToCart(false);
@@ -677,7 +668,7 @@ function CustomizerLayoutAndLogic() {
         baseProductPrice: productDetails?.basePrice ?? 0,
         totalCustomizationPrice: totalCustomizationPrice,
         previewImageUrl: previewImageUrl,
-        previewImageAltText: finalAltText,
+        previewImageAltText: `${productDetails?.name} - Custom Design`,
       },
       userId: user?.uid || null,
       configUserId: productDetails?.meta?.configUserIdUsed || null,
@@ -703,14 +694,14 @@ function CustomizerLayoutAndLogic() {
       try {
         const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         
+        // Slim down the customization details before saving to local storage
         const slimCustomizationDetails = {
           ...designData.customizationDetails,
-          // Remove the large preview image from the stored object
           elements: designData.customizationDetails.elements.map(el => {
-            // If the element is an image, remove the large dataUrl
             if (el.itemType === 'image') {
+              // For images, we only need the source ID, not the huge dataUrl
               const { dataUrl, ...rest } = el as CanvasImage;
-              return rest; // Return the object without the dataUrl
+              return rest;
             }
             return el;
           })
@@ -723,28 +714,21 @@ function CustomizerLayoutAndLogic() {
           quantity: 1,
           productName: designData.productName,
           totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use
+          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use in the cart
           customizationDetails: slimCustomizationDetails, // Use the slim version for storage
         };
 
-        const { previewImageUrl: _, ...itemForStorage } = newCartItem;
-
-        const correctedItemForStorage = {
-            ...itemForStorage,
-            previewImageUrl: previewImageUrl // Add it back for the cart page to use
-        };
-
-        currentCart.push(correctedItemForStorage);
+        currentCart.push(newCartItem);
         localStorage.setItem(cartKey, JSON.stringify(currentCart));
+        
         toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
 
-        // Optional: Trigger a custom event for the cart icon to update, if needed
         window.dispatchEvent(new CustomEvent('cartUpdated'));
 
       } catch (e: any) {
         console.error("Error saving to local cart:", e);
         let errorDescription = "Could not add item to local cart.";
-        if (e.name === 'QuotaExceededError') {
+        if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
           errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
         }
         toast({ title: "Error", description: errorDescription, variant: "destructive" });
