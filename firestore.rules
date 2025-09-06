@@ -1,64 +1,69 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
-    function isAdmin() {
+
+    function hasAdminRole() {
+      // Check if the user document exists and has the admin role.
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users can only read their own profile, but admins can read any.
+    // Rules for user-specific data
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
+      // Admins can read any user profile, users can read their own.
+      allow read: if request.auth.uid == userId || hasAdminRole();
+      // Users can only write to their own profile.
+      allow write: if request.auth.uid == userId;
+
+      // Subcollections for a specific user
+      match /products/{productId} {
+        allow read: true; // Publicly readable for storefronts
+        allow write: if request.auth.uid == userId;
+      }
+
+      match /productCategories/{categoryId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+      
+      match /orders/{orderId} {
+        allow read, write: if request.auth.uid == userId || hasAdminRole();
+      }
+
+      match /customers/{customerId} {
+        allow read, write: if request.auth.uid == userId || hasAdminRole();
+      }
+    }
+
+    // Rules for product customization options
+    match /userProductOptions/{userId}/products/{productId} {
+      allow read: true; // Publicly readable for storefronts
       allow write: if request.auth.uid == userId;
     }
 
-    // Product configurations can be read by their owner or any admin.
-    // They can only be written by their owner.
-    // Allow public read access for storefronts.
-    match /userProductOptions/{userId}/products/{productId} {
-      allow read: if true;
-      allow write: if request.auth.uid == userId || isAdmin();
-    }
-    
-    // Native products can be read publicly.
-    // They can only be written by their owner or an admin.
-    match /users/{userId}/products/{productId} {
-      allow read: if true;
-      allow write: if request.auth.uid == userId || isAdmin();
-    }
-
-    // User-specific credentials can only be accessed by the user who owns them.
+    // Rules for store credentials
     match /userWooCommerceCredentials/{userId} {
       allow read, write: if request.auth.uid == userId;
     }
+    
     match /userShopifyCredentials/{userId} {
       allow read, write: if request.auth.uid == userId;
     }
-    
-    // Categories can only be managed by the user who owns them.
-    match /users/{userId}/productCategories/{categoryId} {
-        allow read, write, delete: if request.auth.uid == userId || isAdmin();
-    }
 
-    // Store configurations can be read by anyone (for public storefronts)
-    // but only written by the owner or an admin.
+    // Rules for user-generated stores
     match /userStores/{storeId} {
-        allow read: if true;
-        allow write: if request.auth.uid == get(path).data.userId || isAdmin();
+       // Allow public read for storefronts to fetch their config
+      allow read: true;
+      // Allow write only if the user is the owner of the store document.
+      // Use request.resource.data.userId for creates, resource.data.userId for updates.
+      allow write: if request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth.uid == resource.data.userId;
+      allow delete: if request.auth.uid == resource.data.userId;
     }
 
-    // Orders and Customers can only be read/written by the store owner or an admin.
-    match /users/{userId}/{collection}/{docId} {
-      allow read, write, delete: if request.auth.uid == userId || isAdmin();
-    }
-    
-    // Admins can perform collection group queries on orders.
+    // Admin-only collection group query rule
     match /{path=**}/orders/{orderId} {
-      allow read: if isAdmin();
+      allow list: if hasAdminRole();
     }
   }
 }
