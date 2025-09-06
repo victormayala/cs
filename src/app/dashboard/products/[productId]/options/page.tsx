@@ -1037,7 +1037,7 @@ function ProductOptionsPage() {
                               {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
                                   {editorViews.map((view, index) => (
-                                    <div key={view.id} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
+                                    <div key={`${view.id}-${index}`} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
                                         <div className="flex items-center justify-between">
                                             <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium">View {index + 1}</Label>
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
