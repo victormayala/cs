@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import { useState, Suspense, useEffect, useCallback } from "react";
+import { useState, Suspense, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
