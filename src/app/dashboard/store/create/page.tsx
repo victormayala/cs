@@ -210,17 +210,19 @@ function CreateStorePageContent() {
         lastSaved: serverTimestamp(),
       };
 
-      if (!logoDataUrl) {
-        storeData.branding.logoUrl = deleteField();
-      }
-
       if (storeId) {
-        // Updating existing store
+        // Updating existing store: use setDoc with merge to allow deleteField
+        if (!logoDataUrl) {
+          storeData.branding.logoUrl = deleteField();
+        }
         storeRef = doc(db, 'userStores', storeId);
         await setDoc(storeRef, storeData, { merge: true });
         toast({ title: "Configuration Updated!", description: "Your store settings have been saved. Re-deploying..." });
       } else {
-        // Creating new store
+        // Creating new store: use addDoc and ensure no undefined fields
+        if (!logoDataUrl) {
+          delete storeData.branding.logoUrl;
+        }
         storeData.createdAt = serverTimestamp();
         const newDocRef = await addDoc(collection(db, 'userStores'), storeData);
         finalStoreId = newDocRef.id;
