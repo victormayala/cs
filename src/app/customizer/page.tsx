@@ -708,6 +708,8 @@ function CustomizerLayoutAndLogic() {
         // Create a "slim" version of customization details for localStorage
         const slimCustomizationDetails = {
           ...designData.customizationDetails,
+          // Remove the large preview image from the stored object
+          previewImageUrl: undefined, 
           elements: designData.customizationDetails.elements.map(el => {
             // If the element is an image, remove the large dataUrl
             if (el.itemType === 'image') {
@@ -726,13 +728,20 @@ function CustomizerLayoutAndLogic() {
           quantity: 1,
           productName: designData.productName,
           totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl,
-          customizationDetails: slimCustomizationDetails, // Use the slim version
+          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use, but don't save it
+          customizationDetails: slimCustomizationDetails, // Use the slim version for storage
         };
 
-        currentCart.push(newCartItem);
+        // Create another version without the preview image for localStorage
+        const { previewImageUrl: _, ...itemForStorage } = newCartItem;
+
+        currentCart.push(itemForStorage);
         localStorage.setItem(cartKey, JSON.stringify(currentCart));
         toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+
+        // Optional: Trigger a custom event for the cart icon to update, if needed
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+
       } catch (e: any) {
         console.error("Error saving to local cart:", e);
         let errorDescription = "Could not add item to local cart.";
