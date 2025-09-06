@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection, type FieldValue } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, addDoc, collection, type FieldValue, deleteField } from 'firebase/firestore';
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { deployStore } from "@/ai/flows/deploy-store";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -182,15 +182,19 @@ function CreateStorePageContent() {
     let storeRef;
 
     try {
-      const storeData: Omit<UserStoreConfig, 'id' | 'createdAt'> & { lastSaved: FieldValue; createdAt?: FieldValue } = {
+      const brandingData: { [key: string]: any } = {
+          primaryColorHex: primaryColor,
+          secondaryColorHex: secondaryColor,
+      };
+      if (logoDataUrl) {
+          brandingData.logoUrl = logoDataUrl;
+      }
+
+      const storeData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'branding'> & { branding: any, lastSaved: FieldValue; createdAt?: FieldValue } = {
         userId: user.uid,
         storeName,
         layout: selectedLayout,
-        branding: {
-          primaryColorHex: primaryColor,
-          secondaryColorHex: secondaryColor,
-          logoUrl: logoDataUrl || undefined,
-        },
+        branding: brandingData,
         volumeDiscounts: {
           enabled: discountsEnabled,
           tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
@@ -205,6 +209,10 @@ function CreateStorePageContent() {
         },
         lastSaved: serverTimestamp(),
       };
+
+      if (!logoDataUrl) {
+        storeData.branding.logoUrl = deleteField();
+      }
 
       if (storeId) {
         // Updating existing store
