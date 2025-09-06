@@ -14,7 +14,8 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth, firebaseInitializationError } from '@/lib/firebase'; 
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, firebaseInitializationError } from '@/lib/firebase'; 
 import { clearAccessCookie } from '@/app/access-login/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,15 +24,16 @@ interface User {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  role: 'user' | 'admin';
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  signIn: (email: string, pass: string) => Promise<void>;
+  signIn: (email: string, pass:string) => Promise<void>;
   signUp: (email: string, pass: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signOut: () => Promise<void>; // This will be provided by AuthLogicHandler via context update
+  signOut: () => Promise<void>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,40 +54,58 @@ function AuthLogicHandler({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!auth) {
+    if (!auth || !db) {
         setAuthProviderIsLoading(false);
         return;
     }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        setAuthProviderUser({
+        // Fetch user role from Firestore
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        let userRole: 'user' | 'admin' = 'user'; // Default to 'user'
+        if (userDocSnap.exists()) {
+            userRole = userDocSnap.data()?.role || 'user';
+        }
+
+        const appUser: User = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
-        });
+          role: userRole,
+        };
+        setAuthProviderUser(appUser);
 
-        // Add user ID to a temporary global state for server actions
         if (typeof window !== 'undefined') {
           (window as any).__USER_ID__ = firebaseUser.uid;
         }
         
-        const redirectUrl = searchParams.get('redirect');
+        // --- Redirection Logic ---
         const isAuthPage = pathname === '/signin' || pathname === '/signup';
+        const isAdminPage = pathname.startsWith('/admin');
+        
+        // If user is not an admin but tries to access an admin page, redirect them
+        if (isAdminPage && appUser.role !== 'admin') {
+            toast({ title: "Access Denied", description: "You do not have permission to view this page.", variant: "destructive"});
+            router.push('/dashboard');
+            return; // Stop further redirection logic
+        }
 
+        const redirectUrl = searchParams.get('redirect');
         if (isAuthPage) {
           router.push(redirectUrl && redirectUrl !== '/' && !redirectUrl.startsWith('/signin') && !redirectUrl.startsWith('/signup') ? redirectUrl : '/dashboard');
         } else if (redirectUrl && redirectUrl !== '/' && !redirectUrl.startsWith('/signin') && !redirectUrl.startsWith('/signup')) {
           router.push(redirectUrl);
         }
-      } else {
+
+      } else { // User is signed out
         setAuthProviderUser(null);
-        // Clear the global user ID
         if (typeof window !== 'undefined') {
           delete (window as any).__USER_ID__;
         }
 
-        const protectedUserPaths = ['/dashboard', '/dashboard/products']; 
+        const protectedUserPaths = ['/dashboard', '/admin', '/customizer'];
         const isCurrentlyOnProtectedPath = protectedUserPaths.some(p => pathname.startsWith(p));
 
         if (isCurrentlyOnProtectedPath) {
@@ -115,12 +135,11 @@ function AuthLogicHandler({
     }
   }, [auth, router, toast, setAuthProviderIsLoading]);
 
-  // Update the signOut function in the context provider
   useEffect(() => {
     setAuthProviderSignOut(() => handleSignOut);
   }, [handleSignOut, setAuthProviderSignOut]);
 
-  return null; // This component doesn't render anything itself
+  return null;
 }
 
 // Interceptor for fetch to add user ID header
@@ -149,7 +168,6 @@ if (typeof window !== 'undefined') {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Placeholder for signOut initially, will be updated by AuthLogicHandler
   const [signOutFunction, setSignOutFunction] = useState<() => Promise<void>>(() => async () => {
     console.warn("SignOut called before AuthLogicHandler initialized router.");
   });
@@ -195,11 +213,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       </div>
     );
   }
+  
+  const createUserProfile = async (firebaseUser: FirebaseUser) => {
+    const userDocRef = doc(db, "users", firebaseUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (!userDocSnap.exists()) {
+        await setDoc(userDocRef, {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            role: 'user', // Default role
+            createdAt: serverTimestamp(),
+        });
+    }
+  };
+
 
   const signIn = useCallback(async (email: string, pass: string) => {
     if (!auth) throw new Error("Authentication service is not available.");
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      await createUserProfile(userCredential.user);
     } catch (error: any) {
       if (error.code !== 'auth/invalid-credential') {
         console.error("Firebase sign in error in AuthContext:", error);
@@ -211,14 +246,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(async (email: string, pass: string) => {
     if (!auth) throw new Error("Authentication service is not available.");
     try {
-      await createUserWithEmailAndPassword(auth, email, pass);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      await createUserProfile(userCredential.user);
       toast({ title: "Sign Up Successful", description: "Welcome! Your account has been created." });
     } catch (error: any) {
       const expectedErrorCodes = ['auth/email-already-in-use', 'auth/weak-password', 'auth/invalid-email'];
       if (!expectedErrorCodes.includes(error.code)) {
         console.error("Firebase sign up error in AuthContext:", error);
       }
-
       let friendlyMessage = "Sign up failed. Please try again.";
       if (error.code === 'auth/email-already-in-use') {
         friendlyMessage = "This email is already registered. Please try signing in or use a different email.";
@@ -227,12 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (error.message) {
         friendlyMessage = error.message;
       }
-      
-      toast({
-        title: "Sign Up Failed",
-        description: friendlyMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Sign Up Failed", description: friendlyMessage, variant: "destructive" });
       throw error;
     }
   }, [auth, toast]);
@@ -241,25 +271,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) throw new Error("Authentication service is not available.");
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const userCredential = await signInWithPopup(auth, provider);
+      await createUserProfile(userCredential.user);
       toast({ title: "Signed In with Google", description: "Welcome!" });
     } catch (error: any) {
       const expectedErrorCodes = ['auth/popup-closed-by-user', 'auth/account-exists-with-different-credential', 'auth/popup-blocked'];
       if (!expectedErrorCodes.includes(error.code)) {
         console.error("Google sign in error in AuthContext:", error);
       }
-
       let description = "Could not sign in with Google. Please try again.";
       if (error.code === 'auth/popup-closed-by-user') {
         description = "Sign-in popup closed. Please try again.";
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         description = "An account already exists with this email address. Try signing in with a different method.";
       }
-      toast({
-        title: "Google Sign In Failed",
-        description,
-        variant: "destructive",
-      });
+      toast({ title: "Google Sign In Failed", description, variant: "destructive" });
       throw error;
     }
   }, [auth, toast]);

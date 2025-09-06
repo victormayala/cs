@@ -3,50 +3,64 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    // Helper function to check for admin role
+    function hasAdminRole() {
+      // Check if the currently authenticated user's document in the 'users' collection has the 'role' field set to 'admin'.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // USER DATA: Secure user-specific collections
+    // Users can only read their own profile, but admins can read any profile.
+    // Users can create their own profile upon signup, and update their own profile.
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || hasAdminRole();
+      allow create, update: if request.auth.uid == userId;
+    }
+    
+    // Any subcollections under a user's document are only accessible by that user.
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwner(userId);
-    }
-    
-    // USER PRODUCTS: Products are private to the user in the dashboard,
-    // but need to be publicly readable for the store.
-    match /users/{userId}/products/{productId} {
-      // Owner has full access
-      allow read, write, delete: if isOwner(userId);
-      // Public can read the product list for stores
-      allow get, list: if true;
+      allow read, write: if request.auth.uid == userId;
     }
 
-    // USER CREDENTIALS: Only the owner can ever access their credentials.
+    // Admins can read all user credentials for support/debug purposes.
+    // Users can only manage their own credentials.
     match /userWooCommerceCredentials/{userId} {
-      allow read, write, delete: if isOwner(userId);
+       allow read, write, delete: if request.auth.uid == userId;
+       allow list: if hasAdminRole(); // Admins can list all credentials
     }
-    match /userShopifyCredentials/{userId} {
-      allow read, write, delete: if isOwner(userId);
-    }
-    match /userProductOptions/{userId}/products/{productId} {
-      // Owner has full access to configure their products
-      allow read, write, delete: if isOwner(userId);
-      // Public can read the options for a product to display on store/customizer
-      allow get, list: if true;
+     match /userShopifyCredentials/{userId} {
+       allow read, write, delete: if request.auth.uid == userId;
+       allow list: if hasAdminRole(); // Admins can list all credentials
     }
 
-    // USER STORES: Public can read, owner can write.
+    // Admins can read all user stores for platform analytics.
+    // Users can only manage their own stores.
     match /userStores/{storeId} {
-      allow read: if true;
-      // Write is allowed if user is authenticated and the userId on the document matches their own.
-      // This covers both create and update operations.
-      allow write: if isOwner(request.resource.data.userId);
+      allow read: if get(/databases/$(database)/documents/userStores/$(storeId)).data.userId == request.auth.uid || hasAdminRole();
+      allow write, delete: if get(/databases/$(database)/documents/userStores/$(storeId)).data.userId == request.auth.uid;
+      allow create: if request.auth != null; // Any authenticated user can create a store
     }
     
-    // Default deny all other access
-    match /{path=**}/documents/{document} {
-      allow read, write: if false;
+    // PUBLIC ACCESS RULES
+    // These rules allow public, unauthenticated access for storefronts.
+    
+    // Store configuration is public for storefronts to read.
+    match /userStores/{storeId} {
+        allow get: if true;
+    }
+    
+    // Product customization options need to be public for the customizer and storefronts.
+    // This allows fetching views, pricing, and boundary boxes.
+    match /userProductOptions/{userId}/products/{productId} {
+      allow get: if true; 
+    }
+
+    // The base "native" product information needs to be public for storefronts.
+    // This provides the name, description, etc.
+    match /users/{userId}/products/{productId} {
+        allow get: if true;
+    }
+     match /userProductOptions/{userId} {
+      allow list, get: if true;
     }
   }
 }

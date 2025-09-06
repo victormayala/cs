@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, LogOut, LayoutDashboardIcon } from 'lucide-react';
+import { Menu, LogOut, LayoutDashboardIcon, ShieldCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -76,7 +76,14 @@ export default function MarketingHeader() {
               Dashboard
             </Link>
           </DropdownMenuItem>
-          {/* Add more items like Profile, Settings if needed */}
+          {user.role === 'admin' && (
+             <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center cursor-pointer">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut} disabled={authIsLoading} className="cursor-pointer">
             <LogOut className="mr-2 h-4 w-4" />
@@ -103,6 +110,11 @@ export default function MarketingHeader() {
           <Button asChild variant="ghost" className="w-full justify-start text-base font-medium">
             <Link href="/dashboard"><LayoutDashboardIcon className="mr-2 h-5 w-5" />Dashboard</Link>
           </Button>
+           {user.role === 'admin' && (
+             <Button asChild variant="ghost" className="w-full justify-start text-base font-medium">
+              <Link href="/admin"><ShieldCheck className="mr-2 h-5 w-5" />Admin Panel</Link>
+            </Button>
+          )}
           <Button onClick={handleSignOut} variant="ghost" className="w-full justify-start text-base font-medium text-destructive hover:text-destructive" disabled={authIsLoading}>
             <LogOut className="mr-2 h-5 w-5" />Sign out
           </Button>
