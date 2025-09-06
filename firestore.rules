@@ -1,47 +1,52 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Deny all reads and writes by default for security.
-    match /{document=**} {
-      allow read, write: if false;
+    // Helper functions
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // USER-SPECIFIC DATA
-    // Rules for collections inside a user's document.
+    // USER DATA: Secure user-specific collections
     match /users/{userId}/{document=**} {
-      // Allow a user to read and write their own documents.
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
     
-    // USER CREDENTIALS
-    // Securely store API keys. Only the user can access their own.
+    // USER PRODUCTS: Products are private to the user in the dashboard,
+    // but need to be publicly readable for the store.
+    match /users/{userId}/products/{productId} {
+      // Owner has full access
+      allow read, write, delete: if isOwner(userId);
+      // Public can read the product list for stores
+      allow get, list: if true;
+    }
+
+    // USER CREDENTIALS: Only the owner can ever access their credentials.
     match /userWooCommerceCredentials/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isOwner(userId);
     }
     match /userShopifyCredentials/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isOwner(userId);
     }
-
-    // PRODUCT CONFIGURATIONS
-    // Secure product customization options.
     match /userProductOptions/{userId}/products/{productId} {
-       // Allow the owner to manage their settings.
-       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-       // Also allow public reads if a product is part of a store being viewed.
-       // This allows the public storefront to fetch customization settings.
-       allow read: if resource.data.allowCustomization == true;
+      // Owner has full access to configure their products
+      allow read, write, delete: if isOwner(userId);
+      // Public can read the options for a product to display on store/customizer
+      allow get, list: if true;
     }
 
-    // USER STORES (Public storefronts)
-    // This is the key change to fix the error.
+    // USER STORES: Public can read, owner can write.
     match /userStores/{storeId} {
-      // Allow anyone to read the configuration of a public store.
-      allow read;
-      
-      // Allow a user to create, update, or delete a store only if
-      // the 'userId' field in the document matches their own user ID.
-      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow read: if true;
+      // Write is allowed if user is authenticated and the userId on the document matches their own.
+      // This covers both create and update operations.
+      allow write: if isOwner(request.resource.data.userId);
+    }
+    
+    // Default deny all other access
+    match /{path=**}/documents/{document} {
+      allow read, write: if false;
     }
   }
 }
