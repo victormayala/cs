@@ -93,6 +93,8 @@ export async function POST(request: Request) {
     
     if (validTransforms.length === 0 && elements.length > 0) {
       console.warn("No valid image data could be prepared for compositing. All text/shape elements might have failed generation, or no image elements were present.");
+      // If overlays fail but we have a base image, just return the base image.
+      // This is better than crashing and returning an HTML error page.
       return NextResponse.json({ previewImageUrl: baseImageDataUri, altText: "Base image preview (overlay generation failed)." });
     }
 
