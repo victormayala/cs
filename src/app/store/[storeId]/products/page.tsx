@@ -97,7 +97,7 @@ export default function ProductListingPage() {
           return;
         }
 
-        const response = await fetch(`/api/store/products?configUserId=${storeId}`);
+        const response = await fetch(`/api/store/products?storeId=${storeId}`);
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to fetch products.');
