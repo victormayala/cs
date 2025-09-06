@@ -111,7 +111,7 @@ export default function StorefrontHomepage() {
         setStoreConfig(config);
 
         // Fetch products for the store
-        const productsResponse = await fetch(`/api/store/products?configUserId=${config.userId}`);
+        const productsResponse = await fetch(`/api/store/products?storeId=${storeId}`);
         if (!productsResponse.ok) {
           const errorData = await productsResponse.json();
           throw new Error(errorData.error || 'Failed to fetch products for this store.');
