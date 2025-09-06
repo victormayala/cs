@@ -69,7 +69,7 @@ const makeBackgroundTransparentFlow = ai.defineFlow(
       if (!imageUrl) {
         const errMessage = `Background transparency processing failed. Model: ${model}. The model might have refused the prompt or an internal error occurred. Text response: ${text}.`;
         console.error(`${errMessage} Input image data URI (first 100 chars): ${input.imageDataUri.substring(0,100)}. Please check server logs for details.`);
-        throw new Error(`${errMessage} Please check server logs for details.`);
+        throw new Error(`AI Background Removal Failed: The model did not return an image. This could be due to a content policy violation or a temporary issue. Please try a different image.`);
       }
 
       return {
