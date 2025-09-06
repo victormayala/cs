@@ -107,7 +107,7 @@ export default function CartPage() {
             productId: designData.productId,
             variationId: designData.variationId,
             quantity: 1,
-            productName: designData.customizationDetails.productName || 'Custom Product',
+            productName: designData.productName,
             totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
             previewImageUrl: designData.customizationDetails.previewImageUrl,
             customizationDetails: designData.customizationDetails,

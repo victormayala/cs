@@ -46,6 +46,7 @@ import FreeDesignsPanel from '@/components/customizer/FreeDesignsPanel';
 import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
+import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
 interface BoundaryBox {
   id: string;
@@ -633,14 +634,14 @@ function CustomizerLayoutAndLogic() {
       if (!activeView || !designCanvasWrapperRef.current) throw new Error("Active view or canvas not found.");
   
       const canvasRect = designCanvasWrapperRef.current.getBoundingClientRect();
-      const allElements = [...canvasImages, ...canvasTexts, ...canvasShapes].filter(el => el.viewId === activeViewId);
+      const allElementsOnView = [...canvasImages, ...canvasTexts, ...canvasShapes].filter(el => el.viewId === activeViewId);
   
       const res = await fetch('/api/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           baseImageDataUri: activeView.imageUrl,
-          elements: allElements,
+          elements: allElementsOnView,
           widthPx: canvasRect.width,
           heightPx: canvasRect.height,
         }),
@@ -664,22 +665,20 @@ function CustomizerLayoutAndLogic() {
       return; // Stop if preview fails
     }
   
+    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
+
     const designData = {
       productId: productIdFromUrl || productDetails?.id,
       variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
       quantity: 1,
+      productName: productDetails?.name || 'Custom Product',
       customizationDetails: {
-        viewData: productDetails?.views.map(view => ({
-          viewId: view.id,
-          viewName: view.name,
-          images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ src: img.dataUrl, name: img.name, type: img.type, x: img.x, y: img.y, scale: img.scale, rotation: img.rotation })),
-          texts: canvasTexts.filter(item => item.viewId === view.id).map(txt => ({ content: txt.content, fontFamily: txt.fontFamily, fontSize: txt.fontSize, color: txt.color, x: txt.x, y: txt.y, scale: txt.scale, rotation: txt.rotation, outlineColor: txt.outlineColor, outlineWidth: txt.outlineWidth, shadowColor: txt.shadowColor, shadowOffsetX: txt.shadowOffsetX, shadowOffsetY: txt.shadowBlur, archAmount: txt.archAmount })),
-          shapes: canvasShapes.filter(item => item.viewId === view.id).map(shp => ({ type: shp.shapeType, color: shp.color, strokeColor: shp.strokeColor, strokeWidth: shp.strokeWidth, x: shp.x, y: shp.y, scale: shp.scale, rotation: shp.rotation, width: shp.width, height: shp.height })),
-        })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
+        elements: allCustomizedElements, // All elements from all views
         selectedOptions: selectedVariationOptions,
         baseProductPrice: productDetails?.basePrice ?? 0,
         totalCustomizationPrice: totalCustomizationPrice,
         previewImageUrl: previewImageUrl,
+        previewImageAltText: finalAltText,
       },
       userId: user?.uid || null,
       configUserId: productDetails?.meta?.configUserIdUsed || null,
@@ -705,10 +704,9 @@ function CustomizerLayoutAndLogic() {
           productId: designData.productId,
           variationId: designData.variationId,
           quantity: 1,
-          productName: productDetails?.name || 'Custom Product',
-          basePrice: designData.customizationDetails.baseProductPrice,
+          productName: designData.productName,
           totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl,
+          previewImageUrl: previewImageUrl, // <-- Ensure this is passed
           customizationDetails: designData.customizationDetails,
         };
         currentCart.push(newCartItem);
