@@ -491,7 +491,8 @@ export default function DesignCanvas({
       <div className="relative w-full flex-1 flex items-center justify-center product-canvas-wrapper min-h-0">
         <div
           ref={canvasRef} 
-          className="relative product-image-canvas-area bg-muted/10 w-full h-full flex items-center justify-center" 
+          id="product-image-canvas-area"
+          className="relative bg-muted/10 w-full h-full flex items-center justify-center" 
           onClick={handleCanvasClick} 
           onTouchStart={handleCanvasClick as any} 
         >
@@ -615,4 +616,5 @@ export default function DesignCanvas({
 
 
     
+
 
