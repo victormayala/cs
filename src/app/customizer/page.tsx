@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -719,8 +720,7 @@ function CustomizerLayoutAndLogic() {
             return el;
           })
         };
-        // ** FIX END **
-
+        
         const newCartItem = {
           id: crypto.randomUUID(),
           productId: designData.productId,
@@ -728,14 +728,20 @@ function CustomizerLayoutAndLogic() {
           quantity: 1,
           productName: designData.productName,
           totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use, but don't save it
+          previewImageUrl: previewImageUrl, // Keep preview URL for immediate use
           customizationDetails: slimCustomizationDetails, // Use the slim version for storage
         };
 
-        // Create another version without the preview image for localStorage
         const { previewImageUrl: _, ...itemForStorage } = newCartItem;
 
-        currentCart.push(itemForStorage);
+        // ** FIX REVERT **
+        const correctedItemForStorage = {
+            ...itemForStorage,
+            previewImageUrl: previewImageUrl // Add it back for the cart page to use
+        };
+        // ** FIX REVERT END **
+
+        currentCart.push(correctedItemForStorage);
         localStorage.setItem(cartKey, JSON.stringify(currentCart));
         toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
 
