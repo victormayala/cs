@@ -684,18 +684,21 @@ function CustomizerLayoutAndLogic() {
       configUserId: productDetails?.meta?.configUserIdUsed || null,
     };
   
-    let targetOrigin = '*';
-    if (window.parent !== window && document.referrer) {
-      try { targetOrigin = new URL(document.referrer).origin; }
-      catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
-    } else if (window.parent !== window) {
-      console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
-    }
-  
-    if (window.parent !== window) {
+    // Determine the action based on the source of the product/customizer
+    const isExternalStore = productDetails?.meta?.source === 'shopify' || productDetails?.meta?.source === 'woocommerce';
+
+    if (isExternalStore && window.parent !== window) {
+      let targetOrigin = '*';
+      if (document.referrer) {
+        try { targetOrigin = new URL(document.referrer).origin; }
+        catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
+      } else {
+        console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
+      }
       window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
-      toast({ title: "Design Sent!", description: `Your design details have been sent. The embedding site must verify the origin of this message.` });
+      toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
     } else {
+      // This path is for native stores or standalone customizer usage
       const cartKey = `cs_cart_${configUserIdFromUrl || user?.uid}`;
       try {
         const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
@@ -706,7 +709,7 @@ function CustomizerLayoutAndLogic() {
           quantity: 1,
           productName: designData.productName,
           totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-          previewImageUrl: previewImageUrl, // <-- Ensure this is passed
+          previewImageUrl: previewImageUrl,
           customizationDetails: designData.customizationDetails,
         };
         currentCart.push(newCartItem);
