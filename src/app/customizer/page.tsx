@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -672,11 +673,16 @@ function CustomizerLayoutAndLogic() {
         previewImageUrl = await htmlToImage.toPng(designNode, { 
             quality: 0.95,
             fontEmbedCss: fontFaceCss,
+            // Add fetchRequestInit to handle cross-origin images
+            fetchRequestInit: {
+                mode: 'cors',
+                cache: 'force-cache',
+            }
         });
         
     } catch (err: any) {
         console.error("Preview screenshot failed:", err);
-        toast({ title: "Preview Error", description: `Could not generate preview: ${err.message}`, variant: "destructive" });
+        toast({ title: "Preview Error", description: `Could not generate preview: ${err.message || 'An unknown error occurred.'}`, variant: "destructive" });
         setIsAddingToCart(false);
         return;
     }
@@ -927,3 +933,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
