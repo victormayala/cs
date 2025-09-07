@@ -179,6 +179,7 @@ function CustomizerLayoutAndLogic() {
   }, [searchParams, productIdFromUrl]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
+  const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]);
 
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -673,11 +674,14 @@ function CustomizerLayoutAndLogic() {
     const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
     
     for (const view of viewsToPreview) {
+        // This is the main change: We set the active view and wait for re-render
         setActiveViewId(view.id);
         
+        // Wait for the next browser paint cycle
         await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => setTimeout(resolve, 100)); // Added delay for rendering
-        
+        // Add a small extra delay to ensure images have rendered
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const canvasElement = designCanvasWrapperRef.current;
         if (!canvasElement) {
             toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
@@ -828,8 +832,8 @@ function CustomizerLayoutAndLogic() {
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   
   const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
-  const pdpLink = isNativeStoreContext && configUserIdFromUrl && productIdFromUrl
-    ? `/store/${configUserIdFromUrl}/products/${productIdFromUrl}`
+  const pdpLink = isNativeStoreContext && storeIdFromUrl && productIdFromUrl
+    ? `/store/${storeIdFromUrl}/products/${productIdFromUrl}`
     : `/dashboard`;
 
   if (error && !productDetails) { 
@@ -898,9 +902,9 @@ function CustomizerLayoutAndLogic() {
             </div>
             <div className="flex items-center gap-3">
                 <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
-                {isNativeStoreContext && (
+                {isNativeStoreContext && storeIdFromUrl && (
                     <Button variant="outline" size="sm" asChild>
-                    <Link href={`/store/${configUserIdFromUrl}/cart`}>
+                    <Link href={`/store/${storeIdFromUrl}/cart`}>
                         <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
                         <span className="hidden sm:inline">View Cart</span>
                     </Link>

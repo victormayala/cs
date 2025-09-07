@@ -6,8 +6,9 @@ import { useUploads } from '@/contexts/UploadContext';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
-import { FileCheck, PlusCircle, Loader2 } from 'lucide-react';
+import { FileCheck, PlusCircle, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSearchParams } from 'next/navigation';
 import type { ApprovedFile } from '@/app/dashboard/store/[storeId]/approved-files/page';
 
 interface ApprovedFilesPanelProps {
@@ -18,27 +19,37 @@ interface ApprovedFilesPanelProps {
 export default function ApprovedFilesPanel({ activeViewId, configUserId }: ApprovedFilesPanelProps) {
   const { addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get('storeId');
+
   const [approvedFiles, setApprovedFiles] = useState<ApprovedFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!configUserId) {
-        setIsLoading(false);
-        return;
+    if (!storeId) {
+      setIsLoading(false);
+      // It's a valid state to not have a storeId (e.g., when customizing from the main dashboard)
+      return;
     }
 
-    // Since we don't have the specific store ID here, we can't directly query.
-    // This is a limitation. For this to work, we'd need to know which store
-    // the current product belongs to.
-    // For now, let's assume a simplified structure or just show nothing.
-    // A better implementation would pass the storeId to the customizer.
-    // For this example, let's just make it clear that it's not implemented.
-    // TODO: Pass storeId to customizer to fetch the correct files.
-    // A placeholder implementation:
-    // console.warn("ApprovedFilesPanel: storeId not available, cannot fetch approved files.");
-    setIsLoading(false);
+    setIsLoading(true);
+    const filesQuery = query(collection(db, `userStores/${storeId}/approvedFiles`), orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(filesQuery, (snapshot) => {
+      const files: ApprovedFile[] = [];
+      snapshot.forEach(doc => files.push({ id: doc.id, ...doc.data() } as ApprovedFile));
+      setApprovedFiles(files);
+      setIsLoading(false);
+      setError(null);
+    }, (err) => {
+      console.error("Error fetching approved files:", err);
+      setError("Could not load approved files for this store.");
+      setIsLoading(false);
+    });
 
-  }, [configUserId]);
+    return () => unsubscribe();
+  }, [storeId]);
 
   const handleFileClick = (file: ApprovedFile) => {
     if (!activeViewId) {
@@ -57,15 +68,26 @@ export default function ApprovedFilesPanel({ activeViewId, configUserId }: Appro
     );
   }
 
-  if (!configUserId) {
+  if (!storeId) {
      return (
         <div className="flex-grow flex flex-col items-center justify-center text-center p-4 border border-dashed rounded-md bg-muted/20 m-4">
           <FileCheck className="h-12 w-12 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground font-semibold">Approved Files</p>
-          <p className="text-xs text-muted-foreground mt-1">This feature requires a store context.</p>
+          <p className="text-xs text-muted-foreground mt-1">This panel is active for native stores.</p>
         </div>
       );
   }
+
+  if (error) {
+     return (
+        <div className="flex-grow flex flex-col items-center justify-center text-center p-4 border border-destructive/20 rounded-md bg-destructive/10 m-4">
+          <AlertCircle className="h-10 w-10 text-destructive mb-2" />
+          <p className="text-sm text-destructive font-semibold">Error Loading Files</p>
+          <p className="text-xs text-destructive/80 mt-1">{error}</p>
+        </div>
+      );
+  }
+
 
   return (
     <div className="p-4 space-y-4 flex flex-col">

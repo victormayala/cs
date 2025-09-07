@@ -257,8 +257,8 @@ export default function ProductDetailPage() {
       );
   }
 
-  // The link to the customizer
-  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}`;
+  // The link to the customizer, now with storeId
+  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}&storeId=${storeId}`;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
