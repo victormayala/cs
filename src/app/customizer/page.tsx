@@ -656,6 +656,7 @@ function CustomizerLayoutAndLogic() {
         .map(view => ({
             viewId: view.id,
             viewName: view.name,
+            viewImageUrl: view.imageUrl, // Pass the correct image URL for this view
             images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })),
             texts: canvasTexts.filter(item => item.viewId === view.id),
             shapes: canvasShapes.filter(item => item.viewId === view.id),
@@ -670,7 +671,9 @@ function CustomizerLayoutAndLogic() {
 
     try {
         const designNode = document.getElementById('design-canvas-area-for-screenshot');
-        if (!designNode) throw new Error("Could not find the design canvas element to capture.");
+        const backgroundImageEl = document.getElementById('design-canvas-background-image') as HTMLImageElement | null;
+
+        if (!designNode || !backgroundImageEl) throw new Error("Could not find the design canvas elements to capture.");
 
         const fontFaceCss = `
             @font-face {
@@ -688,9 +691,19 @@ function CustomizerLayoutAndLogic() {
         `;
         
         for (const view of customizedViews) {
-            setActiveViewId(view.viewId);
-            // Wait for the DOM to update. A small timeout is a pragmatic way to ensure re-render.
-            await new Promise(resolve => setTimeout(resolve, 100)); 
+            setActiveViewId(view.viewId); // Update active view for element visibility
+            
+            // Directly set the background image source and wait for it to load
+            const imageLoadPromise = new Promise<void>((resolve, reject) => {
+                backgroundImageEl.onload = () => resolve();
+                backgroundImageEl.onerror = reject;
+                backgroundImageEl.src = view.viewImageUrl;
+            });
+
+            await imageLoadPromise;
+            
+            // A small timeout to ensure DOM updates flush, especially for element visibility
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             const dataUrl = await htmlToImage.toPng(designNode, { 
                 quality: 0.95,

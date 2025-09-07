@@ -360,7 +360,7 @@ export default function DesignCanvas({
           const distToBoxLeftEdge_sq = itemCenterXpercent_sq - boxMinXPercent_sq;
           const distToBoxRightEdge_sq = boxMaxXPercent_sq - itemCenterXpercent_sq;
           const distToBoxTopEdge_sq = itemCenterYpercent_sq - boxMinYPercent_sq;
-          const distToBoxBottomEdge_sq = boxMaxYPercent_sq - itemCenterYpercent_sq;
+          const distToBoxBottomEdge_sq = boxMaxYpercent_sq - itemCenterYpercent_sq;
 
           const maxAllowedHalfWidthPercent_sq = Math.min(distToBoxLeftEdge_sq, distToBoxRightEdge_sq);
           const maxAllowedHalfHeightPercent_sq = Math.min(distToBoxTopEdge_sq, distToBoxBottomEdge_sq);
@@ -491,13 +491,13 @@ export default function DesignCanvas({
       <div className="relative w-full flex-1 flex items-center justify-center product-canvas-wrapper min-h-0">
         <div
           ref={canvasRef} 
-          id="product-image-canvas-area"
           className="relative bg-muted/10 w-full h-full flex items-center justify-center" 
           onClick={handleCanvasClick} 
           onTouchStart={handleCanvasClick as any} 
         >
           
           <div
+            id="product-image-canvas-area"
             className="relative centered-square-container" 
             style={{
               width: 'min(100%, calc(100svh - 10rem))', 
@@ -505,6 +505,7 @@ export default function DesignCanvas({
             }}
           >
             <Image
+              id="design-canvas-background-image"
               src={productToDisplay.imageUrl}
               alt={productToDisplay.imageAlt}
               key={productToDisplay.imageUrl} // Added key to force re-render on src change
@@ -553,46 +554,46 @@ export default function DesignCanvas({
                 </span>
               </div>
             ))}
-          </div> 
-
           
-          {visibleImages.map((img) => (
-            <InteractiveCanvasImage
-              key={`${img.id}-${img.zIndex}`} image={img}
-              isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-              isBeingDragged={activeDrag?.itemId === img.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'image'}
-              baseImageDimension={BASE_IMAGE_DIMENSION}
-              onImageSelect={selectCanvasImage}
-              onImageSelectAndDragStart={handleImageSelectAndDragStart}
-              onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'image')}
-              onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'image')}
-              onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'image')}
-            />
-          ))}
-          {visibleTexts.map((textItem) => (
-            <InteractiveCanvasText
-              key={`${textItem.id}-${textItem.zIndex}`} textItem={textItem}
-              isSelected={textItem.id === selectedCanvasTextId && !textItem.isLocked}
-              isBeingDragged={activeDrag?.itemId === textItem.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'text'}
-              onTextSelect={selectCanvasText}
-              onTextSelectAndDragStart={handleTextSelectAndDragStart}
-              onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'text')}
-              onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'text')}
-              onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'text')}
-            />
-          ))}
-          {visibleShapes.map((shape) => (
-            <InteractiveCanvasShape
-              key={`${shape.id}-${shape.zIndex}`} shape={shape}
-              isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-              isBeingDragged={activeDrag?.itemId === shape.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'shape'}
-              onShapeSelect={selectCanvasShape}
-              onShapeSelectAndDragStart={handleShapeSelectAndDragStart}
-              onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'shape')}
-              onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'shape')}
-              onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'shape')}
-            />
-          ))}
+            {/* The interactive elements are now siblings of the background Image */}
+            {visibleImages.map((img) => (
+              <InteractiveCanvasImage
+                key={`${img.id}-${img.zIndex}`} image={img}
+                isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                isBeingDragged={activeDrag?.itemId === img.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'image'}
+                baseImageDimension={BASE_IMAGE_DIMENSION}
+                onImageSelect={selectCanvasImage}
+                onImageSelectAndDragStart={handleImageSelectAndDragStart}
+                onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'image')}
+                onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'image')}
+                onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'image')}
+              />
+            ))}
+            {visibleTexts.map((textItem) => (
+              <InteractiveCanvasText
+                key={`${textItem.id}-${textItem.zIndex}`} textItem={textItem}
+                isSelected={textItem.id === selectedCanvasTextId && !textItem.isLocked}
+                isBeingDragged={activeDrag?.itemId === textItem.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'text'}
+                onTextSelect={selectCanvasText}
+                onTextSelectAndDragStart={handleTextSelectAndDragStart}
+                onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'text')}
+                onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'text')}
+                onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'text')}
+              />
+            ))}
+            {visibleShapes.map((shape) => (
+              <InteractiveCanvasShape
+                key={`${shape.id}-${shape.zIndex}`} shape={shape}
+                isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                isBeingDragged={activeDrag?.itemId === shape.id && activeDrag?.type === 'move' && activeDrag?.itemType === 'shape'}
+                onShapeSelect={selectCanvasShape}
+                onShapeSelectAndDragStart={handleShapeSelectAndDragStart}
+                onRotateHandleMouseDown={(e, item) => handleDragStart(e, 'rotate', item, 'shape')}
+                onResizeHandleMouseDown={(e, item) => handleDragStart(e, 'resize', item, 'shape')}
+                onRemoveHandleClick={(e, id) => handleRemoveItem(e, id, 'shape')}
+              />
+            ))}
+          </div> 
         </div>
       </div>
       <div className="text-center pt-2 pb-1 flex-shrink-0">
@@ -606,15 +607,3 @@ export default function DesignCanvas({
     </div>
   );
 }
-    
-
-    
-
-    
-
-
-
-
-    
-
-
