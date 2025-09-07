@@ -650,7 +650,7 @@ function CustomizerLayoutAndLogic() {
   
     let previewImageUrl = '';
     try {
-        const designNode = document.getElementById('product-image-canvas-area');
+        const designNode = document.getElementById('design-canvas-area-for-screenshot');
         if (!designNode) throw new Error("Could not find the design canvas element to capture.");
 
         // Define the CSS for @font-face to embed it directly.
@@ -682,19 +682,34 @@ function CustomizerLayoutAndLogic() {
     }
     
     try {
+        const customizedViews = (productDetails?.views || []).map(view => ({
+            viewId: view.id,
+            viewName: view.name,
+            images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })), // Remove dataUrl for storage efficiency
+            texts: canvasTexts.filter(item => item.viewId === view.id),
+            shapes: canvasShapes.filter(item => item.viewId === view.id),
+        })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+        if(customizedViews.length === 0 && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
+            const activeView = productDetails?.views.find(v => v.id === activeViewId);
+            if(activeView) {
+                customizedViews.push({
+                    viewId: activeView.id,
+                    viewName: activeView.name,
+                    images: canvasImages.filter(item => item.viewId === activeView.id).map(img => ({ ...img, dataUrl: undefined })),
+                    texts: canvasTexts.filter(item => item.viewId === activeView.id),
+                    shapes: canvasShapes.filter(item => item.viewId === activeView.id),
+                });
+            }
+        }
+        
         const designData = {
           productId: productIdFromUrl || productDetails?.id,
           variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
           quantity: 1,
           productName: productDetails?.name || 'Custom Product',
           customizationDetails: {
-            viewData: (productDetails?.views || []).map(view => ({
-                viewId: view.id,
-                viewName: view.name,
-                images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })), // Remove dataUrl for storage efficiency
-                texts: canvasTexts.filter(item => item.viewId === view.id),
-                shapes: canvasShapes.filter(item => item.viewId === view.id),
-            })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
+            viewData: customizedViews,
             selectedOptions: selectedVariationOptions,
             baseProductPrice: productDetails?.basePrice ?? 0,
             totalCustomizationPrice: totalCustomizationPrice,
@@ -842,7 +857,7 @@ function CustomizerLayoutAndLogic() {
           <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
             {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
              {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             <div ref={designCanvasWrapperRef} className="w-full flex flex-col flex-1 min-h-0 pb-4">
+             <div ref={designCanvasWrapperRef} id="design-canvas-area-for-screenshot" className="w-full flex flex-col flex-1 min-h-0 pb-4">
               <DesignCanvas productImageUrl={currentProductImage} productImageAlt={`${currentProductName} - ${currentProductAlt}`} productImageAiHint={currentProductAiHint} productDefinedBoundaryBoxes={currentBoundaryBoxes} activeViewId={activeViewId} showGrid={showGrid} showBoundaryBoxes={showBoundaryBoxes} />
             </div>
           </main>
