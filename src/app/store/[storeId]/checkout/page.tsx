@@ -28,7 +28,7 @@ interface CartItem {
     productName: string; 
     quantity: number;
     totalCustomizationPrice: number;
-    previewImageUrl?: string; 
+    previewImageUrls?: { viewId: string; viewName: string; url: string; }[];
     customizationDetails: any; 
 }
 
@@ -239,7 +239,7 @@ export default function CheckoutPage() {
                                 {cartItems.map(item => (
                                     <div key={item.id} className="flex items-center gap-4">
                                         <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted border flex-shrink-0">
-                                            <Image src={item.previewImageUrl || '/placeholder-image.png'} alt={item.productName} fill className="object-contain" />
+                                            <Image src={item.previewImageUrls?.[0]?.url || '/placeholder-image.png'} alt={item.productName} fill className="object-contain" />
                                         </div>
                                         <div className="flex-grow">
                                             <p className="font-medium text-sm truncate">{item.productName}</p>

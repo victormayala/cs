@@ -109,7 +109,7 @@ export default function CartPage() {
             quantity: 1,
             productName: designData.productName,
             totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-            previewImageUrls: designData.customizationDetails.previewImageUrls,
+            previewImageUrls: designData.previewImageUrls,
             customizationDetails: designData.customizationDetails,
           };
           const updatedCart = [...currentCart, newCartItem];
