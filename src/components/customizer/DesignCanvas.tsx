@@ -360,7 +360,7 @@ export default function DesignCanvas({
           const distToBoxLeftEdge_sq = itemCenterXpercent_sq - boxMinXPercent_sq;
           const distToBoxRightEdge_sq = boxMaxXPercent_sq - itemCenterXpercent_sq;
           const distToBoxTopEdge_sq = itemCenterYpercent_sq - boxMinYPercent_sq;
-          const distToBoxBottomEdge_sq = boxMaxYpercent_sq - itemCenterYpercent_sq;
+          const distToBoxBottomEdge_sq = boxMaxYPercent_sq - itemCenterYpercent_sq;
 
           const maxAllowedHalfWidthPercent_sq = Math.min(distToBoxLeftEdge_sq, distToBoxRightEdge_sq);
           const maxAllowedHalfHeightPercent_sq = Math.min(distToBoxTopEdge_sq, distToBoxBottomEdge_sq);
