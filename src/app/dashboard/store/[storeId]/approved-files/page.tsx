@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, storage } from '@/lib/firebase';
-import { collection, doc, onSnapshot, addDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, doc, onSnapshot, addDoc, deleteDoc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import AppHeader from '@/components/layout/AppHeader';
 import { ArrowLeft, Loader2, UploadCloud, Trash2, FileCheck, FolderOpen } from 'lucide-react';
