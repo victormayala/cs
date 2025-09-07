@@ -652,7 +652,14 @@ function CustomizerLayoutAndLogic() {
     canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
 
-    const viewsToPreview = (productDetails?.views || []).filter(v => customizedViewIds.has(v.id));
+    const allProductViews = productDetails?.views || [];
+    const viewsToPreview = allProductViews.filter(v => customizedViewIds.has(v.id));
+
+    if (viewsToPreview.length === 0 && customizedViewIds.size > 0) {
+        toast({ title: "View Mismatch", description: "Customized views not found in product details. Cannot generate previews.", variant: "destructive" });
+        setIsAddingToCart(false);
+        return;
+    }
 
     if (viewsToPreview.length === 0) {
         toast({ title: "No Customizations", description: "Add elements to a view to customize it.", variant: "default" });
@@ -661,19 +668,17 @@ function CustomizerLayoutAndLogic() {
     }
 
     const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-    const originalActiveViewId = activeViewId; // Save the original view
-
+    
     for (const view of viewsToPreview) {
-        // Set the canvas to the view we want to screenshot
         setActiveViewId(view.id);
         
-        // Give React a moment to re-render the canvas with the new active view
-        await new Promise(resolve => setTimeout(resolve, 100));
-
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => setTimeout(resolve, 50)); 
+        
         const canvasElement = designCanvasWrapperRef.current;
         if (!canvasElement) {
             toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
-            continue; // Skip this view
+            continue; 
         }
 
         try {
@@ -686,11 +691,6 @@ function CustomizerLayoutAndLogic() {
             console.error(`Screenshot failed for view "${view.name}":`, singleViewError);
             toast({ title: "Preview Warning", description: `Could not generate preview for "${view.name}". It will be skipped.`, variant: "destructive" });
         }
-    }
-    
-    // Restore the original view
-    if (originalActiveViewId) {
-        setActiveViewId(originalActiveViewId);
     }
       
     try {
