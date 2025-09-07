@@ -8,7 +8,7 @@ import { googleFonts } from '@/lib/google-fonts';
 export interface UploadedImage {
   id: string; // Unique ID for the uploaded file itself
   name: string;
-  dataUrl: string;
+  dataUrl: string; // Will now always be a Base64 data URI
   type: string; // e.g., 'image/png'
 }
 
@@ -18,7 +18,7 @@ export interface CanvasImage {
   sourceImageId: string; // ID of the original UploadedImage or a clipart ID
   viewId: string; // ID of the product view this image belongs to
   name: string;
-  dataUrl: string;
+  dataUrl: string; // Will now always be a Base64 data URI
   type: string;
   scale: number;
   rotation: number;
@@ -245,23 +245,29 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
 
   const addUploadedImage = useCallback(async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (dataUrl) {
-        const newImage: UploadedImage = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          dataUrl,
-          type: file.type,
+    return new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            if (dataUrl) {
+                const newImage: UploadedImage = {
+                    id: crypto.randomUUID(),
+                    name: file.name,
+                    dataUrl,
+                    type: file.type,
+                };
+                setUploadedImages((prev) => [...prev, newImage]);
+                resolve();
+            } else {
+                reject(new Error("Failed to read file as data URL."));
+            }
         };
-        setUploadedImages((prev) => [...prev, newImage]);
-      }
-    };
-    reader.onerror = (error) => {
-      console.error("Error reading file:", error);
-    };
-    reader.readAsDataURL(file);
+        reader.onerror = (error) => {
+            console.error("Error reading file:", error);
+            reject(error);
+        };
+        reader.readAsDataURL(file);
+    });
   }, []);
 
   const getMaxZIndexForView = useCallback((viewId: string) => {
