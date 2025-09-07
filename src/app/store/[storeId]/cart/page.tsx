@@ -26,7 +26,7 @@ interface CartItem {
     quantity: number;
     productName: string; 
     totalCustomizationPrice: number;
-    previewImageUrl?: string; // Generated on the customizer page
+    previewImageUrls?: { viewId: string; viewName: string; url: string; }[];
     customizationDetails: any; 
 }
 
@@ -109,7 +109,7 @@ export default function CartPage() {
             quantity: 1,
             productName: designData.productName,
             totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-            previewImageUrl: designData.customizationDetails.previewImageUrl,
+            previewImageUrls: designData.customizationDetails.previewImageUrls,
             customizationDetails: designData.customizationDetails,
           };
           const updatedCart = [...currentCart, newCartItem];
@@ -247,39 +247,46 @@ export default function CartPage() {
                   ) : (
                     <ul className="divide-y divide-border">
                         {cartItems.map(item => (
-                            <li key={item.id} className="flex gap-4 p-4">
-                                <div className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 flex-shrink-0 border">
-                                    <Image 
-                                        src={item.previewImageUrl || '/placeholder-image.png'} 
-                                        alt={item.productName} 
-                                        fill 
-                                        className="object-contain" 
-                                    />
-                                </div>
-                                <div className="flex-grow flex flex-col">
-                                    <h4 className="font-semibold text-foreground">{item.productName}</h4>
-                                    <p className="text-sm text-muted-foreground">Custom Design</p>
-                                    <p className="text-sm font-medium mt-1">${item.totalCustomizationPrice.toFixed(2)}</p>
-                                    <div className="flex gap-2 mt-auto">
-                                        <Button variant="outline" size="sm" asChild>
-                                            <Link href={`/customizer?productId=${item.productId}&source=customizer-studio&configUserId=${storeConfig.userId}&editCartItemId=${item.id}`}>
-                                                <Pencil className="h-3 w-3 mr-1.5" /> Edit
-                                            </Link>
-                                        </Button>
-                                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
-                                            <Trash2 className="h-3 w-3 mr-1.5" /> Remove
-                                        </Button>
+                            <li key={item.id} className="p-4">
+                                <div className="flex gap-4">
+                                    <div className="flex-grow flex flex-col">
+                                        <h4 className="font-semibold text-foreground">{item.productName}</h4>
+                                        <p className="text-sm text-muted-foreground">Custom Design</p>
+                                        <p className="text-sm font-medium mt-1">${item.totalCustomizationPrice.toFixed(2)}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end justify-between ml-auto">
+                                        <p className="font-semibold">${(item.totalCustomizationPrice * item.quantity).toFixed(2)}</p>
+                                        <Input
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={(e) => handleUpdateQuantity(item.id, e.target.value)}
+                                            className="h-8 w-16 text-center"
+                                            min="1"
+                                        />
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-end justify-between">
-                                    <p className="font-semibold">${(item.totalCustomizationPrice * item.quantity).toFixed(2)}</p>
-                                    <Input
-                                        type="number"
-                                        value={item.quantity}
-                                        onChange={(e) => handleUpdateQuantity(item.id, e.target.value)}
-                                        className="h-8 w-16 text-center"
-                                        min="1"
-                                    />
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  {(item.previewImageUrls || []).map((preview, index) => (
+                                    <div key={index} className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 border">
+                                        <Image 
+                                            src={preview.url} 
+                                            alt={`${item.productName} - ${preview.viewName}`} 
+                                            fill 
+                                            className="object-contain" 
+                                        />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate">{preview.viewName}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link href={`/customizer?productId=${item.productId}&source=customizer-studio&configUserId=${storeConfig.userId}&editCartItemId=${item.id}`}>
+                                            <Pencil className="h-3 w-3 mr-1.5" /> Edit
+                                        </Link>
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
+                                        <Trash2 className="h-3 w-3 mr-1.5" /> Remove
+                                    </Button>
                                 </div>
                             </li>
                         ))}

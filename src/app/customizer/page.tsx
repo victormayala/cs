@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -437,8 +436,8 @@ function CustomizerLayoutAndLogic() {
         }
     }
 
-    if (editCartItemId && configUserIdToUse) {
-        const cartKey = `cs_cart_${configUserIdToUse}`;
+    if (editCartItemId && (configUserIdToUse || user?.uid)) {
+        const cartKey = `cs_cart_${configUserIdToUse || user?.uid}`;
         try {
             const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
             const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
@@ -635,22 +634,40 @@ function CustomizerLayoutAndLogic() {
   const handleAddToCart = async () => {
     if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
     if (!activeViewId && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
-      toast({ title: "Select a View", description: "Please ensure an active product view is selected before adding to cart if you have customizations.", variant: "default" });
-      return;
+        toast({ title: "Select a View", description: "Please ensure an active product view is selected before adding to cart if you have customizations.", variant: "default" });
+        return;
     }
     if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
-      toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
-      return;
+        toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
+        return;
     }
     if (!isEmbedded && !user && hasCanvasElements) {
-      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-      return;
+        toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+        return;
     }
-  
+
     setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. Please wait." });
-  
-    let previewImageUrl = '';
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. Please wait." });
+
+    const originalActiveViewId = activeViewId;
+    const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+
+    const customizedViews = (productDetails?.views || [])
+        .map(view => ({
+            viewId: view.id,
+            viewName: view.name,
+            images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })),
+            texts: canvasTexts.filter(item => item.viewId === view.id),
+            shapes: canvasShapes.filter(item => item.viewId === view.id),
+        }))
+        .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+    if (customizedViews.length === 0) {
+        toast({ title: "No Customizations", description: "Add elements to a view to customize it.", variant: "default" });
+        setIsAddingToCart(false);
+        return;
+    }
+
     try {
         const designNode = document.getElementById('design-canvas-area-for-screenshot');
         if (!designNode) throw new Error("Could not find the design canvas element to capture.");
@@ -670,47 +687,30 @@ function CustomizerLayoutAndLogic() {
             }
         `;
         
-        previewImageUrl = await htmlToImage.toPng(designNode, { 
-            quality: 0.95,
-            fontEmbedCss: fontFaceCss,
-            // Add fetchRequestInit to handle cross-origin images
-            fetchRequestInit: {
-                mode: 'cors',
-                cache: 'force-cache',
-            }
-        });
-        
+        for (const view of customizedViews) {
+            setActiveViewId(view.viewId);
+            // Wait for the DOM to update. A small timeout is a pragmatic way to ensure re-render.
+            await new Promise(resolve => setTimeout(resolve, 100)); 
+
+            const dataUrl = await htmlToImage.toPng(designNode, { 
+                quality: 0.95,
+                fontEmbedCss: fontFaceCss,
+                fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
+            });
+            previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+        }
+
     } catch (err: any) {
         console.error("Preview screenshot failed:", err);
         toast({ title: "Preview Error", description: `Could not generate preview: ${err.message || 'An unknown error occurred.'}`, variant: "destructive" });
+        setActiveViewId(originalActiveViewId); // Restore original view
         setIsAddingToCart(false);
         return;
+    } finally {
+        setActiveViewId(originalActiveViewId); // Ensure we always restore the original view
     }
     
     try {
-        const customizedViews = (productDetails?.views || [])
-            .map(view => ({
-                viewId: view.id,
-                viewName: view.name,
-                images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })),
-                texts: canvasTexts.filter(item => item.viewId === view.id),
-                shapes: canvasShapes.filter(item => item.viewId === view.id),
-            }))
-            .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
-
-        if (customizedViews.length === 0 && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
-            const activeView = productDetails?.views.find(v => v.id === activeViewId);
-            if (activeView) {
-                customizedViews.push({
-                    viewId: activeView.id,
-                    viewName: activeView.name,
-                    images: canvasImages.filter(item => item.viewId === activeView.id).map(img => ({ ...img, dataUrl: undefined })),
-                    texts: canvasTexts.filter(item => item.viewId === activeView.id),
-                    shapes: canvasShapes.filter(item => item.viewId === activeView.id),
-                });
-            }
-        }
-        
         const designData = {
           productId: productIdFromUrl || productDetails?.id,
           variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
@@ -749,7 +749,7 @@ function CustomizerLayoutAndLogic() {
               quantity: 1,
               productName: designData.productName,
               totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-              previewImageUrl: previewImageUrl,
+              previewImageUrls: previewImageUrls, // Use the array of URLs
               customizationDetails: designData.customizationDetails,
             };
             
@@ -933,4 +933,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
