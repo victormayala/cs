@@ -651,7 +651,7 @@ function CustomizerLayoutAndLogic() {
               viewId: view.id,
               viewName: view.name,
               viewImageUrl: view.imageUrl,
-              images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })),
+              images: canvasImages.filter(item => item.viewId === view.id),
               texts: canvasTexts.filter(item => item.viewId === view.id),
               shapes: canvasShapes.filter(item => item.viewId === view.id),
           }))
@@ -692,8 +692,8 @@ function CustomizerLayoutAndLogic() {
           for (const view of customizedViews) {
               const viewElements = `
                   <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-                      ${view.images.map(img => `<img src="${canvasImages.find(i=>i.id===img.id)?.dataUrl}" style="position: absolute; top: ${img.y}%; left: ${img.x}%; width: ${100*img.scale}px; height: ${100*img.scale}px; transform: translate(-50%, -50%) rotate(${img.rotation}deg); object-fit: contain; z-index: ${img.zIndex};" />`).join('')}
-                      ${view.texts.map(txt => `<div data-content="${txt.content}" style="position: absolute; top: ${txt.y}%; left: ${txt.x}%; font-family: ${txt.fontFamily}; font-size: ${txt.fontSize * txt.scale}px; color: ${txt.color}; transform: translate(-50%, -50%) rotate(${txt.rotation}deg); z-index: ${txt.zIndex}; white-space: pre-wrap;">${txt.content}</div>`).join('')}
+                      ${view.images.map(img => `<img src="${img.dataUrl}" style="position: absolute; top: ${img.y}%; left: ${img.x}%; width: ${100*img.scale}px; height: ${100*img.scale}px; transform: translate(-50%, -50%) rotate(${img.rotation}deg); object-fit: contain; z-index: ${img.zIndex};" />`).join('')}
+                      ${view.texts.map(txt => `<div style="position: absolute; top: ${txt.y}%; left: ${txt.x}%; font-family: ${txt.fontFamily}; font-size: ${txt.fontSize * txt.scale}px; color: ${txt.color}; transform: translate(-50%, -50%) rotate(${txt.rotation}deg); z-index: ${txt.zIndex}; white-space: pre-wrap;">${txt.content}</div>`).join('')}
                       ${view.shapes.map(shp => {
                           const commonStyle = `position: absolute; top: ${shp.y}%; left: ${shp.x}%; width: ${shp.width * shp.scale}px; height: ${shp.height * shp.scale}px; transform: translate(-50%, -50%) rotate(${shp.rotation}deg); z-index: ${shp.zIndex};`;
                           if (shp.shapeType === 'rectangle') {
@@ -712,19 +712,26 @@ function CustomizerLayoutAndLogic() {
                       ${viewElements}
                   </div>
               `;
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
 
-              const dataUrl = await htmlToImage.toPng(screenshotContainer, {
-                  quality: 0.95,
-                  fontEmbedCss: fontFaceCss,
-                  fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
-              });
-              previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+              try {
+                const dataUrl = await htmlToImage.toPng(screenshotContainer, {
+                    quality: 0.95,
+                    fontEmbedCss: fontFaceCss,
+                    fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
+                });
+                previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+              } catch (singleViewError) {
+                  console.error(`Screenshot failed for view "${view.viewName}":`, singleViewError);
+                  toast({ title: "Preview Warning", description: `Could not generate preview for "${view.viewName}". It will be skipped.`, variant: "destructive" });
+              }
           }
           document.body.removeChild(screenshotContainer);
 
       } catch (err: any) {
-          console.error("Preview screenshot failed:", err);
-          toast({ title: "Preview Error", description: `Could not generate preview: ${err.message || 'An unknown error occurred.'}`, variant: "destructive" });
+          console.error("Preview screenshot process failed:", err);
+          toast({ title: "Preview Error", description: `Could not generate previews: ${err.message || 'An unknown error occurred.'}`, variant: "destructive" });
           setIsAddingToCart(false);
           return;
       }
