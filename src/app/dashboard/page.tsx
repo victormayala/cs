@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3, ShieldCheck } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3, ShieldCheck, FileCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -1100,6 +1100,9 @@ function DashboardPageContent() {
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/${store.id}/dashboard`)}>
                                         <BarChart3 className="mr-2 h-4 w-4" /> Dashboard
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/${store.id}/approved-files`)}>
+                                        <FileCheck className="mr-2 h-4 w-4" /> Approved Files
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onSelect={() => router.push(`/store/${store.id}`)} disabled={store.deployment?.status !== 'active'}>
                                         <ExternalLink className="mr-2 h-4 w-4" /> View Store

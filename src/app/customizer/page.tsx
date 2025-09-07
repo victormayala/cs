@@ -19,7 +19,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft, FileCheck
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -48,6 +48,7 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
+import ApprovedFilesPanel from '@/components/customizer/ApprovedFilesPanel';
 
 interface BoundaryBox {
   id: string;
@@ -118,6 +119,7 @@ const toolItems: CustomizerTool[] = [
   { id: "layers", label: "Layers", icon: Layers },
   { id: "ai-assistant", label: "AI Assistant", icon: Sparkles },
   { id: "uploads", label: "Uploads", icon: UploadCloud },
+  { id: "approved", label: "Approved", icon: FileCheck },
   { id: "text", label: "Text", icon: Type },
   { id: "shapes", label: "Shapes", icon: ShapesIconLucide },
   { id: "clipart", label: "Clipart", icon: Smile },
@@ -614,6 +616,7 @@ function CustomizerLayoutAndLogic() {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
       case "ai-assistant": return <AiAssistant activeViewId={activeViewId} />;
       case "uploads": return <UploadArea activeViewId={activeViewId} />;
+      case "approved": return <ApprovedFilesPanel activeViewId={activeViewId} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} />;
       case "clipart": return <ClipartPanel activeViewId={activeViewId} />;
@@ -673,7 +676,7 @@ function CustomizerLayoutAndLogic() {
         setActiveViewId(view.id);
         
         await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => setTimeout(resolve, 50)); 
+        await new Promise(resolve => setTimeout(resolve, 100)); // Added delay for rendering
         
         const canvasElement = designCanvasWrapperRef.current;
         if (!canvasElement) {
@@ -720,7 +723,8 @@ function CustomizerLayoutAndLogic() {
             configUserId: productDetails?.meta?.configUserIdUsed || null,
           };
         
-          const isNativeStore = sourceFromUrl === 'customizer-studio';
+          const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
+          const nativeStoreConfigUserId = isNativeStore ? (productDetails?.meta?.configUserIdUsed || user?.uid) : null;
   
           if (isEmbedded) {
             let targetOrigin = '*';
@@ -732,8 +736,8 @@ function CustomizerLayoutAndLogic() {
             }
             window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
             toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
-          } else if (isNativeStore) {
-            const cartKey = `cs_cart_${configUserIdFromUrl || user?.uid}`;
+          } else if (isNativeStore && nativeStoreConfigUserId) {
+            const cartKey = `cs_cart_${nativeStoreConfigUserId}`;
             try {
               let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
               const newCartItem = {
@@ -757,7 +761,7 @@ function CustomizerLayoutAndLogic() {
   
               localStorage.setItem(cartKey, JSON.stringify(currentCart));
               window.dispatchEvent(new CustomEvent('cartUpdated'));
-              router.push(`/store/${configUserIdFromUrl}/cart`);
+              router.push(`/store/${nativeStoreConfigUserId}/cart`);
             } catch (e: any) {
               console.error("Error saving to local cart:", e);
               let errorDescription = "Could not add item to local cart.";
