@@ -1,68 +1,56 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow users to read and write their own data in the 'users' collection.
+    // Allow authenticated users to read/write their own user document
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // Allow users to manage their own native products
+      // Allow public read for native products, but only owner can write/delete
       match /products/{productId} {
+        allow read: if true;
+        allow write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Allow read for customers and orders by store owner
+      match /customers/{customerId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+       match /orders/{orderId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /productCategories/{categoryId} {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
-      
-      // Allow users to manage their own native product categories
-      match /productCategories/{categoryId} {
-          allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
-      
-      // Allow users to manage their own orders and customers
-      match /orders/{orderId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-      match /customers/{customerId} {
-           allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
     }
 
-    // Rules for user-specific product customization options.
-    match /userProductOptions/{userId}/products/{productId} {
-      // Allow the owner to read and write their own product options.
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow public read access if a configUserId is used (for embedded customizers)
-      // This is less secure. A better approach would be a server-side check.
-      // For now, we are keeping it simple. This also allows the product customization check API to work.
-      allow read: if request.query.configUserId == userId;
-      
-      // Allow public read by anyone (simplest rule for public storefronts to fetch options)
-      allow read: if true;
-    }
-
-    // Rules for user-specific store credentials. Only the user can access them.
+    // Allow authenticated users to manage their own credentials
     match /userWooCommerceCredentials/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
-    match /userShopifyCredentials/{userId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+     match /userShopifyCredentials/{userId} {
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rules for user-generated stores.
-    match /userStores/{storeId} {
-      // Public can read store configuration for display on storefront.
-      allow read: if true;
-      // Only the owner can create, update, or delete their store config.
-      allow write, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    // Allow public read for product options, but only owner can write/delete
+    match /userProductOptions/{userId}/products/{productId} {
+       allow read: if true;
+       allow write, delete: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Grant read access to the approved files for a store to anyone (public customizer access).
-    // Grant write access only to the store owner.
-    match /userStores/{storeId}/approvedFiles/{fileId} {
+
+    // --- Storefront Rules ---
+
+    // Allow public read for store configs, but only owner can write/delete
+    match /userStores/{storeId} {
         allow read: if true;
-        allow write, delete: if request.auth != null && get(/databases/$(database)/documents/userStores/$(storeId)).data.userId == request.auth.uid;
+        allow create, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    // Allow ANYONE to read approved files for a store, but only owner can write/delete.
+    match /userStores/{storeId}/approvedFiles/{fileId} {
+      allow read: if true;
+      allow create, delete, write: if request.auth != null && get(/databases/$(database)/documents/userStores/$(storeId)).data.userId == request.auth.uid;
     }
   }
 }
