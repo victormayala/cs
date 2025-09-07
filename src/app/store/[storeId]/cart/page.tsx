@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import type { UserStoreConfig, VolumeDiscountTier } from '@/app/actions/userStoreActions';
-import { Loader2, ShoppingCart, AlertTriangle, ArrowRight, Trash2, Tag } from 'lucide-react';
+import { Loader2, ShoppingCart, AlertTriangle, ArrowRight, Trash2, Tag, Pencil } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -256,14 +256,23 @@ export default function CartPage() {
                                         className="object-contain" 
                                     />
                                 </div>
-                                <div className="flex-grow">
+                                <div className="flex-grow flex flex-col">
                                     <h4 className="font-semibold text-foreground">{item.productName}</h4>
                                     <p className="text-sm text-muted-foreground">Custom Design</p>
                                     <p className="text-sm font-medium mt-1">${item.totalCustomizationPrice.toFixed(2)}</p>
+                                    <div className="flex gap-2 mt-auto">
+                                        <Button variant="outline" size="sm" asChild>
+                                            <Link href={`/customizer?productId=${item.productId}&source=customizer-studio&configUserId=${storeConfig.userId}&editCartItemId=${item.id}`}>
+                                                <Pencil className="h-3 w-3 mr-1.5" /> Edit
+                                            </Link>
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
+                                            <Trash2 className="h-3 w-3 mr-1.5" /> Remove
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end justify-between">
                                     <p className="font-semibold">${(item.totalCustomizationPrice * item.quantity).toFixed(2)}</p>
-                                    <div className="flex items-center gap-2">
                                     <Input
                                         type="number"
                                         value={item.quantity}
@@ -271,11 +280,6 @@ export default function CartPage() {
                                         className="h-8 w-16 text-center"
                                         min="1"
                                     />
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveItem(item.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Remove item</span>
-                                    </Button>
-                                    </div>
                                 </div>
                             </li>
                         ))}

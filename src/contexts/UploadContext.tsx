@@ -97,9 +97,9 @@ export interface CanvasStateSnapshot {
   images: CanvasImage[];
   texts: CanvasText[];
   shapes: CanvasShape[];
-  selectedCanvasImageId: string | null;
-  selectedCanvasTextId: string | null;
-  selectedCanvasShapeId: string | null;
+  selectedCanvasImageId?: string | null;
+  selectedCanvasTextId?: string | null;
+  selectedCanvasShapeId?: string | null;
 }
 
 // Helper type for combined operations
@@ -152,6 +152,7 @@ interface UploadContextType {
 
   startInteractiveOperation: () => void;
   endInteractiveOperation: () => void;
+  restoreFromSnapshot: (snapshot: Partial<CanvasStateSnapshot>) => void;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -197,10 +198,20 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     setCanvasImages(snapshot.images);
     setCanvasTexts(snapshot.texts);
     setCanvasShapes(snapshot.shapes);
-    setSelectedCanvasImageId(snapshot.selectedCanvasImageId);
-    setSelectedCanvasTextId(snapshot.selectedCanvasTextId);
-    setSelectedCanvasShapeId(snapshot.selectedCanvasShapeId);
+    setSelectedCanvasImageId(snapshot.selectedCanvasImageId ?? null);
+    setSelectedCanvasTextId(snapshot.selectedCanvasTextId ?? null);
+    setSelectedCanvasShapeId(snapshot.selectedCanvasShapeId ?? null);
   }, []);
+
+   const restoreFromSnapshot = useCallback((snapshot: Partial<CanvasStateSnapshot>) => {
+    pushToUndoStack(createSnapshot());
+    if (snapshot.images) setCanvasImages(snapshot.images);
+    if (snapshot.texts) setCanvasTexts(snapshot.texts);
+    if (snapshot.shapes) setCanvasShapes(snapshot.shapes);
+    setSelectedCanvasImageId(snapshot.selectedCanvasImageId ?? null);
+    setSelectedCanvasTextId(snapshot.selectedCanvasTextId ?? null);
+    setSelectedCanvasShapeId(snapshot.selectedCanvasShapeId ?? null);
+  }, [createSnapshot, pushToUndoStack]);
 
   const undo = useCallback(() => {
     if (isInteractiveOperationInProgressRef.current || undoStack.length <= 1) return; 
@@ -659,7 +670,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         canvasShapes, addCanvasShape, removeCanvasShape, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         bringShapeLayerForward, sendShapeLayerBackward, duplicateCanvasShape, toggleLockCanvasShape,
         undo, redo, canUndo, canRedo,
-        startInteractiveOperation, endInteractiveOperation,
+        startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot
       }}
     >
       {children}
@@ -674,4 +685,3 @@ export function useUploads() {
   }
   return context;
 }
-

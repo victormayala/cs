@@ -72,13 +72,6 @@ interface ColorGroupOptionsForCustomizer {
   views?: ProductView[]; // Views are now optional within the color group
 }
 
-interface LoadedCustomizerOptions {
-  defaultViews: ProductView[];
-  optionsByColor: Record<string, ColorGroupOptionsForCustomizer>;
-  groupingAttributeName: string | null;
-  allowCustomization?: boolean;
-}
-
 export interface ProductForCustomizer {
   id: string;
   name: string;
@@ -167,6 +160,7 @@ function CustomizerLayoutAndLogic() {
   const viewMode = useMemo(() => searchParams.get('viewMode'), [searchParams]);
   const isEmbedded = useMemo(() => viewMode === 'embedded', [viewMode]);
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
+  const editCartItemId = useMemo(() => searchParams.get('editCartItemId'), [searchParams]);
   const sourceFromUrl = useMemo(() => {
     const sourceParam = searchParams.get('source');
     if (sourceParam === 'shopify' || sourceParam === 'woocommerce' || sourceParam === 'customizer-studio') {
@@ -186,7 +180,7 @@ function CustomizerLayoutAndLogic() {
 
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { canvasImages, canvasTexts, canvasShapes } = useUploads();
+  const { canvasImages, canvasTexts, canvasShapes, restoreFromSnapshot } = useUploads();
 
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
@@ -441,9 +435,29 @@ function CustomizerLayoutAndLogic() {
             setSelectedVariationOptions(initialSelectedOptions);
         }
     }
+
+    if (editCartItemId && configUserIdToUse) {
+        const cartKey = `cs_cart_${configUserIdToUse}`;
+        try {
+            const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
+            const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
+            if (itemToEdit?.customizationDetails?.elements) {
+                restoreFromSnapshot({
+                    images: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'image'),
+                    texts: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'text'),
+                    shapes: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'shape'),
+                });
+                setSelectedVariationOptions(itemToEdit.customizationDetails.selectedOptions || {});
+                toast({ title: "Design Loaded", description: "Your saved design is ready for editing." });
+            }
+        } catch (e) {
+            console.error("Failed to load cart item for editing:", e);
+            toast({ title: "Load Error", description: "Could not load the design from your cart.", variant: "destructive" });
+        }
+    }
     
     setIsLoading(false);
-  }, [user?.uid, authLoading, toast, isEmbedded, router]);
+  }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot]);
 
 
   useEffect(() => {
@@ -701,9 +715,9 @@ function CustomizerLayoutAndLogic() {
         } else if (isNativeStore) {
           const cartKey = `cs_cart_${productDetails.meta?.configUserIdUsed || user?.uid}`;
           try {
-            const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+            let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
             const newCartItem = {
-              id: crypto.randomUUID(),
+              id: editCartItemId || crypto.randomUUID(), // Use existing ID if editing
               productId: designData.productId,
               variationId: designData.variationId,
               quantity: 1,
@@ -712,10 +726,20 @@ function CustomizerLayoutAndLogic() {
               previewImageUrl: previewImageUrl, // Save the generated screenshot URL
               customizationDetails: designData.customizationDetails,
             };
-            currentCart.push(newCartItem);
+            
+            if (editCartItemId) {
+              // Update existing item
+              currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
+              toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
+            } else {
+              // Add new item
+              currentCart.push(newCartItem);
+              toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+            }
+
             localStorage.setItem(cartKey, JSON.stringify(currentCart));
-            toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
             window.dispatchEvent(new CustomEvent('cartUpdated'));
+            router.push(`/store/${productDetails.meta.configUserIdUsed}/cart`); // Navigate to cart after adding/editing
           } catch (e: any) {
             console.error("Error saving to local cart:", e);
             let errorDescription = "Could not add item to local cart.";
@@ -781,9 +805,9 @@ function CustomizerLayoutAndLogic() {
   const currentBoundaryBoxes = activeViewData?.boundaryBoxes || defaultFallbackProduct.views[0].boundaryBoxes;
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   
-  const pdpLink = productDetails?.meta?.source === 'customizer-studio' 
+  const pdpLink = productDetails?.meta?.source === 'customizer-studio' && configUserIdFromUrl && productIdFromUrl
     ? `/store/${configUserIdFromUrl}/products/${productIdFromUrl}`
-    : `/dashboard`; // Fallback for woo/shopify for now, as we don't know the store URL.
+    : `/dashboard`;
 
   if (error && !productDetails) { 
     return (
@@ -859,7 +883,7 @@ function CustomizerLayoutAndLogic() {
                 </Button>
                 <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
                     {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
-                    {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : "Add to Cart")}
+                    {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : (editCartItemId ? "Update Cart Item" : "Add to Cart"))}
                 </Button>
             </div>
         </footer>
