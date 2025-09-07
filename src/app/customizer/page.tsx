@@ -441,12 +441,18 @@ function CustomizerLayoutAndLogic() {
         try {
             const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
             const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
-            if (itemToEdit?.customizationDetails?.elements) {
-                restoreFromSnapshot({
-                    images: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'image'),
-                    texts: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'text'),
-                    shapes: itemToEdit.customizationDetails.elements.filter((el: any) => el.itemType === 'shape'),
+            if (itemToEdit?.customizationDetails?.viewData) {
+                const images: CanvasImage[] = [];
+                const texts: CanvasText[] = [];
+                const shapes: CanvasShape[] = [];
+
+                itemToEdit.customizationDetails.viewData.forEach((view: any) => {
+                    images.push(...(view.images || []));
+                    texts.push(...(view.texts || []));
+                    shapes.push(...(view.shapes || []));
                 });
+                
+                restoreFromSnapshot({ images, texts, shapes });
                 setSelectedVariationOptions(itemToEdit.customizationDetails.selectedOptions || {});
                 toast({ title: "Design Loaded", description: "Your saved design is ready for editing." });
             }
@@ -674,8 +680,6 @@ function CustomizerLayoutAndLogic() {
         setIsAddingToCart(false);
         return;
     }
-
-    const allCustomizedElements: (CanvasImage | CanvasText | CanvasShape)[] = [...canvasImages, ...canvasTexts, ...canvasShapes];
     
     try {
         const designData = {
@@ -684,14 +688,13 @@ function CustomizerLayoutAndLogic() {
           quantity: 1,
           productName: productDetails?.name || 'Custom Product',
           customizationDetails: {
-            elements: allCustomizedElements.map(el => {
-                if (el.itemType === 'image') {
-                    // Slim down the image object before saving to avoid large data in localStorage
-                    const { dataUrl, ...rest } = el as CanvasImage;
-                    return rest;
-                }
-                return el;
-            }),
+            viewData: (productDetails?.views || []).map(view => ({
+                viewId: view.id,
+                viewName: view.name,
+                images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })), // Remove dataUrl for storage efficiency
+                texts: canvasTexts.filter(item => item.viewId === view.id),
+                shapes: canvasShapes.filter(item => item.viewId === view.id),
+            })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0),
             selectedOptions: selectedVariationOptions,
             baseProductPrice: productDetails?.basePrice ?? 0,
             totalCustomizationPrice: totalCustomizationPrice,
