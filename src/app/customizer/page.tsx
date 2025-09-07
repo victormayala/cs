@@ -630,6 +630,7 @@ function CustomizerLayoutAndLogic() {
     }
   };
 
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const handleAddToCart = async () => {
     if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
     if (!activeViewId && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
@@ -653,7 +654,6 @@ function CustomizerLayoutAndLogic() {
         const designNode = document.getElementById('design-canvas-area-for-screenshot');
         if (!designNode) throw new Error("Could not find the design canvas element to capture.");
 
-        // Define the CSS for @font-face to embed it directly.
         const fontFaceCss = `
             @font-face {
                 font-family: 'Roboto';
@@ -671,7 +671,7 @@ function CustomizerLayoutAndLogic() {
         
         previewImageUrl = await htmlToImage.toPng(designNode, { 
             quality: 0.95,
-            fontEmbedCss: fontFaceCss, // Embed the font rules
+            fontEmbedCss: fontFaceCss,
         });
         
     } catch (err: any) {
@@ -682,17 +682,19 @@ function CustomizerLayoutAndLogic() {
     }
     
     try {
-        const customizedViews = (productDetails?.views || []).map(view => ({
-            viewId: view.id,
-            viewName: view.name,
-            images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })), // Remove dataUrl for storage efficiency
-            texts: canvasTexts.filter(item => item.viewId === view.id),
-            shapes: canvasShapes.filter(item => item.viewId === view.id),
-        })).filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+        const customizedViews = (productDetails?.views || [])
+            .map(view => ({
+                viewId: view.id,
+                viewName: view.name,
+                images: canvasImages.filter(item => item.viewId === view.id).map(img => ({ ...img, dataUrl: undefined })),
+                texts: canvasTexts.filter(item => item.viewId === view.id),
+                shapes: canvasShapes.filter(item => item.viewId === view.id),
+            }))
+            .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
 
-        if(customizedViews.length === 0 && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
+        if (customizedViews.length === 0 && (canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0)) {
             const activeView = productDetails?.views.find(v => v.id === activeViewId);
-            if(activeView) {
+            if (activeView) {
                 customizedViews.push({
                     viewId: activeView.id,
                     viewName: activeView.name,
@@ -718,7 +720,7 @@ function CustomizerLayoutAndLogic() {
           configUserId: productDetails?.meta?.configUserIdUsed || null,
         };
       
-        const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
+        const isNativeStore = sourceFromUrl === 'customizer-studio';
 
         if (isEmbedded) {
           let targetOrigin = '*';
@@ -741,23 +743,21 @@ function CustomizerLayoutAndLogic() {
               quantity: 1,
               productName: designData.productName,
               totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-              previewImageUrl: previewImageUrl, // Save the generated screenshot URL
+              previewImageUrl: previewImageUrl,
               customizationDetails: designData.customizationDetails,
             };
             
             if (editCartItemId) {
-              // Update existing item
               currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
               toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
             } else {
-              // Add new item
               currentCart.push(newCartItem);
               toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
             }
 
             localStorage.setItem(cartKey, JSON.stringify(currentCart));
             window.dispatchEvent(new CustomEvent('cartUpdated'));
-            router.push(`/store/${productDetails.meta.configUserIdUsed}/cart`); // Navigate to cart after adding/editing
+            router.push(`/store/${productDetails.meta.configUserIdUsed}/cart`);
           } catch (e: any) {
             console.error("Error saving to local cart:", e);
             let errorDescription = "Could not add item to local cart.";
@@ -778,7 +778,6 @@ function CustomizerLayoutAndLogic() {
     }
   };
   
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -823,7 +822,8 @@ function CustomizerLayoutAndLogic() {
   const currentBoundaryBoxes = activeViewData?.boundaryBoxes || defaultFallbackProduct.views[0].boundaryBoxes;
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   
-  const pdpLink = productDetails?.meta?.source === 'customizer-studio' && configUserIdFromUrl && productIdFromUrl
+  const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
+  const pdpLink = isNativeStoreContext && configUserIdFromUrl && productIdFromUrl
     ? `/store/${configUserIdFromUrl}/products/${productIdFromUrl}`
     : `/dashboard`;
 
@@ -893,12 +893,14 @@ function CustomizerLayoutAndLogic() {
             </div>
             <div className="flex items-center gap-3">
                 <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/store/${configUserIdFromUrl}/cart`}>
-                    <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
-                    <span className="hidden sm:inline">View Cart</span>
-                  </Link>
-                </Button>
+                {isNativeStoreContext && (
+                    <Button variant="outline" size="sm" asChild>
+                    <Link href={`/store/${configUserIdFromUrl}/cart`}>
+                        <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
+                        <span className="hidden sm:inline">View Cart</span>
+                    </Link>
+                    </Button>
+                )}
                 <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
                     {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
                     {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : (editCartItemId ? "Update Cart Item" : "Add to Cart"))}
