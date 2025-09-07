@@ -633,101 +633,85 @@ function CustomizerLayoutAndLogic() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   const handleAddToCart = async () => {
-      if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
-      if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
-          toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
-          return;
-      }
-      if (!isEmbedded && !user && hasCanvasElements) {
-          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-          return;
-      }
-  
-      setIsAddingToCart(true);
-      toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. Please wait." });
-  
-      const customizedViews = (productDetails?.views || [])
-          .map(view => ({
-              viewId: view.id,
-              viewName: view.name,
-              viewImageUrl: view.imageUrl,
-              images: canvasImages.filter(item => item.viewId === view.id),
-              texts: canvasTexts.filter(item => item.viewId === view.id),
-              shapes: canvasShapes.filter(item => item.viewId === view.id),
-          }))
-          .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
-  
-      if (customizedViews.length === 0) {
-          toast({ title: "No Customizations", description: "Add elements to a view to customize it.", variant: "default" });
-          setIsAddingToCart(false);
-          return;
-      }
-  
-      const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-  
-      try {
-        const screenshotContainer = document.createElement('div');
-        screenshotContainer.style.position = 'absolute';
-        screenshotContainer.style.left = '-9999px';
-        screenshotContainer.style.top = '-9999px';
-        screenshotContainer.style.width = '700px';
-        screenshotContainer.style.height = '700px';
-        document.body.appendChild(screenshotContainer);
+    if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
+    if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
+        toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
+        return;
+    }
+    if (!isEmbedded && !user && hasCanvasElements) {
+        toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+        return;
+    }
 
-        for (const view of customizedViews) {
-            const viewElements = `
-                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-                    ${view.images.map(img => `<img src="${img.dataUrl}" style="position: absolute; top: ${img.y}%; left: ${img.x}%; width: ${100*img.scale}px; height: ${100*img.scale}px; transform: translate(-50%, -50%) rotate(${img.rotation}deg); object-fit: contain; z-index: ${img.zIndex};" />`).join('')}
-                    ${view.texts.map(txt => `<div style="position: absolute; top: ${txt.y}%; left: ${txt.x}%; font-family: ${txt.fontFamily}; font-size: ${txt.fontSize * txt.scale}px; color: ${txt.color}; transform: translate(-50%, -50%) rotate(${txt.rotation}deg); z-index: ${txt.zIndex}; white-space: pre-wrap;">${txt.content}</div>`).join('')}
-                    ${view.shapes.map(shp => {
-                        const commonStyle = `position: absolute; top: ${shp.y}%; left: ${shp.x}%; width: ${shp.width * shp.scale}px; height: ${shp.height * shp.scale}px; transform: translate(-50%, -50%) rotate(${shp.rotation}deg); z-index: ${shp.zIndex};`;
-                        if (shp.shapeType === 'rectangle') {
-                            return `<div style="${commonStyle} background-color: ${shp.color}; border: ${shp.strokeWidth}px solid ${shp.strokeColor};"></div>`;
-                        }
-                        if (shp.shapeType === 'circle') {
-                            return `<div style="${commonStyle} background-color: ${shp.color}; border: ${shp.strokeWidth}px solid ${shp.strokeColor}; border-radius: 50%;"></div>`;
-                        }
-                        return '';
-                    }).join('')}
-                </div>
-            `;
-            
-            screenshotContainer.innerHTML = `
-                <div style="position: relative; width: 100%; height: 100%; background-image: url('${view.viewImageUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat;">
-                    ${viewElements}
-                </div>
-            `;
-            
-            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for rendering
+    setIsAddingToCart(true);
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. Please wait." });
+    
+    // Determine which views have customizations
+    const customizedViewIds = new Set<string>();
+    canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+    canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+    canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
 
-            try {
-              const dataUrl = await htmlToImage.toPng(screenshotContainer, {
-                  quality: 0.95,
-                  fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
-              });
-              previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
-            } catch (singleViewError) {
-                console.error(`Screenshot failed for view "${view.viewName}":`, singleViewError);
-                toast({ title: "Preview Warning", description: `Could not generate preview for "${view.viewName}". It will be skipped.`, variant: "destructive" });
-            }
+    const viewsToPreview = (productDetails?.views || []).filter(v => customizedViewIds.has(v.id));
+
+    if (viewsToPreview.length === 0) {
+        toast({ title: "No Customizations", description: "Add elements to a view to customize it.", variant: "default" });
+        setIsAddingToCart(false);
+        return;
+    }
+
+    const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+    const originalActiveViewId = activeViewId; // Save the original view
+
+    for (const view of viewsToPreview) {
+        // Set the canvas to the view we want to screenshot
+        setActiveViewId(view.id);
+        
+        // Give React a moment to re-render the canvas with the new active view
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const canvasElement = designCanvasWrapperRef.current;
+        if (!canvasElement) {
+            toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
+            continue; // Skip this view
         }
-        document.body.removeChild(screenshotContainer);
 
-      } catch (err: any) {
-          console.error("Preview screenshot process failed:", err);
-          toast({ title: "Preview Error", description: `Could not generate previews: ${err.message || 'An unknown error occurred.'}`, variant: "destructive" });
-          setIsAddingToCart(false);
-          return;
-      }
+        try {
+            const dataUrl = await htmlToImage.toPng(canvasElement, {
+                quality: 0.95,
+                fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
+            });
+            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
+        } catch (singleViewError: any) {
+            console.error(`Screenshot failed for view "${view.name}":`, singleViewError);
+            toast({ title: "Preview Warning", description: `Could not generate preview for "${view.name}". It will be skipped.`, variant: "destructive" });
+        }
+    }
+    
+    // Restore the original view
+    if (originalActiveViewId) {
+        setActiveViewId(originalActiveViewId);
+    }
       
-      try {
-          const designData = {
+    try {
+        const customizedViewsData = (productDetails?.views || [])
+            .map(view => ({
+                viewId: view.id,
+                viewName: view.name,
+                viewImageUrl: view.imageUrl,
+                images: canvasImages.filter(item => item.viewId === view.id),
+                texts: canvasTexts.filter(item => item.viewId === view.id),
+                shapes: canvasShapes.filter(item => item.viewId === view.id),
+            }))
+            .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+        const designData = {
             productId: productIdFromUrl || productDetails?.id,
             variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
             quantity: 1,
             productName: productDetails?.name || 'Custom Product',
             customizationDetails: {
-              viewData: customizedViews,
+              viewData: customizedViewsData,
               selectedOptions: selectedVariationOptions,
               baseProductPrice: productDetails?.basePrice ?? 0,
               totalCustomizationPrice: totalCustomizationPrice,
