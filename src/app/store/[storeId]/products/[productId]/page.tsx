@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -314,7 +313,7 @@ export default function ProductDetailPage() {
                             {(product.sku && product.category) && <span>|</span>}
                             {product.category && <span>Category: <span className="font-medium text-foreground">{product.category}</span></span>}
                          </div>
-                         <div className="flex items-baseline gap-2 mt-2 mb-4">
+                         <div className="flex items-baseline gap-2 mt-2 mb-1">
                             <p className={cn("text-2xl font-semibold", currentPriceInfo.salePrice != null ? "text-destructive" : "text-primary")} style={{ color: currentPriceInfo.salePrice == null ? `hsl(var(--primary))` : '' }}>
                                 ${currentPriceInfo.salePrice != null ? currentPriceInfo.salePrice.toFixed(2) : currentPriceInfo.price.toFixed(2)}
                             </p>
@@ -324,6 +323,11 @@ export default function ProductDetailPage() {
                                 </p>
                             )}
                          </div>
+                         {storeConfig.volumeDiscounts?.enabled && (
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Learn more about <a href="#volume-discounts-chart" className="text-primary hover:underline">Volume Discounts.</a>
+                            </p>
+                         )}
                          
                          <div className="mt-6 space-y-6">
                             {product.attributes && product.attributes.colors && product.attributes.colors.length > 0 && (
@@ -445,7 +449,7 @@ export default function ProductDetailPage() {
                         </div>
                         <div>
                             {storeConfig.volumeDiscounts?.enabled && storeConfig.volumeDiscounts.tiers.length > 0 && (
-                                <Card className="bg-muted/30">
+                                <Card className="bg-muted/30" id="volume-discounts-chart">
                                     <CardContent className="p-6">
                                         <h3 className="text-lg font-semibold flex items-center mb-4 text-foreground">
                                             <InfoIcon className="h-5 w-5 mr-2 text-primary" />
@@ -477,3 +481,5 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+
+    
