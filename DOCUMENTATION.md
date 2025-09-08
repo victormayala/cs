@@ -39,6 +39,7 @@ The system handles three distinct types of products:
 -   **`userProductOptions/{userId}/products/{productId}`**: This is the central collection for all customization settings. It applies to **all product types**. The `userId` is the `configUserId`, and the `productId` can be a Shopify GID, a WooCommerce ID, or a Native Product ID. This allows for a unified system for storing design rules.
 -   **`userWooCommerceCredentials/{userId}` / `userShopifyCredentials/{userId}`**: Stores the API keys for connected stores.
 -   **`userStores/{userId}`**: Stores the complete configuration for a user's generated storefront.
+-   **`userStores/{storeId}/approvedFiles`**: A subcollection storing pre-approved brand assets (e.g., logos) that are made available in the customizer for that specific store.
 
 ---
 
@@ -58,10 +59,11 @@ The system handles three distinct types of products:
 
 This is the core interactive component. It's a single page that dynamically loads product data based on URL query parameters.
 
--   **Loading Logic**: It checks for `productId`, `source`, and `configUserId` to fetch the correct product details and customization options.
+-   **Loading Logic**: It checks for `productId`, `source`, `configUserId`, and `storeId` to fetch the correct product details and customization options.
 -   **Tool Panels**:
     -   **AI Assistant**: Generates new designs from a text prompt (`generateDesignFromPrompt` flow) and can make backgrounds transparent (`makeBackgroundTransparent` flow).
-    -   **Uploads, Text, Shapes, Clipart, Designs**: Tools for adding and manipulating various elements on the canvas.
+    -   **Uploads**: A unified panel where users can upload their own images, and also access any pre-approved brand assets (like logos) specific to the store they are using.
+    -   **Text, Shapes, Clipart, Designs**: Tools for adding and manipulating various elements on the canvas.
     -   **Layers**: Manages the stacking order (z-index) of all canvas elements.
 -   **`postMessage` API**: When in `embedded` mode, the customizer uses the browser's `postMessage` API to send the final, complete design data object back to the parent window (the Shopify or WordPress site). This is crucial for adding the customization details to the cart.
 
