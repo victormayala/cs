@@ -28,6 +28,8 @@ export interface ProductView {
   imageUrl: string;
   aiHint?: string;
   price: number; // Price for customizing this specific view
+  embroideryAdditionalFee?: number;
+  printAdditionalFee?: number;
   boundaryBoxes: BoundaryBox[];
 }
 

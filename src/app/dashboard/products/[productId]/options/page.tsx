@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -1043,6 +1044,16 @@ function ProductOptionsPage() {
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
                                         <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                          <div>
+                                            <Label htmlFor={`embroideryFee-${view.id}`} className="mt-2 block text-xs">Embroidery Fee ($)</Label>
+                                            <Input id={`embroideryFee-${view.id}`} type="number" placeholder="Optional" value={view.embroideryAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'embroideryAdditionalFee', parseFloat(e.target.value) || 0)} className="mt-1 h-8" />
+                                          </div>
+                                          <div>
+                                            <Label htmlFor={`printFee-${view.id}`} className="mt-2 block text-xs">Print Fee ($)</Label>
+                                            <Input id={`printFee-${view.id}`} type="number" placeholder="Optional" value={view.printAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'printAdditionalFee', parseFloat(e.target.value) || 0)} className="mt-1 h-8" />
+                                          </div>
+                                        </div>
                                         <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block text-xs">View Image</Label>
                                         <div className="mt-1 flex items-center gap-2">
                                             <div className="relative w-16 h-16 rounded-md border bg-muted/30 overflow-hidden flex-shrink-0">
