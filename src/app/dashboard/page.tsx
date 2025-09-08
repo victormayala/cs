@@ -1104,7 +1104,7 @@ function DashboardPageContent() {
                                       <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/${store.id}/approved-files`)}>
                                         <FileCheck className="mr-2 h-4 w-4" /> Approved Files
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem onSelect={() => router.push(`/store/${store.id}`)} disabled={store.deployment?.status !== 'active'}>
+                                      <DropdownMenuItem onSelect={() => window.open(`/store/${store.id}`, '_blank')} disabled={store.deployment?.status !== 'active'}>
                                         <ExternalLink className="mr-2 h-4 w-4" /> View Store
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onSelect={() => router.push(`/dashboard/store/create?storeId=${store.id}`)}>
