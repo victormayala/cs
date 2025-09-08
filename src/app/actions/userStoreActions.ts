@@ -53,6 +53,13 @@ export interface UserStoreConfig {
     localDeliveryText: string;
   };
 
+  // NEW: Embroidery settings
+  embroidery?: {
+    setupFeeEnabled: boolean;
+    setupFeeAmount: number;
+    setupFeeDescription: string;
+  };
+
   // NEW: Added to store which products are part of this store
   productIds?: string[];
 

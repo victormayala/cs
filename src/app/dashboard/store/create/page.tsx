@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck, SewingPin } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -116,6 +116,12 @@ function CreateStorePageContent() {
   const [localDeliveryFee, setLocalDeliveryFee] = useState<number | string>(0);
   const [localDeliveryText, setLocalDeliveryText] = useState("Available for local delivery");
 
+  // Embroidery State
+  const [embroideryFeeEnabled, setEmbroideryFeeEnabled] = useState(false);
+  const [embroideryFeeAmount, setEmbroideryFeeAmount] = useState<number | string>(25);
+  const [embroideryFeeDescription, setEmbroideryFeeDescription] = useState("One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
+
+
   const fetchExistingConfig = useCallback(async () => {
     if (!user || !storeId) {
       setIsLoadingExisting(false);
@@ -143,6 +149,11 @@ function CreateStorePageContent() {
       setLocalDeliveryEnabled(data.shipping?.localDeliveryEnabled || false);
       setLocalDeliveryFee(data.shipping?.localDeliveryFee || 0);
       setLocalDeliveryText(data.shipping?.localDeliveryText || "Available for local delivery");
+      
+      setEmbroideryFeeEnabled(data.embroidery?.setupFeeEnabled || false);
+      setEmbroideryFeeAmount(data.embroidery?.setupFeeAmount || 25);
+      setEmbroideryFeeDescription(data.embroidery?.setupFeeDescription || "One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
+
     } else if (storeId) {
       toast({ title: "Not Found", description: "The requested store could not be found.", variant: "destructive" });
       router.push('/dashboard');
@@ -228,6 +239,11 @@ function CreateStorePageContent() {
               localDeliveryEnabled,
               localDeliveryFee: Number(localDeliveryFee),
               localDeliveryText,
+          },
+          embroidery: {
+              setupFeeEnabled: embroideryFeeEnabled,
+              setupFeeAmount: Number(embroideryFeeAmount),
+              setupFeeDescription: embroideryFeeDescription,
           },
       };
 
@@ -465,6 +481,57 @@ function CreateStorePageContent() {
                             placeholder="e.g., Available for local delivery"
                            />
                         </div>
+                      </div>
+                    </div>
+                  )}
+              </CardContent>
+          </Card>
+
+          {/* Embroidery Fee Card */}
+          <Card className="shadow-lg border-border bg-card">
+              <CardHeader>
+                <CardTitle className="font-headline text-xl text-card-foreground flex items-center">
+                  <SewingPin className="mr-2 h-5 w-5" />
+                  Embroidery Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure a one-time setup fee for embroidery designs.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="enable-embroidery-fee" 
+                        checked={embroideryFeeEnabled} 
+                        onCheckedChange={(checked) => setEmbroideryFeeEnabled(checked as boolean)}
+                      />
+                      <Label htmlFor="enable-embroidery-fee" className="font-medium">
+                        Enable Embroidery Set Up Fee
+                      </Label>
+                  </div>
+
+                  {embroideryFeeEnabled && (
+                    <div className="space-y-3 pt-2 pl-6 border-l">
+                      <div>
+                        <Label htmlFor="embroidery-fee">Set Up Fee ($)</Label>
+                        <Input
+                          id="embroidery-fee"
+                          type="number"
+                          value={embroideryFeeAmount}
+                          onChange={(e) => setEmbroideryFeeAmount(e.target.value)}
+                          onBlur={() => setEmbroideryFeeAmount(Number(embroideryFeeAmount) || 0)}
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                         <Label htmlFor="embroidery-description">Fee Description</Label>
+                         <Input
+                          id="embroidery-description"
+                          value={embroideryFeeDescription}
+                          onChange={(e) => setEmbroideryFeeDescription(e.target.value)}
+                         />
+                         <p className="text-xs text-muted-foreground mt-1">This text will be shown to the customer when the fee is applied.</p>
                       </div>
                     </div>
                   )}
