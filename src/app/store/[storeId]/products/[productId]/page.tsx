@@ -412,10 +412,11 @@ export default function ProductDetailPage() {
 
                              {showEmbroideryFeeMessage && (
                                 <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-                                    <InfoIcon className="h-4 w-4 !text-blue-600" />
-                                    <AlertDescription className="text-sm text-blue-700">
+                                  <div className="flex items-start">
+                                    <InfoIcon className="h-4 w-4 !text-blue-600 mt-0.5" />
+                                    <AlertDescription className="text-sm text-blue-700 ml-2">
                                         A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
-                                        <TooltipProvider>
+                                        <TooltipProvider delayDuration={100}>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <a href="#" className="font-semibold underline hover:text-blue-800 ml-1" onClick={(e) => e.preventDefault()}>Learn more.</a>
@@ -434,6 +435,7 @@ export default function ProductDetailPage() {
                                             </Tooltip>
                                         </TooltipProvider>
                                     </AlertDescription>
+                                  </div>
                                 </Alert>
                             )}
 
