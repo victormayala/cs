@@ -19,7 +19,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft, FileCheck
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -48,7 +48,6 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
-import ApprovedFilesPanel from '@/components/customizer/ApprovedFilesPanel';
 
 interface BoundaryBox {
   id: string;
@@ -119,7 +118,6 @@ const toolItems: CustomizerTool[] = [
   { id: "layers", label: "Layers", icon: Layers },
   { id: "ai-assistant", label: "AI Assistant", icon: Sparkles },
   { id: "uploads", label: "Uploads", icon: UploadCloud },
-  { id: "approved", label: "Approved", icon: FileCheck },
   { id: "text", label: "Text", icon: Type },
   { id: "shapes", label: "Shapes", icon: ShapesIconLucide },
   { id: "clipart", label: "Clipart", icon: Smile },
@@ -616,8 +614,7 @@ function CustomizerLayoutAndLogic() {
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
       case "ai-assistant": return <AiAssistant activeViewId={activeViewId} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} />;
-      case "approved": return <ApprovedFilesPanel activeViewId={activeViewId} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} />;
       case "clipart": return <ClipartPanel activeViewId={activeViewId} />;
@@ -677,9 +674,7 @@ function CustomizerLayoutAndLogic() {
         // This is the main change: We set the active view and wait for re-render
         setActiveViewId(view.id);
         
-        // Wait for the next browser paint cycle
         await new Promise(resolve => requestAnimationFrame(resolve));
-        // Add a small extra delay to ensure images have rendered
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const canvasElement = designCanvasWrapperRef.current;
@@ -765,7 +760,7 @@ function CustomizerLayoutAndLogic() {
   
               localStorage.setItem(cartKey, JSON.stringify(currentCart));
               window.dispatchEvent(new CustomEvent('cartUpdated'));
-              router.push(`/store/${nativeStoreConfigUserId}/cart`);
+              router.push(`/store/${storeIdFromUrl}/cart`);
             } catch (e: any) {
               console.error("Error saving to local cart:", e);
               let errorDescription = "Could not add item to local cart.";

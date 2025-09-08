@@ -1,23 +1,58 @@
 
-'use client';
+"use client";
 
-import { ChangeEvent, useRef } from 'react';
+import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
 import { useUploads, type UploadedImage } from '@/contexts/UploadContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
-import { UploadCloud, PlusCircle } from 'lucide-react';
+import { UploadCloud, PlusCircle, FileCheck, Loader2, AlertCircle, Separator } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSearchParams } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import type { ApprovedFile } from '@/app/dashboard/store/[storeId]/approved-files/page';
 
 interface UploadAreaProps {
   activeViewId: string | null;
+  configUserId?: string | null;
 }
 
-export default function UploadArea({ activeViewId }: UploadAreaProps) {
-  const { uploadedImages, addUploadedImage, addCanvasImage } = useUploads();
+export default function UploadArea({ activeViewId, configUserId }: UploadAreaProps) {
+  const { uploadedImages, addUploadedImage, addCanvasImage, addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get('storeId');
+
+  const [approvedFiles, setApprovedFiles] = useState<ApprovedFile[]>([]);
+  const [isLoadingApproved, setIsLoadingApproved] = useState(true);
+  const [errorApproved, setErrorApproved] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!storeId) {
+      setIsLoadingApproved(false);
+      return;
+    }
+    setIsLoadingApproved(true);
+    const filesQuery = query(collection(db, `userStores/${storeId}/approvedFiles`), orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(filesQuery, (snapshot) => {
+      const files: ApprovedFile[] = [];
+      snapshot.forEach(doc => files.push({ id: doc.id, ...doc.data() } as ApprovedFile));
+      setApprovedFiles(files);
+      setIsLoadingApproved(false);
+      setErrorApproved(null);
+    }, (err) => {
+      console.error("Error fetching approved files:", err);
+      setErrorApproved("Could not load approved files.");
+      setIsLoadingApproved(false);
+    });
+
+    return () => unsubscribe();
+  }, [storeId]);
+
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -53,9 +88,17 @@ export default function UploadArea({ activeViewId }: UploadAreaProps) {
     }
     addCanvasImage(image.id, activeViewId);
   };
+  
+  const handleApprovedFileClick = (file: ApprovedFile) => {
+    if (!activeViewId) {
+      toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
+      return;
+    }
+    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, file.id);
+  };
 
   return (
-    <div className="p-4 space-y-4 flex flex-col">
+    <div className="p-4 space-y-4 flex flex-col h-full">
       <div>
         <Input
           type="file"
@@ -72,10 +115,10 @@ export default function UploadArea({ activeViewId }: UploadAreaProps) {
         <p className="text-xs text-muted-foreground mt-1 text-center">Max 5MB. PNG, JPG, GIF.</p>
       </div>
 
-      {uploadedImages.length > 0 ? (
-        <ScrollArea className="flex-grow border rounded-md bg-background">
+      {uploadedImages.length > 0 && (
+        <div className="flex-grow border rounded-md bg-background overflow-y-auto">
           <div className="p-2 space-y-2">
-            <p className="text-xs text-muted-foreground px-1 pb-1">Click an image to add it to the canvas:</p>
+            <p className="text-xs text-muted-foreground px-1 pb-1">Your Uploads:</p>
             {uploadedImages.map((image) => (
               <div
                 key={image.id}
@@ -95,14 +138,64 @@ export default function UploadArea({ activeViewId }: UploadAreaProps) {
               </div>
             ))}
           </div>
-        </ScrollArea>
-      ) : (
-        <div className="flex-grow flex flex-col items-center justify-center text-center p-4 border border-dashed rounded-md bg-muted/20">
+        </div>
+      )}
+
+      {storeId && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+                <h4 className="text-sm font-medium text-foreground flex items-center gap-2"><FileCheck className="h-4 w-4 text-primary"/> Approved Assets</h4>
+                {isLoadingApproved ? (
+                     <div className="flex items-center justify-center text-sm text-muted-foreground p-4">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading...
+                    </div>
+                ) : errorApproved ? (
+                     <div className="flex items-center justify-center text-sm text-destructive p-4">
+                        <AlertCircle className="mr-2 h-4 w-4" />
+                        {errorApproved}
+                    </div>
+                ) : approvedFiles.length > 0 ? (
+                    <div className="flex-grow border rounded-md bg-background overflow-y-auto">
+                        <div className="grid grid-cols-3 gap-2 p-2">
+                             {approvedFiles.map((file) => (
+                                <div
+                                    key={file.id}
+                                    onClick={() => handleApprovedFileClick(file)}
+                                    className="p-2 border rounded-md cursor-pointer bg-card hover:bg-accent/5 flex flex-col items-center justify-center gap-2 transition-all border-border group aspect-square"
+                                    title={`Add "${file.name}" to canvas`}
+                                >
+                                    <div className="relative w-12 h-12">
+                                        <Image
+                                            src={file.url}
+                                            alt={file.name}
+                                            fill
+                                            sizes="(max-width: 768px) 33vw, 10vw"
+                                            className="object-contain"
+                                        />
+                                    </div>
+                                    <span className="text-xs text-center truncate w-full">{file.name}</span>
+                                    <PlusCircle className="absolute top-1 right-1 h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-xs text-muted-foreground p-2">No approved files for this store.</p>
+                )}
+            </div>
+          </>
+      )}
+
+      {uploadedImages.length === 0 && !storeId && (
+         <div className="flex-grow flex flex-col items-center justify-center text-center p-4 border border-dashed rounded-md bg-muted/20">
           <UploadCloud className="h-12 w-12 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No images uploaded yet.</p>
           <p className="text-xs text-muted-foreground">Click the button above to upload.</p>
         </div>
       )}
+
     </div>
   );
 }
