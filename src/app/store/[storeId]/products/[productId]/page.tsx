@@ -22,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from '@/components/ui/label';
+import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 
 // Redefine SizeAttribute here to match the structure on the options page
 interface SizeAttribute {
@@ -100,6 +101,7 @@ export default function ProductDetailPage() {
 
   const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [recommendedProducts, setRecommendedProducts] = useState<PublicProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -139,10 +141,11 @@ export default function ProductDetailPage() {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch store config and product data in parallel
-            const [storeRes, productRes] = await Promise.all([
+            // Fetch store config, product data, and recommended products in parallel
+            const [storeRes, productRes, recommendationsRes] = await Promise.all([
                 getDoc(doc(db, 'userStores', storeId)),
-                fetch(`/api/store/products/${productId}?storeId=${storeId}`, { cache: 'no-store' })
+                fetch(`/api/store/products/${productId}?storeId=${storeId}`, { cache: 'no-store' }),
+                fetch(`/api/store/products?storeId=${storeId}`, { cache: 'no-store' })
             ]);
 
             // Process store config
@@ -152,7 +155,7 @@ export default function ProductDetailPage() {
                 throw new Error("This store could not be found.");
             }
 
-            // Process product data
+            // Process main product data
             if (!productRes.ok) {
                 const errorData = await productRes.json();
                 throw new Error(errorData.error || 'Failed to fetch product details.');
@@ -164,6 +167,16 @@ export default function ProductDetailPage() {
             const fetchedProduct = productData.product as ProductDetail;
             setProduct(fetchedProduct);
             
+            // Process recommendations
+            if (recommendationsRes.ok) {
+                const recommendationsData = await recommendationsRes.json();
+                const allStoreProducts = recommendationsData.products || [];
+                // Filter out the current product and take the first 4
+                setRecommendedProducts(allStoreProducts.filter((p: PublicProduct) => p.id !== productId).slice(0, 4));
+            } else {
+                console.warn("Could not fetch recommended products.");
+            }
+
             // Set default selections for attributes
             if (fetchedProduct.attributes?.colors?.length > 0) {
               setSelectedColor(fetchedProduct.attributes.colors[0].name);
@@ -475,11 +488,20 @@ export default function ProductDetailPage() {
                         </div>
                     </div>
                  </div>
+
+                 {/* Recommendations Section */}
+                <div className="mt-12 md:mt-20 pt-8 border-t">
+                    <h2 className="text-3xl font-bold font-headline text-foreground mb-8">You Might Also Like</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {recommendedProducts.length > 0
+                            ? recommendedProducts.map((p) => <ProductCard key={p.id} product={p} />)
+                            : Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                        }
+                    </div>
+                </div>
             </div>
         </main>
         <StoreFooter storeConfig={storeConfig!} />
     </div>
   );
 }
-
-    
