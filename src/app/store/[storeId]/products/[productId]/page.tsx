@@ -338,7 +338,7 @@ export default function ProductDetailPage() {
                          </div>
                          {storeConfig.volumeDiscounts?.enabled && (
                             <p className="text-sm text-muted-foreground mb-4">
-                                Learn more about <a href="#volume-discounts-chart" className="text-primary hover:underline">Volume Discounts.</a>
+                                Learn more about <a href="#volume-discounts-chart" className="text-primary hover:underline font-semibold">Volume Discounts.</a>
                             </p>
                          )}
                          

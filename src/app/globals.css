@@ -6,6 +6,9 @@
 /* Removed explicit body font-family, Tailwind will now apply Roboto via font-sans */
 
 @layer base {
+  html {
+    @apply scroll-smooth;
+  }
   :root {
     --background: 0 0% 100%; /* White */
     --foreground: 240 10% 3.9%; /* Default dark */
