@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from '@/components/ui/label';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Redefine SizeAttribute here to match the structure on the options page
 interface SizeAttribute {
@@ -272,6 +273,10 @@ export default function ProductDetailPage() {
   // The link to the customizer, now with storeId
   const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}&storeId=${storeId}`;
 
+  const showEmbroideryFeeMessage = 
+    storeConfig?.embroidery?.setupFeeEnabled &&
+    selectedTechnique === 'Embroidery';
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
         <StoreHeader storeConfig={storeConfig!} />
@@ -401,6 +406,16 @@ export default function ProductDetailPage() {
                                     ))}
                                     </div>
                                 </div>
+                            )}
+
+                             {showEmbroideryFeeMessage && (
+                                <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+                                    <InfoIcon className="h-4 w-4 !text-blue-600" />
+                                    <AlertDescription className="text-sm text-blue-700">
+                                        A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads. 
+                                        <a href="#" className="font-semibold underline hover:text-blue-800 ml-1">Learn more.</a>
+                                    </AlertDescription>
+                                </Alert>
                             )}
 
                             {/* Shipping Options Section moved here */}
