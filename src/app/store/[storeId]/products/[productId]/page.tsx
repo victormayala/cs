@@ -24,6 +24,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from '@/components/ui/label';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 // Redefine SizeAttribute here to match the structure on the options page
 interface SizeAttribute {
@@ -412,8 +414,25 @@ export default function ProductDetailPage() {
                                 <Alert className="bg-blue-50 border-blue-200 text-blue-800">
                                     <InfoIcon className="h-4 w-4 !text-blue-600" />
                                     <AlertDescription className="text-sm text-blue-700">
-                                        A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads. 
-                                        <a href="#" className="font-semibold underline hover:text-blue-800 ml-1">Learn more.</a>
+                                        A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <a href="#" className="font-semibold underline hover:text-blue-800 ml-1" onClick={(e) => e.preventDefault()}>Learn more.</a>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs p-3" side="top" align="center">
+                                                    <div className="space-y-2">
+                                                        <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
+                                                          <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" layout="fill" objectFit="cover"/>
+                                                        </div>
+                                                        <p className="text-xs font-bold">One-Time Digitization Fee</p>
+                                                        <p className="text-xs">
+                                                            This is a one-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.
+                                                        </p>
+                                                    </div>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </AlertDescription>
                                 </Alert>
                             )}
