@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck, SewingPin } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck, Scissors } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -491,7 +491,7 @@ function CreateStorePageContent() {
           <Card className="shadow-lg border-border bg-card">
               <CardHeader>
                 <CardTitle className="font-headline text-xl text-card-foreground flex items-center">
-                  <SewingPin className="mr-2 h-5 w-5" />
+                  <Scissors className="mr-2 h-5 w-5" />
                   Embroidery Settings
                 </CardTitle>
                 <CardDescription>
