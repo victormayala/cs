@@ -116,7 +116,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
       </div>
 
       {uploadedImages.length > 0 && (
-        <div className="flex-grow border rounded-md bg-background overflow-y-auto">
+        <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto">
           <div className="p-2 space-y-2">
             <p className="text-xs text-muted-foreground px-1 pb-1">Your Uploads:</p>
             {uploadedImages.map((image) => (
@@ -138,7 +138,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
               </div>
             ))}
           </div>
-        </div>
+        </ScrollArea>
       )}
 
       {storeId && (
@@ -157,7 +157,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
                         {errorApproved}
                     </div>
                 ) : approvedFiles.length > 0 ? (
-                    <div className="flex-grow border rounded-md bg-background overflow-y-auto">
+                    <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto">
                         <div className="grid grid-cols-3 gap-2 p-2">
                              {approvedFiles.map((file) => (
                                 <div
@@ -180,7 +180,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </ScrollArea>
                 ) : (
                     <p className="text-xs text-muted-foreground p-2">No approved files for this store.</p>
                 )}
