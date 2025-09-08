@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
@@ -157,7 +156,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
                         {errorApproved}
                     </div>
                 ) : approvedFiles.length > 0 ? (
-                    <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto">
+                    <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto max-h-48">
                         <div className="grid grid-cols-3 gap-2 p-2">
                              {approvedFiles.map((file) => (
                                 <div
