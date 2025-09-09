@@ -10,9 +10,10 @@ import BoundaryBoxControls from './BoundaryBoxControls';
 import type { ProductForCustomizer, ConfigurableAttribute } from '@/app/customizer/page';
 import type { WCVariation } from '@/types/woocommerce'; 
 import { cn } from '@/lib/utils';
-import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { type CustomizationTechnique } from '@/app/actions/productActions';
-import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Label } from '../ui/label';
+
 
 interface RightPanelProps {
   showGrid: boolean;
@@ -92,21 +93,24 @@ const RightPanelComponent = ({
               </div>
               <div className="border-b mx-0"></div>
               <div className="px-4 py-3 space-y-2">
-                <p className="text-sm text-muted-foreground">Technique:</p>
-                <ToggleGroup
-                  type="single"
-                  value={selectedTechnique ?? undefined}
+                <Label htmlFor="technique-select" className="text-sm text-muted-foreground">Technique:</Label>
+                <Select
+                  value={selectedTechnique ?? ''}
                   onValueChange={(value) => {
                     if (value) setSelectedTechnique(value as CustomizationTechnique);
                   }}
-                  className="grid grid-cols-2 gap-2"
                 >
-                  {productDetails.customizationTechniques.map(technique => (
-                    <ToggleGroupItem key={technique} value={technique} className="text-xs h-9">
-                      {technique}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+                    <SelectTrigger id="technique-select">
+                        <SelectValue placeholder="Select a technique" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {productDetails.customizationTechniques.map(technique => (
+                            <SelectItem key={technique} value={technique}>
+                                {technique}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
               </div>
           </div>
       )}
