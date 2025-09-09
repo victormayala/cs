@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, Suspense, useEffect, useCallback, useMemo } from "react";
+import { useState, Suspense, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Info, Truck, PackageCheck, Scissors } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Truck, PackageCheck, Scissors, FileText } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,6 +21,8 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, collection, type FieldValue, deleteField } from 'firebase/firestore';
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 
 const generatedPages = [
   'Homepage', 'About', 'FAQ', 'Contact', 
@@ -54,6 +56,8 @@ const layouts = [
 ] as const;
 
 type LayoutName = typeof layouts[number]['name'];
+
+type PageContent = NonNullable<UserStoreConfig['pages']>;
 
 // Client-side function to save user store configuration
 async function saveUserStoreConfig(config: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'>, existingStoreId?: string | null): Promise<{ storeId: string, isNew: boolean }> {
@@ -94,7 +98,7 @@ function CreateStorePageContent() {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const storeId = useMemo(() => searchParams.get('storeId'), [searchParams]);
+  const storeId = searchParams.get('storeId');
 
   const [storeName, setStoreName] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#468189");
@@ -121,6 +125,15 @@ function CreateStorePageContent() {
   const [embroideryFeeAmount, setEmbroideryFeeAmount] = useState<number | string>(25);
   const [embroideryFeeDescription, setEmbroideryFeeDescription] = useState("One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
 
+  // Page Content State
+  const [pageContent, setPageContent] = useState<PageContent>({
+    homepage: { headline: '', subheading: '' },
+    about: { title: 'About Us', body: '' },
+    faq: { title: 'Frequently Asked Questions', introduction: '', questions: [{ question: '', answer: '' }] },
+    contact: { title: 'Contact Us', email: '', phone: '', address: '' },
+    terms: { title: 'Terms of Service', body: '' },
+    privacy: { title: 'Privacy Policy', body: '' }
+  });
 
   const fetchExistingConfig = useCallback(async () => {
     if (!user || !storeId) {
@@ -153,6 +166,8 @@ function CreateStorePageContent() {
       setEmbroideryFeeEnabled(data.embroidery?.setupFeeEnabled || false);
       setEmbroideryFeeAmount(data.embroidery?.setupFeeAmount || 25);
       setEmbroideryFeeDescription(data.embroidery?.setupFeeDescription || "One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
+
+      setPageContent(current => ({...current, ...data.pages}));
 
     } else if (storeId) {
       toast({ title: "Not Found", description: "The requested store could not be found.", variant: "destructive" });
@@ -206,6 +221,46 @@ function CreateStorePageContent() {
   const removeDiscountTier = (index: number) => {
     setDiscountTiers(discountTiers.filter((_, i) => i !== index));
   };
+  
+  const handlePageContentChange = <T extends keyof PageContent>(page: T, field: keyof PageContent[T], value: string) => {
+    setPageContent(prev => ({
+        ...prev,
+        [page]: {
+            ...prev[page],
+            [field]: value
+        }
+    }));
+  };
+
+  const handleFaqChange = (index: number, field: 'question' | 'answer', value: string) => {
+    setPageContent(prev => {
+        const newFaq = { ...prev.faq };
+        if (newFaq.questions) {
+            newFaq.questions[index] = { ...newFaq.questions[index], [field]: value };
+        }
+        return { ...prev, faq: newFaq };
+    });
+  };
+
+  const addFaq = () => {
+    setPageContent(prev => ({
+        ...prev,
+        faq: {
+            ...prev.faq,
+            questions: [...(prev.faq?.questions || []), { question: '', answer: '' }]
+        }
+    }));
+  };
+  
+  const removeFaq = (index: number) => {
+    setPageContent(prev => ({
+        ...prev,
+        faq: {
+            ...prev.faq,
+            questions: (prev.faq?.questions || []).filter((_, i) => i !== index)
+        }
+    }));
+  };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -245,6 +300,7 @@ function CreateStorePageContent() {
               setupFeeAmount: Number(embroideryFeeAmount),
               setupFeeDescription: embroideryFeeDescription,
           },
+          pages: pageContent,
       };
 
       const { storeId: savedStoreId, isNew } = await saveUserStoreConfig(storeConfigData, storeId);
@@ -436,6 +492,110 @@ function CreateStorePageContent() {
             </CardContent>
           </Card>
           
+          <Card className="shadow-lg border-border bg-card">
+            <CardHeader>
+              <CardTitle className="font-headline text-xl text-card-foreground flex items-center">
+                <FileText className="mr-2 h-5 w-5" />
+                Page Content
+              </CardTitle>
+              <CardDescription>
+                Edit the content for your store's generated pages.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="homepage" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+                  <TabsTrigger value="homepage">Homepage</TabsTrigger>
+                  <TabsTrigger value="about">About</TabsTrigger>
+                  <TabsTrigger value="faq">FAQ</TabsTrigger>
+                  <TabsTrigger value="contact">Contact</TabsTrigger>
+                  <TabsTrigger value="terms">Terms</TabsTrigger>
+                  <TabsTrigger value="privacy">Privacy</TabsTrigger>
+                </TabsList>
+                <TabsContent value="homepage" className="mt-4 space-y-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="page-home-headline">Headline</Label>
+                    <Input id="page-home-headline" value={pageContent.homepage?.headline || ''} onChange={e => handlePageContentChange('homepage', 'headline', e.target.value)} />
+                  </div>
+                   <div className="space-y-1">
+                    <Label htmlFor="page-home-subheading">Subheading</Label>
+                    <Textarea id="page-home-subheading" value={pageContent.homepage?.subheading || ''} onChange={e => handlePageContentChange('homepage', 'subheading', e.target.value)} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="about" className="mt-4 space-y-4">
+                   <div className="space-y-1">
+                    <Label htmlFor="page-about-title">Page Title</Label>
+                    <Input id="page-about-title" value={pageContent.about?.title || ''} onChange={e => handlePageContentChange('about', 'title', e.target.value)} />
+                  </div>
+                   <div className="space-y-1">
+                    <Label htmlFor="page-about-body">Content</Label>
+                    <Textarea id="page-about-body" rows={10} value={pageContent.about?.body || ''} onChange={e => handlePageContentChange('about', 'body', e.target.value)} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="faq" className="mt-4 space-y-4">
+                   <div className="space-y-1">
+                    <Label htmlFor="page-faq-title">Page Title</Label>
+                    <Input id="page-faq-title" value={pageContent.faq?.title || ''} onChange={e => handlePageContentChange('faq', 'title', e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="page-faq-intro">Introduction</Label>
+                    <Textarea id="page-faq-intro" rows={3} value={pageContent.faq?.introduction || ''} onChange={e => handlePageContentChange('faq', 'introduction', e.target.value)} />
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                      {pageContent.faq?.questions?.map((item, index) => (
+                          <div key={index} className="p-3 border rounded-md space-y-2 relative">
+                              <Label>Question {index + 1}</Label>
+                              <Input placeholder="Question" value={item.question} onChange={e => handleFaqChange(index, 'question', e.target.value)} />
+                              <Textarea placeholder="Answer" value={item.answer} onChange={e => handleFaqChange(index, 'answer', e.target.value)} />
+                              <Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeFaq(index)}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                      ))}
+                       <Button type="button" variant="outline" onClick={addFaq}><PlusCircle className="mr-2 h-4 w-4" /> Add FAQ Item</Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="contact" className="mt-4 space-y-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="page-contact-title">Page Title</Label>
+                      <Input id="page-contact-title" value={pageContent.contact?.title || ''} onChange={e => handlePageContentChange('contact', 'title', e.target.value)} />
+                    </div>
+                     <div className="space-y-1">
+                      <Label htmlFor="page-contact-email">Contact Email</Label>
+                      <Input id="page-contact-email" type="email" value={pageContent.contact?.email || ''} onChange={e => handlePageContentChange('contact', 'email', e.target.value)} />
+                    </div>
+                     <div className="space-y-1">
+                      <Label htmlFor="page-contact-phone">Contact Phone</Label>
+                      <Input id="page-contact-phone" value={pageContent.contact?.phone || ''} onChange={e => handlePageContentChange('contact', 'phone', e.target.value)} />
+                    </div>
+                     <div className="space-y-1">
+                      <Label htmlFor="page-contact-address">Address</Label>
+                      <Textarea id="page-contact-address" value={pageContent.contact?.address || ''} onChange={e => handlePageContentChange('contact', 'address', e.target.value)} />
+                    </div>
+                </TabsContent>
+                 <TabsContent value="terms" className="mt-4 space-y-4">
+                   <div className="space-y-1">
+                    <Label htmlFor="page-terms-title">Page Title</Label>
+                    <Input id="page-terms-title" value={pageContent.terms?.title || ''} onChange={e => handlePageContentChange('terms', 'title', e.target.value)} />
+                  </div>
+                   <div className="space-y-1">
+                    <Label htmlFor="page-terms-body">Content</Label>
+                    <Textarea id="page-terms-body" rows={15} value={pageContent.terms?.body || ''} onChange={e => handlePageContentChange('terms', 'body', e.target.value)} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="privacy" className="mt-4 space-y-4">
+                   <div className="space-y-1">
+                    <Label htmlFor="page-privacy-title">Page Title</Label>
+                    <Input id="page-privacy-title" value={pageContent.privacy?.title || ''} onChange={e => handlePageContentChange('privacy', 'title', e.target.value)} />
+                  </div>
+                   <div className="space-y-1">
+                    <Label htmlFor="page-privacy-body">Content</Label>
+                    <Textarea id="page-privacy-body" rows={15} value={pageContent.privacy?.body || ''} onChange={e => handlePageContentChange('privacy', 'body', e.target.value)} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-lg border-border bg-card">
               <CardHeader>
                 <CardTitle className="font-headline text-xl text-card-foreground">

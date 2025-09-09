@@ -53,15 +53,46 @@ export interface UserStoreConfig {
     localDeliveryText: string;
   };
 
-  // NEW: Embroidery settings
+  // Embroidery settings
   embroidery?: {
     setupFeeEnabled: boolean;
     setupFeeAmount: number;
     setupFeeDescription: string;
   };
 
-  // NEW: Added to store which products are part of this store
+  // Added to store which products are part of this store
   productIds?: string[];
+  
+  // NEW: Editable page content
+  pages?: {
+    homepage?: {
+      headline?: string;
+      subheading?: string;
+    },
+    about?: {
+      title?: string;
+      body?: string;
+    },
+    faq?: {
+      title?: string;
+      introduction?: string;
+      questions?: { question: string; answer: string; }[];
+    },
+    contact?: {
+      title?: string;
+      email?: string;
+      phone?: string;
+      address?: string;
+    },
+    terms?: {
+      title?: string;
+      body?: string;
+    },
+    privacy?: {
+      title?: string;
+      body?: string;
+    }
+  }
 
   // Timestamps
   createdAt: FieldValue;

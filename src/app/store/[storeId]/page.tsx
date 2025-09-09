@@ -14,8 +14,6 @@ import { MarketingLayout } from '@/components/store/homepage-layouts/MarketingLa
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import Head from 'next/head';
-import { StoreHeader } from '@/components/store/StoreHeader';
-import { StoreFooter } from '@/components/store/StoreFooter';
 
 function hexToHsl(hex: string): string | null {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -162,6 +160,7 @@ export default function StorefrontHomepage() {
   return (
     <>
       <Head>
+        <title>{storeConfig.storeName}</title>
         <style id="dynamic-theme-styles">
           {`
             :root {
