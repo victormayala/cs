@@ -32,15 +32,6 @@ The system handles three distinct types of products:
 2.  **Native Products (Internal)**: Products created and managed entirely within Customizer Studio. All data, including base information and customization options, is stored in Firestore. These are the products that populate a user's generated storefront.
 3.  **Generated Storefronts**: Merchants can design, configure, and deploy a complete, standalone e-commerce store from the dashboard. These stores are powered by the merchant's "Native Products" and feature their chosen branding, layout, and business logic (like volume discounts).
 
-### 2.3. Data Storage (Firebase/Firestore)
-
--   **`users/{userId}`**: Stores basic user profile information.
--   **`users/{userId}/products`**: A subcollection for all of that user's "Native Products".
--   **`userProductOptions/{userId}/products/{productId}`**: This is the central collection for all customization settings. It applies to **all product types**. The `userId` is the `configUserId`, and the `productId` can be a Shopify GID, a WooCommerce ID, or a Native Product ID. This allows for a unified system for storing design rules.
--   **`userWooCommerceCredentials/{userId}` / `userShopifyCredentials/{userId}`**: Stores the API keys for connected stores.
--   **`userStores/{userId}`**: Stores the complete configuration for a user's generated storefront.
--   **`userStores/{storeId}/approvedFiles`**: A subcollection storing pre-approved brand assets (e.g., logos) that are made available in the customizer for that specific store.
-
 ---
 
 ## 3. Key Features and Flows
@@ -52,6 +43,7 @@ The system handles three distinct types of products:
     -   **Layouts**: `casual`, `corporate`, `marketing` themes determine the homepage's look and feel.
     -   **Volume Discounts**: Merchants can set quantity-based percentage discounts.
     -   **Shipping**: A simple "Local Delivery" option can be enabled with a custom fee and text.
+    -   **Embroidery Fee**: A store-wide, one-time setup fee for embroidery can be enabled, which is explained to customers on the product page.
 -   **Deployment**: The `deployStore` Genkit flow simulates a deployment process, generating a mock URL for the storefront. In a real-world scenario, this flow would trigger a CI/CD pipeline.
 -   **Public Access**: The generated store is accessible via `/store/{storeId}`.
 
@@ -59,19 +51,22 @@ The system handles three distinct types of products:
 
 This is the core interactive component. It's a single page that dynamically loads product data based on URL query parameters.
 
--   **Loading Logic**: It checks for `productId`, `source`, `configUserId`, and `storeId` to fetch the correct product details and customization options.
+-   **Loading Logic**: It checks for `productId`, `source`, `configUserId`, `storeId`, and `basePrice` to fetch the correct product details and customization options.
 -   **Tool Panels**:
     -   **AI Assistant**: Generates new designs from a text prompt (`generateDesignFromPrompt` flow) and can make backgrounds transparent (`makeBackgroundTransparent` flow).
     -   **Uploads**: A unified panel where users can upload their own images, and also access any pre-approved brand assets (like logos) specific to the store they are using.
     -   **Text, Shapes, Clipart, Designs**: Tools for adding and manipulating various elements on the canvas.
     -   **Layers**: Manages the stacking order (z-index) of all canvas elements.
+-   **Technique Selection**: If a product has multiple customization techniques enabled (e.g., Embroidery, Print), the user can select their preferred method from a dropdown, which dynamically adjusts the pricing based on per-view fees.
 -   **`postMessage` API**: When in `embedded` mode, the customizer uses the browser's `postMessage` API to send the final, complete design data object back to the parent window (the Shopify or WordPress site). This is crucial for adding the customization details to the cart.
 
 ### 3.3. Product Options Configuration (`/dashboard/products/.../options`)
 
 This is where merchants define how a product can be customized.
 
--   **Product Views**: Merchants can define multiple views (e.g., front, back, sleeve) for a single product, each with its own base image and optional price surcharge for customizing that view.
+-   **Customization Techniques**: Merchants can enable various techniques for a native product, such as Embroidery, DTF, DTG, etc. This selection determines which fees are applied on the storefront.
+-   **Product Views**: Merchants can define multiple views (e.g., front, back, sleeve) for a single product, each with its own base image.
+-   **Per-View Pricing**: For each view, merchants can set an `Embroidery Additional Fee` and a `Print Additional Fee`. This allows for granular pricing based on both the location of the customization and the technique used.
 -   **Design Areas (Boundary Boxes)**: For each view, merchants can draw rectangular "boundary boxes" to constrain where customers can place their designs.
 -   **Variant Images**: For variable products, merchants can upload specific images that should be displayed when a customer selects a particular color variant.
 
