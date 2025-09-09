@@ -460,12 +460,12 @@ function CreateStorePageContent() {
              <Sidebar className="h-[calc(100vh-8rem)] sticky top-[calc(4rem+1px)] w-64 hidden lg:flex">
                 <SidebarContent>
                     <SidebarMenu>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('settings')} isActive={activeSection === 'settings'}><Settings2 className="mr-2" />General Settings</SidebarMenuButton></SidebarMenuItem>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('branding')} isActive={activeSection === 'branding'}><Brush className="mr-2" />Branding</SidebarMenuButton></SidebarMenuItem>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('pages')} isActive={activeSection === 'pages'}><FileText className="mr-2" />Page Content</SidebarMenuButton></SidebarMenuItem>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('shipping')} isActive={activeSection === 'shipping'}><Truck className="mr-2" />Shipping</SidebarMenuButton></SidebarMenuItem>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('embroidery')} isActive={activeSection === 'embroidery'}><Scissors className="mr-2" />Embroidery</SidebarMenuButton></SidebarMenuItem>
-                        <SidebarMenuItem><SidebarMenuButton onClick={() => setActiveSection('discounts')} isActive={activeSection === 'discounts'}><Percent className="mr-2" />Discounts</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('settings')} isActive={activeSection === 'settings'}><Settings2 className="mr-2" />General Settings</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('branding')} isActive={activeSection === 'branding'}><Brush className="mr-2" />Branding</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('pages')} isActive={activeSection === 'pages'}><FileText className="mr-2" />Page Content</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('shipping')} isActive={activeSection === 'shipping'}><Truck className="mr-2" />Shipping</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('embroidery')} isActive={activeSection === 'embroidery'}><Scissors className="mr-2" />Embroidery</SidebarMenuButton></SidebarMenuItem>
+                        <SidebarMenuItem><SidebarMenuButton type="button" onClick={() => setActiveSection('discounts')} isActive={activeSection === 'discounts'}><Percent className="mr-2" />Discounts</SidebarMenuButton></SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarContent>
              </Sidebar>
