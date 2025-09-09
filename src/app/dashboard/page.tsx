@@ -913,7 +913,7 @@ function DashboardPageContent() {
           <AppHeader />
         </header>
         <div className="flex flex-1">
-          <Sidebar className="sticky top-16 h-[calc(100vh-4rem)]">
+          <Sidebar className="sticky top-16 h-[calc(100vh-4rem)] w-64 hidden lg:flex">
             <SidebarContent className="px-4 pt-6">
               <SidebarMenu className="gap-2">
                 <SidebarMenuItem>
@@ -1260,3 +1260,5 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
+
+    
