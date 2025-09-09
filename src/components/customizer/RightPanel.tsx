@@ -9,7 +9,10 @@ import VariantSelector from './VariantSelector';
 import BoundaryBoxControls from './BoundaryBoxControls';
 import type { ProductForCustomizer, ConfigurableAttribute } from '@/app/customizer/page';
 import type { WCVariation } from '@/types/woocommerce'; 
-import { cn } from '@/lib/utils'; 
+import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { type CustomizationTechnique } from '@/app/actions/productActions';
+import { Button } from '../ui/button';
 
 interface RightPanelProps {
   showGrid: boolean;
@@ -24,6 +27,8 @@ interface RightPanelProps {
   selectedVariationOptions: Record<string, string>; 
   onVariantOptionSelect: (attributeName: string, optionValue: string) => void; 
   productVariations?: WCVariation[] | null; 
+  selectedTechnique: CustomizationTechnique | null;
+  setSelectedTechnique: (technique: CustomizationTechnique) => void;
 }
 
 const RightPanelComponent = ({ 
@@ -39,6 +44,8 @@ const RightPanelComponent = ({
   selectedVariationOptions,
   onVariantOptionSelect,
   productVariations, 
+  selectedTechnique,
+  setSelectedTechnique,
 }: RightPanelProps) => {
   return (
   <div 
@@ -75,6 +82,35 @@ const RightPanelComponent = ({
         </div>
       )}
 
+      {/* Technique Selector */}
+      {productDetails?.customizationTechniques && productDetails.customizationTechniques.length > 0 && (
+          <div>
+              <div className="px-4 pt-3 pb-1 border-t">
+                  <h2 className="font-headline text-lg font-semibold text-foreground">
+                      Customization
+                  </h2>
+              </div>
+              <div className="border-b mx-0"></div>
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-sm text-muted-foreground">Technique:</p>
+                <ToggleGroup
+                  type="single"
+                  value={selectedTechnique ?? undefined}
+                  onValueChange={(value) => {
+                    if (value) setSelectedTechnique(value as CustomizationTechnique);
+                  }}
+                  className="grid grid-cols-2 gap-2"
+                >
+                  {productDetails.customizationTechniques.map(technique => (
+                    <ToggleGroupItem key={technique} value={technique} className="text-xs h-9">
+                      {technique}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+          </div>
+      )}
+
       {/* Product Views Section */}
       <div>
         <div className="px-4 pt-3 pb-1 border-t"> 
@@ -89,6 +125,7 @@ const RightPanelComponent = ({
               productViews={productDetails.views}
               activeViewId={activeViewId}
               setActiveViewId={setActiveViewId}
+              selectedTechnique={selectedTechnique}
             />
           ) : (
             <p className="text-sm text-muted-foreground text-center">No views available.</p>

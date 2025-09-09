@@ -11,7 +11,7 @@ import { UploadProvider, useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import type { ProductOptionsFirestoreData, NativeProductVariation } from '@/app/actions/productOptionsActions';
-import type { NativeProduct } from '@/app/actions/productActions';
+import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -81,6 +81,7 @@ export interface ProductForCustomizer {
   views: ProductView[];
   type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
   allowCustomization?: boolean;
+  customizationTechniques?: CustomizationTechnique[];
   nativeVariations?: NativeProductVariation[];
   nativeAttributes?: { name: string, options: string[] }[];
   meta?: {
@@ -199,6 +200,7 @@ function CustomizerLayoutAndLogic() {
   const [productVariations, setProductVariations] = useState<WCVariation[] | null>(null);
   const [configurableAttributes, setConfigurableAttributes] = useState<ConfigurableAttribute[] | null>(null);
   const [selectedVariationOptions, setSelectedVariationOptions] = useState<Record<string, string>>({});
+  const [selectedTechnique, setSelectedTechnique] = useState<CustomizationTechnique | null>(null);
 
   const [loadedOptionsByColor, setLoadedOptionsByColor] = useState<Record<string, ColorGroupOptionsForCustomizer> | null>(null);
   const [loadedGroupingAttributeName, setLoadedGroupingAttributeName] = useState<string | null>(null);
@@ -265,6 +267,7 @@ function CustomizerLayoutAndLogic() {
     setProductVariations(null); setConfigurableAttributes(null);
     setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
     setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0); setActiveViewId(null);
+    setSelectedTechnique(null);
     
     const metaForProduct = { proxyUsed: !!wpApiBaseUrlToUse, configUserIdUsed: configUserIdToUse, source };
 
@@ -286,7 +289,7 @@ function CustomizerLayoutAndLogic() {
     }
 
     const userIdForFirestoreOptions = configUserIdToUse || user?.uid;
-    let baseProductDetails: { id: string; name: string; type: ProductForCustomizer['type']; basePrice: number; };
+    let baseProductDetails: { id: string; name: string; type: ProductForCustomizer['type']; basePrice: number; customizationTechniques?: CustomizationTechnique[] };
     let fetchedVariations: WCVariation[] | null = null;
 
     if (source === 'shopify') {
@@ -346,6 +349,7 @@ function CustomizerLayoutAndLogic() {
                 name: nativeProduct.name,
                 type: 'simple', // Will be overridden by options if available
                 basePrice: 0, // Will be overridden by options
+                customizationTechniques: nativeProduct.customizationTechniques
             };
         } catch (e: any) {
             setError(`${e.message}. Displaying default.`);
@@ -396,13 +400,18 @@ function CustomizerLayoutAndLogic() {
     finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
     setViewBaseImages(baseImagesMapFinal);
     
-    const productWithViews = {
+    const productWithViews: ProductForCustomizer = {
       ...baseProductDetails,
       views: finalDefaultViews,
       allowCustomization: true,
       nativeVariations: firestoreOptions?.nativeVariations,
-      meta: metaForProduct
+      meta: metaForProduct,
+      customizationTechniques: baseProductDetails.customizationTechniques
     };
+
+    if (productWithViews.customizationTechniques && productWithViews.customizationTechniques.length > 0) {
+        setSelectedTechnique(productWithViews.customizationTechniques[0]);
+    }
 
     if (source === 'customizer-studio' && firestoreOptions?.nativeAttributes) {
         const nativeAttrs: ConfigurableAttribute[] = [];
@@ -555,6 +564,8 @@ function CustomizerLayoutAndLogic() {
                 imageUrl: base.url,
                 aiHint: base.aiHint,
                 price: prevProductDetails.views.find(v => v.id === id)?.price,
+                embroideryAdditionalFee: prevProductDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
+                printAdditionalFee: prevProductDetails.views.find(v => v.id === id)?.printAdditionalFee,
                 boundaryBoxes: prevProductDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
             }));
         }
@@ -590,13 +601,19 @@ function CustomizerLayoutAndLogic() {
     if (productDetails?.views) {
       viewsToPrice.forEach(viewId => {
         const view = productDetails.views.find(v => v.id === viewId);
-        viewSurcharges += view?.price ?? 0;
+        if (view) {
+          if (selectedTechnique === 'Embroidery') {
+            viewSurcharges += view.embroideryAdditionalFee ?? view.price ?? 0;
+          } else {
+            viewSurcharges += view.printAdditionalFee ?? view.price ?? 0;
+          }
+        }
       });
     }
 
     const basePrice = productDetails?.basePrice ?? 0;
     setTotalCustomizationPrice(basePrice + viewSurcharges);
-  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, activeViewId]);
+  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, activeViewId, selectedTechnique]);
 
   const getToolPanelTitle = (toolId: string): string => {
     const tool = toolItems.find(item => item.id === toolId);
@@ -884,6 +901,8 @@ function CustomizerLayoutAndLogic() {
             selectedVariationOptions={selectedVariationOptions}
             onVariantOptionSelect={handleVariantOptionSelect} 
             productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
+            selectedTechnique={selectedTechnique}
+            setSelectedTechnique={setSelectedTechnique}
           />
         </div>
 
@@ -927,7 +946,7 @@ function CustomizerLayoutAndLogic() {
 export default function CustomizerPage() {
   return (
     <UploadProvider>
-      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> </div> }>
+      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> d> </div> }>
         <CustomizerLayoutAndLogic />
       </Suspense>
     </UploadProvider>

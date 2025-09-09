@@ -4,6 +4,7 @@
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
 import type { ProductView as CustomizerProductView } from '@/app/customizer/page';
+import type { CustomizationTechnique } from '@/app/actions/productActions';
 
 interface ProductView extends CustomizerProductView {
   price?: number; 
@@ -15,9 +16,10 @@ interface ViewSwitcherProps {
   productViews: ProductView[];
   activeViewId: string | null;
   setActiveViewId: (id: string) => void;
+  selectedTechnique?: CustomizationTechnique | null;
 }
 
-export default function ViewSwitcher({ productViews, activeViewId, setActiveViewId }: ViewSwitcherProps) {
+export default function ViewSwitcher({ productViews, activeViewId, setActiveViewId, selectedTechnique }: ViewSwitcherProps) {
   if (!productViews || productViews.length === 0) {
     return <p className="text-sm text-muted-foreground text-left">No product views to display.</p>;
   }
@@ -29,12 +31,13 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
       </h4>
       <div className="flex flex-wrap justify-start gap-2">
         {productViews.map((view, index) => {
-          // Determine the highest potential fee to display for clarity in the customizer
-          const displayPrice = Math.max(
-            view.price ?? 0, 
-            view.embroideryAdditionalFee ?? 0,
-            view.printAdditionalFee ?? 0
-          );
+          let displayPrice = 0;
+          if (selectedTechnique === 'Embroidery') {
+              displayPrice = view.embroideryAdditionalFee ?? view.price ?? 0;
+          } else {
+              // Default to print fee if available, otherwise base view price
+              displayPrice = Math.max(view.printAdditionalFee ?? 0, view.price ?? 0);
+          }
           
           return (
             <button
