@@ -917,25 +917,25 @@ function DashboardPageContent() {
             <SidebarContent className="px-4 pt-6">
               <SidebarMenu className="gap-2">
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('products')} isActive={activeTab === 'products'} size="lg" className="w-full justify-start">
                     <PackageIcon className="mr-2 h-5 w-5" />
                     <span>Products</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                   <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('categories')} isActive={activeTab === 'categories'} size="lg" className="w-full justify-start">
                     <FolderIcon className="mr-2 h-5 w-5" />
                     <span>Categories</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('my-stores')} isActive={activeTab === 'my-stores'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('my-stores')} isActive={activeTab === 'my-stores'} size="lg" className="w-full justify-start">
                     <Store className="mr-2 h-5 w-5" />
                     <span>My Stores</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('storeIntegration')} isActive={activeTab === 'storeIntegration'} size="lg" className="w-full justify-start">
                     <Server className="mr-2 h-5 w-5" />
                     <span>Integrations</span>
                   </SidebarMenuButton>
@@ -946,7 +946,7 @@ function DashboardPageContent() {
               <SidebarMenu className="gap-2">
                 {user.role === 'admin' && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild size="default" className="w-full justify-start font-semibold text-primary border-2 border-primary/50 bg-primary/10 hover:bg-primary/20">
+                    <SidebarMenuButton asChild size="lg" className="w-full justify-start font-semibold text-primary border-2 border-primary/50 bg-primary/10 hover:bg-primary/20">
                       <Link href="/admin">
                         <ShieldCheck className="mr-2 h-5 w-5" />
                         <span>Admin Panel</span>
@@ -955,13 +955,13 @@ function DashboardPageContent() {
                   </SidebarMenuItem>
                 )}
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} size="lg" className="w-full justify-start">
                     <Settings className="mr-2 h-5 w-5" />
                     <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setActiveTab('profile')} isActive={activeTab === 'profile'} size="default" className="w-full justify-start">
+                  <SidebarMenuButton onClick={() => setActiveTab('profile')} isActive={activeTab === 'profile'} size="lg" className="w-full justify-start">
                     <UserCircle className="mr-2 h-5 w-5" />
                     <span>Profile</span>
                   </SidebarMenuButton>
