@@ -313,12 +313,14 @@ export default function ProductDetailPage() {
                                 <button
                                     key={`${view.id}-${index}`}
                                     className={cn(
-                                        "w-20 rounded-md border-2 p-1 transition flex flex-col items-center justify-center",
-                                        activeImage === view.imageUrl ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'
+                                        "w-20 rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center",
+                                        activeImage === view.imageUrl ? 'border-primary opacity-100 ring-1 ring-primary ring-offset-background shadow-sm' : 'border-transparent opacity-70 hover:border-muted-foreground/30 bg-muted/30 hover:bg-muted/50'
                                     )}
                                     onClick={() => setActiveImage(view.imageUrl)}
+                                    title={`Select ${view.name} view`}
+                                    aria-pressed={activeImage === view.imageUrl}
                                 >
-                                    <div className="relative w-full h-16 bg-muted/30 rounded-sm overflow-hidden">
+                                    <div className="relative w-full h-16 bg-background rounded-sm overflow-hidden shadow-sm">
                                          <Image
                                             src={view.imageUrl}
                                             alt={view.name || product.name}
