@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -389,6 +390,9 @@ function CustomizerLayoutAndLogic() {
 
     if (source === 'customizer-studio' && firestoreOptions) {
         baseProductDetails.type = firestoreOptions.type;
+        baseProductDetails.basePrice = firestoreOptions.price;
+    } else if (firestoreOptions?.price) {
+        // Apply Firestore price override if it exists
         baseProductDetails.basePrice = firestoreOptions.price;
     }
 
@@ -945,7 +949,7 @@ function CustomizerLayoutAndLogic() {
 export default function CustomizerPage() {
   return (
     <UploadProvider>
-      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> d> </div> }>
+      <Suspense fallback={ <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-3 text-muted-foreground">Loading customizer page...</p> </div> }>
         <CustomizerLayoutAndLogic />
       </Suspense>
     </UploadProvider>
