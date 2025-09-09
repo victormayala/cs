@@ -181,6 +181,7 @@ function CustomizerLayoutAndLogic() {
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
   const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]);
+  const basePriceFromUrl = useMemo(() => searchParams.get('basePrice'), [searchParams]);
 
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -390,10 +391,11 @@ function CustomizerLayoutAndLogic() {
 
     if (source === 'customizer-studio' && firestoreOptions) {
         baseProductDetails.type = firestoreOptions.type;
-        baseProductDetails.basePrice = firestoreOptions.price;
+        baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
     } else if (firestoreOptions?.price) {
-        // Apply Firestore price override if it exists
-        baseProductDetails.basePrice = firestoreOptions.price;
+        baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
+    } else if (basePriceFromUrl) {
+        baseProductDetails.basePrice = parseFloat(basePriceFromUrl);
     }
 
     setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
@@ -478,7 +480,7 @@ function CustomizerLayoutAndLogic() {
     }
     
     setIsLoading(false);
-  }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot]);
+  }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot, basePriceFromUrl]);
 
 
   useEffect(() => {

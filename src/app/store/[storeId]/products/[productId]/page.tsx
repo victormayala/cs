@@ -272,8 +272,8 @@ export default function ProductDetailPage() {
       );
   }
 
-  // The link to the customizer, now with storeId
-  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}&storeId=${storeId}`;
+  const priceToPass = currentPriceInfo.salePrice ?? currentPriceInfo.price;
+  const customizerLink = `/customizer?productId=${product.id}&source=customizer-studio&configUserId=${storeConfig?.userId}&storeId=${storeId}&basePrice=${priceToPass}`;
 
   const showEmbroideryFeeMessage = 
     storeConfig?.embroidery?.setupFeeEnabled &&
@@ -405,19 +405,16 @@ export default function ProductDetailPage() {
                              {product.customizationTechniques && product.customizationTechniques.length > 0 && (
                                 <div>
                                     <h3 className="text-sm font-medium text-foreground mb-2">Available Techniques:</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                    {product.customizationTechniques.map(technique => (
-                                        <Button
-                                            key={technique}
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setSelectedTechnique(technique)}
-                                            className={cn("h-9", selectedTechnique === technique && 'bg-primary text-primary-foreground hover:bg-primary/90')}
-                                        >
-                                            {technique}
-                                        </Button>
-                                    ))}
-                                    </div>
+                                    <RadioGroup value={selectedTechnique ?? ''} onValueChange={(value) => setSelectedTechnique(value as CustomizationTechnique)} className="flex flex-wrap gap-2">
+                                        {product.customizationTechniques.map(technique => (
+                                            <div key={technique} className="flex items-center">
+                                                <RadioGroupItem value={technique} id={technique} className="sr-only" />
+                                                <Label htmlFor={technique} className={cn("inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-secondary hover:text-secondary-foreground h-9 px-3 cursor-pointer", selectedTechnique === technique && 'bg-primary text-primary-foreground hover:bg-primary/90')}>
+                                                    {technique}
+                                                </Label>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
                                 </div>
                             )}
 
