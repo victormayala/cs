@@ -433,31 +433,8 @@ function CreateStorePageContent() {
       <AppHeader />
       <main className="flex-1">
         <form onSubmit={handleSubmit}>
-          <div className="flex justify-between items-center p-4 md:p-6 lg:p-8 lg:pb-0">
-             <div className="flex items-center gap-4">
-              <Button variant="outline" size="icon" asChild>
-                <Link href="/dashboard">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span className="sr-only">Back to Dashboard</span>
-                </Link>
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight font-headline text-foreground">
-                  {storeId ? 'Edit Store' : 'Build Your Store'}
-                </h1>
-                <p className="text-muted-foreground text-sm">
-                  {storeName ? `Editing: ${storeName}` : 'Create and configure your new e-commerce storefront.'}
-                </p>
-              </div>
-            </div>
-            <Button type="submit" size="default" disabled={isSaving || !storeName}>
-                {isSaving ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" />) : ( <PackageCheck className="mr-2 h-4 w-4" /> )}
-                {isSaving ? "Saving..." : "Save & Select Products"}
-            </Button>
-          </div>
-
           <div className="flex">
-             <Sidebar className="h-[calc(100vh-8rem)] sticky top-[calc(4rem+1px)] w-64 hidden lg:flex">
+             <Sidebar className="h-[calc(100vh-4rem)] sticky top-[calc(4rem+1px)] w-64 hidden lg:flex">
                 <SidebarContent>
                     <SidebarMenu>
                         <SidebarMenuItem>
@@ -483,6 +460,29 @@ function CreateStorePageContent() {
              </Sidebar>
 
             <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-8">
+              <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <Button variant="outline" size="icon" asChild>
+                      <Link href="/dashboard">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span className="sr-only">Back to Dashboard</span>
+                      </Link>
+                    </Button>
+                    <div>
+                      <h1 className="text-2xl font-bold tracking-tight font-headline text-foreground">
+                        {storeId ? 'Edit Store' : 'Build Your Store'}
+                      </h1>
+                      <p className="text-muted-foreground text-sm">
+                        {storeName ? `Editing: ${storeName}` : 'Create and configure your new e-commerce storefront.'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button type="submit" size="default" disabled={isSaving || !storeName}>
+                      {isSaving ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" />) : ( <PackageCheck className="mr-2 h-4 w-4" /> )}
+                      {isSaving ? "Saving..." : "Save & Select Products"}
+                  </Button>
+                </div>
+
               {isSaving && (
                   <Alert variant="default" className="bg-primary/5 border-primary/20">
                     <Zap className="h-4 w-4 text-primary" />
