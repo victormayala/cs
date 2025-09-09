@@ -7,6 +7,8 @@ import type { ProductView as CustomizerProductView } from '@/app/customizer/page
 
 interface ProductView extends CustomizerProductView {
   price?: number; 
+  embroideryAdditionalFee?: number;
+  printAdditionalFee?: number;
 }
 
 interface ViewSwitcherProps {
@@ -27,7 +29,13 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
       </h4>
       <div className="flex flex-wrap justify-start gap-2">
         {productViews.map((view, index) => {
-          const displayPrice = view.price ?? 0;
+          // Determine the highest potential fee to display for clarity in the customizer
+          const displayPrice = Math.max(
+            view.price ?? 0, 
+            view.embroideryAdditionalFee ?? 0,
+            view.printAdditionalFee ?? 0
+          );
+          
           return (
             <button
               key={`${view.id}-${index}`}
