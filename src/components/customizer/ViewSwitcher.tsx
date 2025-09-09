@@ -1,10 +1,10 @@
+
 "use client";
 
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
 import type { ProductView as CustomizerProductView } from '@/app/customizer/page';
 
-// The price is optional here as we are removing it from the view-switching display
 interface ProductView extends CustomizerProductView {
   price?: number; 
 }
@@ -27,6 +27,7 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
       </h4>
       <div className="flex flex-wrap justify-start gap-2">
         {productViews.map((view, index) => {
+          const displayPrice = view.price ?? 0;
           return (
             <button
               key={`${view.id}-${index}`}
@@ -51,6 +52,9 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
                 />
               </div>
               <p className="text-xs mt-1 w-full truncate font-medium">{view.name}</p>
+              {displayPrice > 0 && (
+                <p className="text-xs text-primary/80 font-semibold">+${displayPrice.toFixed(2)}</p>
+              )}
             </button>
           );
         })}

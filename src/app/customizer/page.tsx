@@ -64,6 +64,8 @@ export interface ProductView {
   imageUrl: string;
   aiHint?: string;
   price?: number;
+  embroideryAdditionalFee?: number;
+  printAdditionalFee?: number;
   boundaryBoxes: BoundaryBox[];
 }
 

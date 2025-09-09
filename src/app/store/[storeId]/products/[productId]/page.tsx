@@ -302,16 +302,23 @@ export default function ProductDetailPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            {displayedImages.map((view, index) => (
+                            {displayedImages.map((view, index) => {
+                                let fee = 0;
+                                if (selectedTechnique === 'Embroidery') {
+                                    fee = view.embroideryAdditionalFee ?? 0;
+                                } else if (selectedTechnique && ['DTF', 'DTG', 'Screen Printing', 'Sublimation'].includes(selectedTechnique)) {
+                                    fee = view.printAdditionalFee ?? 0;
+                                }
+                                return (
                                 <button
                                     key={`${view.id}-${index}`}
                                     className={cn(
-                                        "w-20 h-20 rounded-md border-2 overflow-hidden bg-muted/50 transition",
+                                        "w-20 rounded-md border-2 p-1 transition flex flex-col items-center justify-center",
                                         activeImage === view.imageUrl ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'
                                     )}
                                     onClick={() => setActiveImage(view.imageUrl)}
                                 >
-                                    <div className="relative w-full h-full">
+                                    <div className="relative w-full h-16 bg-muted/30 rounded-sm overflow-hidden">
                                          <Image
                                             src={view.imageUrl}
                                             alt={view.name || product.name}
@@ -319,8 +326,10 @@ export default function ProductDetailPage() {
                                             className="object-contain"
                                         />
                                     </div>
+                                    <span className="text-xs mt-1 w-full truncate font-medium">{view.name}</span>
+                                    {fee > 0 && <span className="text-xs text-primary font-semibold">+${fee.toFixed(2)}</span>}
                                 </button>
-                            ))}
+                            )})}
                         </div>
                     </div>
                     {/* Product Info */}
