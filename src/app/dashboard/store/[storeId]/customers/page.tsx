@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, getDocs, limit, startAfter, endBefore, documentId, getDoc, QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, getDocs, limit, startAfter, endBefore, documentId, getDoc, QueryDocumentSnapshot, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
