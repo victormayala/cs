@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, Pencil, PlusCircle, Maximize2, Trash2, UploadCloud, FolderIcon } from 'lucide-react';
+import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon, Tag, Edit2, DollarSign, PlugZap, Edit3, Save, Settings, Palette, Ruler, X, Info, Gem, Package, Truck as TruckIcon, Pencil, PlusCircle, Maximize2, Trash2, UploadCloud, FolderIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -458,6 +458,23 @@ function ProductOptionsPage() {
         });
     }, [regenerateVariations]);
 
+    const handleReorderAttribute = useCallback((type: 'colors' | 'sizes', index: number, direction: 'up' | 'down') => {
+        setProductOptions(prev => {
+            if (!prev) return null;
+            const list = [...prev.nativeAttributes[type]];
+            const targetIndex = direction === 'up' ? index - 1 : index + 1;
+            if (targetIndex < 0 || targetIndex >= list.length) return prev;
+            
+            const temp = list[index];
+            list[index] = list[targetIndex];
+            list[targetIndex] = temp;
+
+            const updatedAttributes = { ...prev.nativeAttributes, [type]: list };
+            setHasUnsavedChanges(true);
+            return { ...prev, nativeAttributes: updatedAttributes };
+        });
+    }, []);
+
     const handleCustomizationTechniqueChange = (technique: CustomizationTechnique, checked: boolean) => {
         setHasUnsavedChanges(true);
         setProductOptions(prev => {
@@ -848,8 +865,8 @@ function ProductOptionsPage() {
                                 <div><Label className="flex items-center mb-2"><Gem className="h-4 w-4 mr-2 text-primary" /> Customization Techniques</Label><div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">{CUSTOMIZATION_TECHNIQUES_OPTIONS.map(technique => (<div key={technique} className="flex items-center space-x-2"><Checkbox id={`tech-${technique}`} checked={productOptions.customizationTechniques?.includes(technique)} onCheckedChange={(checked) => handleCustomizationTechniqueChange(technique, checked as boolean)} /><Label htmlFor={`tech-${technique}`} className="font-normal">{technique}</Label></div>))}</div></div>
                                 <Separator />
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.colors.map((color) => (<Badge key={`${color.name}-${color.hex}`} variant="secondary" className="text-sm"><div className="w-3 h-3 rounded-full mr-1.5 border" style={{ backgroundColor: color.hex }}></div>{color.name}<button onClick={() => handleRemoveAttribute('colors', color.name)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
-                                    <div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes'); } }} /><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="flex flex-wrap gap-2 mt-2">{productOptions.nativeAttributes.sizes.map((size) => (<Badge key={size.id} variant="secondary" className="text-sm">{size.name}<button onClick={() => handleRemoveAttribute('sizes', size.id)} className="ml-1.5 rounded-full p-0.5 hover:bg-destructive/20"><X className="h-3 w-3" /></button></Badge>))}</div></div>
+                                    <div><Label className="flex items-center mb-2"><Palette className="h-4 w-4 mr-2 text-primary" /> Colors</Label><div className="flex items-center gap-2"><Input id="color-input" placeholder="e.g., Red" value={colorInputValue} onChange={e => setColorInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('colors'); } }} /><Input id="color-hex-input" type="color" value={colorHexValue} onChange={e => setColorHexValue(e.target.value)} className="p-1 h-10 w-12" /><Button type="button" onClick={() => handleAddAttribute('colors')}>Add</Button></div><div className="space-y-2 mt-2">{productOptions.nativeAttributes.colors.map((color, index) => (<div key={`${color.name}-${color.hex}`} className="flex items-center gap-2 p-1 rounded-md hover:bg-muted/50"><div className="w-5 h-5 rounded-full border flex-shrink-0" style={{ backgroundColor: color.hex }}></div><span className="text-sm flex-grow">{color.name}</span><div className="flex items-center"><Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleReorderAttribute('colors', index, 'up')} disabled={index === 0}><ArrowUp className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleReorderAttribute('colors', index, 'down')} disabled={index === productOptions.nativeAttributes.colors.length - 1}><ArrowDown className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveAttribute('colors', color.name)}><X className="h-4 w-4" /></Button></div></div>))}</div></div>
+                                    <div><Label htmlFor="size-input" className="flex items-center mb-2"><Ruler className="h-4 w-4 mr-2 text-primary" /> Sizes</Label><div className="flex gap-2"><Input id="size-input" placeholder="e.g., XL" value={sizeInputValue} onChange={e => setSizeInputValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttribute('sizes'); } }} /><Button type="button" onClick={() => handleAddAttribute('sizes')}>Add</Button></div><div className="space-y-2 mt-2">{productOptions.nativeAttributes.sizes.map((size, index) => (<div key={size.id} className="flex items-center gap-2 p-1 rounded-md hover:bg-muted/50"><span className="text-sm flex-grow">{size.name}</span><div className="flex items-center"><Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleReorderAttribute('sizes', index, 'up')} disabled={index === 0}><ArrowUp className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleReorderAttribute('sizes', index, 'down')} disabled={index === productOptions.nativeAttributes.sizes.length - 1}><ArrowDown className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveAttribute('sizes', size.id)}><X className="h-4 w-4" /></Button></div></div>))}</div></div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -1126,3 +1143,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+

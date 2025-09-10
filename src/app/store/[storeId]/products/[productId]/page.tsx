@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -405,7 +406,9 @@ export default function ProductDetailPage() {
                              {product.customizationTechniques && product.customizationTechniques.length > 0 && (
                                 <div>
                                     <h3 className="text-sm font-medium text-foreground mb-2">Available Techniques:</h3>
-                                    <RadioGroup value={selectedTechnique ?? ''} onValueChange={(value) => setSelectedTechnique(value as CustomizationTechnique)} className="flex flex-wrap gap-2">
+                                    <RadioGroup value={selectedTechnique ?? ''} onValueChange={(value) => {
+                                        if (value) setSelectedTechnique(value as CustomizationTechnique);
+                                    }} className="flex flex-wrap gap-2">
                                         {product.customizationTechniques.map(technique => (
                                             <div key={technique} className="flex items-center">
                                                 <RadioGroupItem value={technique} id={technique} className="sr-only" />
