@@ -1,5 +1,4 @@
 
-
 'use server';
 
 // This server action file is now deprecated for saving store config, as the operation has been
@@ -26,6 +25,14 @@ interface HomePageContent {
     backgroundImageUrl?: string;
   };
   features: {
+    enabled: boolean;
+    title: string;
+    items: {
+      title: string;
+      description: string;
+    }[];
+  };
+  shipping: {
     enabled: boolean;
     title: string;
     items: {

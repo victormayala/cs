@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import type { PublicProduct } from '@/types/product';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { ArrowRight, Star } from 'lucide-react';
+import { ArrowRight, Star, Truck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { StoreHeader } from '../StoreHeader';
@@ -102,16 +102,47 @@ export function MarketingLayout({ storeConfig, products, isLoading }: MarketingL
             </section>
         )}
 
+        {/* Shipping Info Section */}
+        {pageContent?.shipping?.enabled && pageContent.shipping.items.length > 0 && (
+            <section className="py-16 md:py-24 bg-background">
+              <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
+                <div className="relative aspect-video w-full bg-gray-100 rounded-lg overflow-hidden">
+                      <Image
+                        src="https://picsum.photos/seed/shipping-marketing/500/350"
+                        alt="Shipping and delivery"
+                        fill
+                        className="object-cover"
+                        data-ai-hint="delivery packages"
+                      />
+                </div>
+                <div>
+                     <h2 className="text-3xl font-bold font-headline mb-6">{pageContent.shipping.title || 'Fast & Reliable Delivery'}</h2>
+                     <ul className="space-y-4">
+                        {pageContent.shipping.items.map((item, index) => (
+                            <li key={index} className="flex items-start">
+                                <Truck className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
+                                <div>
+                                    <h4 className="font-semibold">{item.title}</h4>
+                                    <p className="text-muted-foreground">{item.description}</p>
+                                </div>
+                            </li>
+                        ))}
+                     </ul>
+                </div>
+              </div>
+            </section>
+        )}
+
         {/* Testimonials */}
         {pageContent?.testimonials?.enabled && pageContent.testimonials.items.length > 0 && (
-            <section className="py-16 md:py-24 bg-background">
+            <section className="py-16 md:py-24 bg-card">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold font-headline">{pageContent.testimonials.title || 'Loved By Creators Like You'}</h2>
                 </div>
                 <div className="grid md:grid-cols-3 gap-8">
                     {pageContent.testimonials.items.map((testimonial, index) => (
-                        <div key={index} className="bg-card p-6 rounded-lg border text-center">
+                        <div key={index} className="bg-background p-6 rounded-lg border text-center">
                             <div className="flex justify-center text-yellow-400 mb-2">{[...Array(5)].map((_,i)=><Star key={i} fill="currentColor"/>)}</div>
                             <p className="text-muted-foreground italic">"{testimonial.quote}"</p>
                             <p className="font-semibold mt-3">- {testimonial.author}</p>

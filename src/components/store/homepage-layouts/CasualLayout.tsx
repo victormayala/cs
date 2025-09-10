@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import type { PublicProduct } from '@/types/product';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { ArrowRight, ShoppingBag, Heart, Gift, Star } from 'lucide-react';
+import { ArrowRight, ShoppingBag, Heart, Gift, Star, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { StoreHeader } from '../StoreHeader';
 import { StoreFooter } from '../StoreFooter';
@@ -81,9 +81,27 @@ export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutP
           </div>
         </section>
 
+        {/* Shipping Section */}
+        {pageContent?.shipping?.enabled && pageContent.shipping.items.length > 0 && (
+            <section className="py-16 md:py-24 bg-muted/30">
+                <div className="container mx-auto px-4">
+                    <h2 className="text-3xl font-bold font-headline text-center mb-10">{pageContent.shipping.title || 'Delivery Information'}</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                        {pageContent.shipping.items.map((item, index) => (
+                            <div key={index} className="p-4">
+                                <Truck className="h-10 w-10 mx-auto mb-4 text-primary" />
+                                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
+                                <p className="text-muted-foreground">{item.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        )}
+
         {/* Features Section */}
         {pageContent?.features?.enabled && pageContent.features.items.length > 0 && (
-            <section className="py-16 md:py-24 bg-muted/20">
+            <section className="py-16 md:py-24 bg-background">
                 <div className="container mx-auto px-4">
                     <h2 className="text-3xl font-bold font-headline text-center mb-10">{pageContent.features.title || 'Why Choose Us?'}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">

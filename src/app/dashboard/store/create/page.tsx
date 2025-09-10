@@ -132,6 +132,7 @@ function CreateStorePageContent() {
     homepage: { 
         hero: { headline: '', subheading: '', primaryButtonText: '', secondaryButtonText: '', backgroundImageUrl: '' },
         features: { enabled: true, title: 'Why Choose Us?', items: [{ title: '', description: ''}] },
+        shipping: { enabled: true, title: 'Delivery Information', items: [{ title: '', description: '' }] },
         testimonials: { enabled: true, title: 'What Our Customers Say', items: [{ quote: '', author: ''}] },
         callToAction: { enabled: true, headline: '', subheading: '', buttonText: '' }
     },
@@ -271,7 +272,7 @@ function CreateStorePageContent() {
       }));
   };
 
-  const handleHomepageNestedItemChange = <T extends 'features' | 'testimonials'>(section: T, index: number, field: keyof HomePageContent[T]['items'][number], value: string) => {
+  const handleHomepageNestedItemChange = <T extends 'features' | 'testimonials' | 'shipping'>(section: T, index: number, field: keyof HomePageContent[T]['items'][number], value: string) => {
     setPageContent(prev => {
         const sectionContent = prev.homepage?.[section];
         if (!sectionContent) return prev;
@@ -290,11 +291,17 @@ function CreateStorePageContent() {
     });
   };
 
-  const addHomepageNestedItem = (section: 'features' | 'testimonials') => {
+  const addHomepageNestedItem = (section: 'features' | 'testimonials' | 'shipping') => {
       setPageContent(prev => {
           const sectionContent = prev.homepage?.[section];
           if (!sectionContent) return prev;
-          const newItem = section === 'features' ? { title: '', description: '' } : { quote: '', author: '' };
+          let newItem;
+          if (section === 'features' || section === 'shipping') {
+            newItem = { title: '', description: '' };
+          } else {
+            newItem = { quote: '', author: '' };
+          }
+          
           return {
               ...prev,
               homepage: {
@@ -305,7 +312,7 @@ function CreateStorePageContent() {
       });
   };
 
-  const removeHomepageNestedItem = (section: 'features' | 'testimonials', index: number) => {
+  const removeHomepageNestedItem = (section: 'features' | 'testimonials' | 'shipping', index: number) => {
       setPageContent(prev => {
           const sectionContent = prev.homepage?.[section];
           if (!sectionContent) return prev;
@@ -519,6 +526,15 @@ function CreateStorePageContent() {
                                         <div className="space-y-1"><Label htmlFor="features-title">Section Title</Label><Input id="features-title" value={pageContent.homepage?.features?.title || ''} onChange={e => handleHomepageContentChange('features', 'title', e.target.value)} /></div>
                                         {pageContent.homepage?.features?.items.map((item, index) => (<div key={index} className="p-3 border rounded-md space-y-2 relative"><Label>Feature {index+1}</Label><Input placeholder="Feature Title" value={item.title} onChange={e => handleHomepageNestedItemChange('features', index, 'title', e.target.value)} /><Textarea placeholder="Feature Description" value={item.description} onChange={e => handleHomepageNestedItemChange('features', index, 'description', e.target.value)} /><Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeHomepageNestedItem('features', index)}><Trash2 className="h-4 w-4" /></Button></div>))}
                                         <Button type="button" variant="outline" onClick={() => addHomepageNestedItem('features')}><PlusCircle className="mr-2 h-4 w-4" /> Add Feature</Button>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="shipping">
+                                    <AccordionTrigger className="text-base font-semibold px-3 bg-muted/50 rounded-md">Shipping Info Section</AccordionTrigger>
+                                    <AccordionContent className="p-4 space-y-4">
+                                        <div className="flex items-center space-x-2"><Checkbox id="shipping-enabled" checked={pageContent.homepage?.shipping?.enabled} onCheckedChange={checked => handleHomepageContentChange('shipping', 'enabled', !!checked)}/><Label htmlFor="shipping-enabled">Show Shipping Info Section</Label></div>
+                                        <div className="space-y-1"><Label htmlFor="shipping-title">Section Title</Label><Input id="shipping-title" value={pageContent.homepage?.shipping?.title || ''} onChange={e => handleHomepageContentChange('shipping', 'title', e.target.value)} /></div>
+                                        {pageContent.homepage?.shipping?.items.map((item, index) => (<div key={index} className="p-3 border rounded-md space-y-2 relative"><Label>Feature {index+1}</Label><Input placeholder="e.g., Fast Shipping" value={item.title} onChange={e => handleHomepageNestedItemChange('shipping', index, 'title', e.target.value)} /><Textarea placeholder="e.g., Orders ship within 2 business days." value={item.description} onChange={e => handleHomepageNestedItemChange('shipping', index, 'description', e.target.value)} /><Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeHomepageNestedItem('shipping', index)}><Trash2 className="h-4 w-4" /></Button></div>))}
+                                        <Button type="button" variant="outline" onClick={() => addHomepageNestedItem('shipping')}><PlusCircle className="mr-2 h-4 w-4" /> Add Shipping Feature</Button>
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="testimonials">

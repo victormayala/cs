@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import type { PublicProduct } from '@/types/product';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { ArrowRight, Building, CheckCircle } from 'lucide-react';
+import { ArrowRight, Building, CheckCircle, Truck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { StoreHeader } from '../StoreHeader';
@@ -108,6 +108,37 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
             )}
         </div>
       </section>
+
+      {/* Shipping Info Section */}
+      {pageContent?.shipping?.enabled && pageContent.shipping.items.length > 0 && (
+          <section className="py-16 bg-gray-50 border-t">
+            <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                     <h2 className="text-3xl font-bold font-headline text-gray-900 mb-6">{pageContent.shipping.title || 'Reliable & Efficient Delivery'}</h2>
+                     <ul className="space-y-4">
+                        {pageContent.shipping.items.map((item, index) => (
+                            <li key={index} className="flex items-start">
+                                <Truck className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
+                                <div>
+                                    <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                                    <p className="text-gray-600">{item.description}</p>
+                                </div>
+                            </li>
+                        ))}
+                     </ul>
+                </div>
+                <div className="relative aspect-video w-full bg-gray-100 rounded-lg overflow-hidden">
+                     <Image
+                        src="https://picsum.photos/seed/shipping-corporate/500/350"
+                        alt="Shipping and delivery"
+                        fill
+                        className="object-cover"
+                        data-ai-hint="delivery logistics"
+                      />
+                </div>
+            </div>
+          </section>
+      )}
 
       {/* Testimonials */}
       {pageContent?.testimonials?.enabled && pageContent.testimonials.items.length > 0 && (
