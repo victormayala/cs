@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import AppHeader from '@/components/layout/AppHeader';
 import { ArrowLeft, Loader2, AlertTriangle, Users, ShoppingCart, DollarSign, BarChart2 } from 'lucide-react';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 import type { StoreOrder, StoreCustomer, SalesData } from '@/lib/data-types';
@@ -26,7 +25,6 @@ function StoreDashboardPage() {
   const { user, isLoading: authIsLoading } = useAuth();
   const { toast } = useToast();
 
-  const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [customers, setCustomers] = useState<StoreCustomer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,19 +35,6 @@ function StoreDashboardPage() {
       if (!authIsLoading) setIsLoading(false);
       return;
     }
-    setIsLoading(true);
-
-    const storeRef = doc(db, 'userStores', storeId);
-    getDoc(storeRef).then(docSnap => {
-      if (docSnap.exists() && docSnap.data().userId === user.uid) {
-        setStoreConfig({ id: docSnap.id, ...docSnap.data() } as UserStoreConfig);
-      } else {
-        setError("Store not found or permission denied.");
-      }
-    }).catch(err => {
-      setError(`Failed to load store: ${err.message}`);
-      console.error(err);
-    });
 
     const ordersQuery = query(
         collection(db, `users/${user.uid}/orders`), 
@@ -57,18 +42,17 @@ function StoreDashboardPage() {
         orderBy("createdAt", "desc"),
         limit(5)
     );
-    // Removed orderBy from customers query to avoid needing a composite index for now.
     const customersQuery = query(
         collection(db, `users/${user.uid}/customers`), 
         where("storeId", "==", storeId),
-        limit(50) // Fetch more customers for stats
+        limit(50) 
     );
 
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
         const fetchedOrders: StoreOrder[] = [];
         snapshot.forEach(doc => fetchedOrders.push({ id: doc.id, ...doc.data() } as StoreOrder));
         setOrders(fetchedOrders);
-        setIsLoading(false);
+        if(!customers.length) setIsLoading(false);
     }, (err) => {
         setError(`Failed to load orders: ${err.message}`);
         setIsLoading(false);
@@ -78,6 +62,7 @@ function StoreDashboardPage() {
         const fetchedCustomers: StoreCustomer[] = [];
         snapshot.forEach(doc => fetchedCustomers.push({ id: doc.id, ...doc.data() } as StoreCustomer));
         setCustomers(fetchedCustomers);
+        if(!orders.length) setIsLoading(false);
     }, (err) => {
         setError(`Failed to load customers: ${err.message}`);
     });
@@ -120,48 +105,24 @@ function StoreDashboardPage() {
 
   if (isLoading || authIsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="flex items-center justify-center p-8">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">Loading Store Dashboard...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+      <div className="flex flex-col items-center justify-center p-4">
         <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Dashboard</h2>
-        <p className="text-muted-foreground text-center mb-6">{error}</p>
-        <Button variant="outline" asChild>
-          <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Back to Main Dashboard</Link>
-        </Button>
+        <h2 className="text-xl font-semibold text-destructive">Error Loading Dashboard</h2>
+        <p className="text-muted-foreground">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-muted/20">
-      <AppHeader />
-      <main className="flex-1 p-4 md:p-6 lg:p-8">
-        <div className="container mx-auto space-y-8">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" asChild>
-                <Link href="/dashboard">
-                    <ArrowLeft className="h-4 w-4" />
-                    <span className="sr-only">Back to Dashboard</span>
-                </Link>
-            </Button>
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">
-                    {storeConfig?.storeName} Dashboard
-                </h1>
-                <p className="text-muted-foreground">
-                    Analytics and insights for your store.
-                </p>
-            </div>
-          </div>
-          
+        <div className="space-y-8">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Revenue</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div></CardContent></Card>
             <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Sales</CardTitle><ShoppingCart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">+{stats.totalSales}</div></CardContent></Card>
@@ -214,10 +175,7 @@ function StoreDashboardPage() {
               </CardContent>
             </Card>
           </div>
-
         </div>
-      </main>
-    </div>
   );
 }
 
