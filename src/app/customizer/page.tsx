@@ -852,7 +852,7 @@ function CustomizerLayoutAndLogic() {
   
   const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
   const pdpLink = isNativeStoreContext && storeIdFromUrl && productIdFromUrl
-    ? `/store/${storeIdFromUrl}/products/${productIdFromUrl}`
+    ? `/store/${storeIdFromUrl}/shop/${productIdFromUrl}`
     : `/dashboard`;
 
   if (error && !productDetails) { 
