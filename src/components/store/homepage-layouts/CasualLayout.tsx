@@ -20,6 +20,9 @@ interface CasualLayoutProps {
 
 export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
+  const secondaryButtonLink = pageContent?.hero?.secondaryButtonLink || `/store/${storeConfig.id}/products`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
 
   return (
     <>
@@ -45,13 +48,13 @@ export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutP
                 </p>
                 <div className="flex gap-4 justify-center">
                 <Button size="lg" asChild style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
-                    <Link href={`/store/${storeConfig.id}/products`}>
+                    <Link href={primaryButtonLink}>
                     {pageContent?.hero?.primaryButtonText || 'Shop All Products'} <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                 </Button>
                 {pageContent?.hero?.secondaryButtonText && (
                     <Button size="lg" variant="outline" asChild>
-                    <Link href={`/store/${storeConfig.id}/products`}>
+                    <Link href={secondaryButtonLink}>
                         {pageContent.hero.secondaryButtonText}
                     </Link>
                     </Button>
@@ -146,7 +149,7 @@ export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutP
                     </p>
                 </div>
                 <Button size="lg" asChild className="flex-shrink-0" style={{ backgroundColor: `hsl(var(--secondary))`, color: `hsl(var(--secondary-foreground))` }}>
-                    <Link href={`/store/${storeConfig.id}/products`}>
+                    <Link href={ctaButtonLink}>
                     <ShoppingBag className="mr-2 h-5 w-5" />
                     {pageContent.callToAction.buttonText || 'Browse Products'}
                     </Link>

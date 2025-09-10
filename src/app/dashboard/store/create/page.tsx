@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Truck, PackageCheck, Scissors, FileText, Settings2, Brush, Star, MessageSquare } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Truck, PackageCheck, Scissors, FileText, Settings2, Brush, Star, MessageSquare, Link as LinkIcon } from "lucide-react";
+import Link from 'next/link';
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
@@ -130,11 +130,11 @@ function CreateStorePageContent() {
 
   const [pageContent, setPageContent] = useState<PageContent>({
     homepage: { 
-        hero: { headline: '', subheading: '', primaryButtonText: '', secondaryButtonText: '', backgroundImageUrl: '' },
+        hero: { headline: '', subheading: '', primaryButtonText: '', primaryButtonLink: '', secondaryButtonText: '', secondaryButtonLink: '', backgroundImageUrl: '' },
         features: { enabled: true, title: 'Why Choose Us?', items: [{ title: '', description: ''}] },
         shipping: { enabled: true, title: 'Delivery Information', items: [{ title: '', description: '' }] },
         testimonials: { enabled: true, title: 'What Our Customers Say', items: [{ quote: '', author: ''}] },
-        callToAction: { enabled: true, headline: '', subheading: '', buttonText: '' }
+        callToAction: { enabled: true, headline: '', subheading: '', buttonText: '', buttonLink: '' }
     },
     about: { title: 'About Us', body: '' },
     faq: { title: 'Frequently Asked Questions', introduction: '', questions: [{ question: '', answer: '' }] },
@@ -526,9 +526,13 @@ function CreateStorePageContent() {
                                     <AccordionContent className="p-4 space-y-4">
                                         <div className="space-y-1"><Label htmlFor="hero-headline">Headline</Label><Input id="hero-headline" value={pageContent.homepage?.hero?.headline || ''} onChange={e => handleHomepageContentChange('hero', 'headline', e.target.value)} /></div>
                                         <div className="space-y-1"><Label htmlFor="hero-subheading">Subheading</Label><Textarea id="hero-subheading" value={pageContent.homepage?.hero?.subheading || ''} onChange={e => handleHomepageContentChange('hero', 'subheading', e.target.value)} /></div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-1"><Label htmlFor="hero-primaryBtn">Primary Button Text</Label><Input id="hero-primaryBtn" value={pageContent.homepage?.hero?.primaryButtonText || ''} onChange={e => handleHomepageContentChange('hero', 'primaryButtonText', e.target.value)} /></div>
+                                            <div className="space-y-1"><Label htmlFor="hero-primaryLink">Primary Button Link</Label><Input id="hero-primaryLink" placeholder="/products" value={pageContent.homepage?.hero?.primaryButtonLink || ''} onChange={e => handleHomepageContentChange('hero', 'primaryButtonLink', e.target.value)} /></div>
+                                        </div>
+                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-1"><Label htmlFor="hero-secondaryBtn">Secondary Button Text</Label><Input id="hero-secondaryBtn" value={pageContent.homepage?.hero?.secondaryButtonText || ''} onChange={e => handleHomepageContentChange('hero', 'secondaryButtonText', e.target.value)} /></div>
+                                            <div className="space-y-1"><Label htmlFor="hero-secondaryLink">Secondary Button Link</Label><Input id="hero-secondaryLink" placeholder="/contact" value={pageContent.homepage?.hero?.secondaryButtonLink || ''} onChange={e => handleHomepageContentChange('hero', 'secondaryButtonLink', e.target.value)} /></div>
                                         </div>
                                          <div className="space-y-2"><Label>Background Image</Label>
                                             {pageContent.homepage?.hero?.backgroundImageUrl ? (
@@ -573,6 +577,7 @@ function CreateStorePageContent() {
                                         <div className="space-y-1"><Label htmlFor="cta-headline">Headline</Label><Input id="cta-headline" value={pageContent.homepage?.callToAction?.headline || ''} onChange={e => handleHomepageContentChange('callToAction', 'headline', e.target.value)} /></div>
                                         <div className="space-y-1"><Label htmlFor="cta-subheading">Subheading</Label><Input id="cta-subheading" value={pageContent.homepage?.callToAction?.subheading || ''} onChange={e => handleHomepageContentChange('callToAction', 'subheading', e.target.value)} /></div>
                                         <div className="space-y-1"><Label htmlFor="cta-button">Button Text</Label><Input id="cta-button" value={pageContent.homepage?.callToAction?.buttonText || ''} onChange={e => handleHomepageContentChange('callToAction', 'buttonText', e.target.value)} /></div>
+                                        <div className="space-y-1"><Label htmlFor="cta-link">Button Link</Label><Input id="cta-link" placeholder="/products" value={pageContent.homepage?.callToAction?.buttonLink || ''} onChange={e => handleHomepageContentChange('callToAction', 'buttonLink', e.target.value)} /></div>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
@@ -669,7 +674,7 @@ function CreateStorePageContent() {
                         </Button>
                         <Button type="submit" disabled={isSaving || !storeName}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
-                            Save &amp; Select Products
+                            Save & Select Products
                         </Button>
                     </div>
                 </div>

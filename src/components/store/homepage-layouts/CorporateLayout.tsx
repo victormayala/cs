@@ -19,6 +19,9 @@ interface CorporateLayoutProps {
 
 export function CorporateLayout({ storeConfig, products, isLoading }: CorporateLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
+  const secondaryButtonLink = pageContent?.hero?.secondaryButtonLink || `/store/${storeConfig.id}/contact`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
 
   return (
     <>
@@ -36,13 +39,13 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
             </p>
             <div className="flex gap-4">
               <Button size="lg" asChild style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
-                <Link href={`/store/${storeConfig.id}/products`}>
+                <Link href={primaryButtonLink}>
                   {pageContent?.hero?.primaryButtonText || 'Browse Catalog'}
                 </Link>
               </Button>
               {pageContent?.hero?.secondaryButtonText && (
                 <Button size="lg" variant="outline" asChild>
-                  <Link href="/contact">{pageContent.hero.secondaryButtonText}</Link>
+                  <Link href={secondaryButtonLink}>{pageContent.hero.secondaryButtonText}</Link>
                 </Button>
               )}
             </div>
@@ -166,7 +169,7 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
                     {pageContent.callToAction.subheading || 'Browse our catalog and start creating your professionally branded products today.'}
                 </p>
                 <Button size="lg" asChild>
-                    <Link href={`/store/${storeConfig.id}/products`}>{pageContent.callToAction.buttonText || 'Get Started'}</Link>
+                    <Link href={ctaButtonLink}>{pageContent.callToAction.buttonText || 'Get Started'}</Link>
                 </Button>
             </div>
         </section>

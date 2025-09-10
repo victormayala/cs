@@ -21,7 +21,9 @@ interface HomePageContent {
     headline: string;
     subheading: string;
     primaryButtonText: string;
+    primaryButtonLink?: string;
     secondaryButtonText: string;
+    secondaryButtonLink?: string;
     backgroundImageUrl?: string;
   };
   features: {
@@ -53,6 +55,7 @@ interface HomePageContent {
     headline: string;
     subheading: string;
     buttonText: string;
+    buttonLink?: string;
   };
 }
 

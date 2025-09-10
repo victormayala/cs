@@ -20,6 +20,8 @@ interface MarketingLayoutProps {
 
 export function MarketingLayout({ storeConfig, products, isLoading }: MarketingLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
 
   return (
     <>
@@ -56,7 +58,7 @@ export function MarketingLayout({ storeConfig, products, isLoading }: MarketingL
               {pageContent?.hero?.subheading || "Unleash your creativity with products designed by you, for you. The highest quality custom gear, made simple."}
             </p>
             <Button size="lg" asChild className="transform hover:scale-105 transition-transform duration-300" style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
-              <Link href={`/store/${storeConfig.id}/products`}>
+              <Link href={primaryButtonLink}>
                 {pageContent?.hero?.primaryButtonText || 'Start Designing Now'} <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
@@ -168,7 +170,7 @@ export function MarketingLayout({ storeConfig, products, isLoading }: MarketingL
                     size="lg"
                     className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto text-base px-8 py-3"
                 >
-                    <Link href={`/store/${storeConfig.id}/products`}>
+                    <Link href={ctaButtonLink}>
                         <span>{pageContent.callToAction.buttonText || 'Start Your Free Trial'}</span>
                     </Link>
                 </Button>
