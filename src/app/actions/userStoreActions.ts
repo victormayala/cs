@@ -17,6 +17,39 @@ export interface VolumeDiscountTier {
   percentage: number;
 }
 
+interface HomePageContent {
+  hero: {
+    headline: string;
+    subheading: string;
+    primaryButtonText: string;
+    secondaryButtonText: string;
+    backgroundImageUrl?: string;
+  };
+  features: {
+    enabled: boolean;
+    title: string;
+    items: {
+      title: string;
+      description: string;
+    }[];
+  };
+  testimonials: {
+    enabled: boolean;
+    title: string;
+    items: {
+      quote: string;
+      author: string;
+    }[];
+  };
+  callToAction: {
+    enabled: boolean;
+    headline: string;
+    subheading: string;
+    buttonText: string;
+  };
+}
+
+
 /**
  * Represents the configuration for a user-generated e-commerce store.
  * This data will be stored in Firestore and used to generate/deploy the store.
@@ -65,10 +98,7 @@ export interface UserStoreConfig {
   
   // NEW: Editable page content
   pages?: {
-    homepage?: {
-      headline?: string;
-      subheading?: string;
-    },
+    homepage?: Partial<HomePageContent>; // Use the new detailed type
     about?: {
       title?: string;
       body?: string;

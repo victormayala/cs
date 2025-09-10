@@ -1,29 +1,31 @@
 
 "use client";
 
-import { useState, Suspense, useEffect, useCallback } from "react";
+import { useState, Suspense, useEffect, useCallback, ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Truck, PackageCheck, Scissors, FileText, Settings2, Brush } from "lucide-react";
+import { ArrowLeft, Store, Settings, Palette, Zap, Loader2, Save, LayoutTemplate, CheckCircle, Upload, X, PlusCircle, Trash2, Percent, Truck, PackageCheck, Scissors, FileText, Settings2, Brush, Star, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import AppHeader from "@/components/layout/AppHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, collection, type FieldValue, deleteField } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import type { UserStoreConfig, VolumeDiscountTier } from "@/app/actions/userStoreActions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 
 
 const layouts = [
@@ -52,8 +54,8 @@ const layouts = [
 
 type LayoutName = typeof layouts[number]['name'];
 
+type HomePageContent = NonNullable<NonNullable<UserStoreConfig['pages']>['homepage']>;
 type PageContent = NonNullable<UserStoreConfig['pages']>;
-
 type ActiveSection = 'settings' | 'branding' | 'pages' | 'shipping' | 'embroidery' | 'discounts';
 
 
@@ -80,8 +82,13 @@ async function saveUserStoreConfig(config: Omit<UserStoreConfig, 'id' | 'created
       delete dataToSave.branding.logoUrl;
     }
   } else {
+    // For existing docs, handle undefined fields to remove them from Firestore
     if (dataToSave.branding && dataToSave.branding.logoUrl === undefined) {
       dataToSave.branding.logoUrl = deleteField();
+    }
+    if (dataToSave.pages?.homepage?.backgroundImageUrl === undefined) {
+        if (!dataToSave.pages.homepage) dataToSave.pages.homepage = {};
+        dataToSave.pages.homepage.backgroundImageUrl = deleteField();
     }
   }
   
@@ -107,32 +114,35 @@ function CreateStorePageContent() {
   const [isLoadingExisting, setIsLoadingExisting] = useState(true);
   const [activeSection, setActiveSection] = useState<ActiveSection>('settings');
 
-  // Volume Discounts State
   const [discountsEnabled, setDiscountsEnabled] = useState(false);
   const [discountTiers, setDiscountTiers] = useState<VolumeDiscountTier[]>([
     { quantity: 10, percentage: 5 },
     { quantity: 25, percentage: 10 },
   ]);
 
-  // Shipping State
   const [localDeliveryEnabled, setLocalDeliveryEnabled] = useState(false);
   const [localDeliveryFee, setLocalDeliveryFee] = useState<number | string>(0);
   const [localDeliveryText, setLocalDeliveryText] = useState("Available for local delivery");
 
-  // Embroidery State
   const [embroideryFeeEnabled, setEmbroideryFeeEnabled] = useState(false);
   const [embroideryFeeAmount, setEmbroideryFeeAmount] = useState<number | string>(25);
   const [embroideryFeeDescription, setEmbroideryFeeDescription] = useState("One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
 
-  // Page Content State
   const [pageContent, setPageContent] = useState<PageContent>({
-    homepage: { headline: '', subheading: '' },
+    homepage: { 
+        hero: { headline: '', subheading: '', primaryButtonText: '', secondaryButtonText: '', backgroundImageUrl: '' },
+        features: { enabled: true, title: 'Why Choose Us?', items: [{ title: '', description: ''}] },
+        testimonials: { enabled: true, title: 'What Our Customers Say', items: [{ quote: '', author: ''}] },
+        callToAction: { enabled: true, headline: '', subheading: '', buttonText: '' }
+    },
     about: { title: 'About Us', body: '' },
     faq: { title: 'Frequently Asked Questions', introduction: '', questions: [{ question: '', answer: '' }] },
     contact: { title: 'Contact Us', email: '', phone: '', address: '' },
     terms: { title: 'Terms of Service', body: '' },
     privacy: { title: 'Privacy Policy', body: '' }
   });
+
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const fetchExistingConfig = useCallback(async () => {
     if (!user || !storeId) {
@@ -166,7 +176,11 @@ function CreateStorePageContent() {
       setEmbroideryFeeAmount(data.embroidery?.setupFeeAmount || 25);
       setEmbroideryFeeDescription(data.embroidery?.setupFeeDescription || "One-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.");
 
-      setPageContent(current => ({...current, ...data.pages}));
+      setPageContent(current => ({
+        ...current,
+        ...data.pages,
+        homepage: { ...current.homepage, ...data.pages?.homepage } as HomePageContent
+      }));
 
     } else if (storeId) {
       toast({ title: "Not Found", description: "The requested store could not be found.", variant: "destructive" });
@@ -179,7 +193,8 @@ function CreateStorePageContent() {
     fetchExistingConfig();
   }, [fetchExistingConfig]);
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>, field: 'logo' | 'heroBackground') => {
+    if (!user || !storeId) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -188,15 +203,37 @@ function CreateStorePageContent() {
         return;
     }
     if (file.size > 2 * 1024 * 1024) { // 2MB limit
-        toast({ title: "File Too Large", description: "Please upload a logo smaller than 2MB.", variant: "destructive" });
+        toast({ title: "File Too Large", description: "Please upload an image smaller than 2MB.", variant: "destructive" });
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        setLogoDataUrl(e.target.result as string);
-    };
-    reader.readAsDataURL(file);
+    setUploadProgress(0);
+    const storagePath = `users/${user.uid}/stores/${storeId}/${field}_${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, storagePath);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed',
+        (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+        },
+        (error) => {
+            console.error("Upload error:", error);
+            toast({ title: "Upload Failed", variant: "destructive" });
+            setUploadProgress(0);
+        },
+        () => {
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                if (field === 'logo') {
+                    setLogoDataUrl(downloadURL);
+                } else if (field === 'heroBackground') {
+                    handleHomepageContentChange('hero', 'backgroundImageUrl', downloadURL);
+                }
+                toast({ title: "Upload Complete" });
+                setUploadProgress(0);
+            });
+        }
+    );
   };
   
   const handleDiscountTierChange = (index: number, field: 'quantity' | 'percentage', value: string) => {
@@ -221,6 +258,67 @@ function CreateStorePageContent() {
     setDiscountTiers(discountTiers.filter((_, i) => i !== index));
   };
   
+  const handleHomepageContentChange = <T extends keyof HomePageContent>(section: T, field: keyof HomePageContent[T], value: any) => {
+      setPageContent(prev => ({
+          ...prev,
+          homepage: {
+              ...prev.homepage,
+              [section]: {
+                  ...prev.homepage?.[section],
+                  [field]: value,
+              },
+          } as HomePageContent,
+      }));
+  };
+
+  const handleHomepageNestedItemChange = <T extends 'features' | 'testimonials'>(section: T, index: number, field: keyof HomePageContent[T]['items'][number], value: string) => {
+    setPageContent(prev => {
+        const sectionContent = prev.homepage?.[section];
+        if (!sectionContent) return prev;
+        const newItems = [...sectionContent.items];
+        newItems[index] = { ...newItems[index], [field]: value };
+        return {
+            ...prev,
+            homepage: {
+                ...prev.homepage,
+                [section]: {
+                    ...sectionContent,
+                    items: newItems,
+                }
+            } as HomePageContent
+        }
+    });
+  };
+
+  const addHomepageNestedItem = (section: 'features' | 'testimonials') => {
+      setPageContent(prev => {
+          const sectionContent = prev.homepage?.[section];
+          if (!sectionContent) return prev;
+          const newItem = section === 'features' ? { title: '', description: '' } : { quote: '', author: '' };
+          return {
+              ...prev,
+              homepage: {
+                  ...prev.homepage,
+                  [section]: { ...sectionContent, items: [...sectionContent.items, newItem] }
+              } as HomePageContent
+          }
+      });
+  };
+
+  const removeHomepageNestedItem = (section: 'features' | 'testimonials', index: number) => {
+      setPageContent(prev => {
+          const sectionContent = prev.homepage?.[section];
+          if (!sectionContent) return prev;
+          return {
+              ...prev,
+              homepage: {
+                  ...prev.homepage,
+                  [section]: { ...sectionContent, items: sectionContent.items.filter((_, i) => i !== index) }
+              } as HomePageContent
+          }
+      });
+  };
+
   const handlePageContentChange = <T extends keyof PageContent>(page: T, field: keyof PageContent[T], value: string) => {
     setPageContent(prev => ({
         ...prev,
@@ -376,7 +474,7 @@ function CreateStorePageContent() {
                       <div className="flex items-center justify-center w-full">
                         <label htmlFor="logo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/30 hover:bg-muted/50">
                             <div className="flex flex-col items-center justify-center pt-5 pb-6"><Upload className="w-8 h-8 mb-3 text-muted-foreground" /><p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p><p className="text-xs text-muted-foreground">PNG, JPG, or GIF (max 2MB)</p></div>
-                            <input id="logo-upload" type="file" className="hidden" onChange={handleLogoUpload} accept="image/*" />
+                            <input id="logo-upload" type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'logo')} accept="image/*" />
                         </label>
                       </div> 
                     )}
@@ -391,8 +489,58 @@ function CreateStorePageContent() {
                 <CardHeader><CardTitle>Page Content</CardTitle><CardDescription>Edit the content for your store's generated pages.</CardDescription></CardHeader>
                 <CardContent>
                     <Tabs defaultValue="homepage" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto"><TabsTrigger value="homepage">Homepage</TabsTrigger><TabsTrigger value="about">About</TabsTrigger><TabsTrigger value="faq">FAQ</TabsTrigger><TabsTrigger value="contact">Contact</TabsTrigger><TabsTrigger value="terms">Terms</TabsTrigger><TabsTrigger value="privacy">Privacy</TabsTrigger></TabsList>
-                        <TabsContent value="homepage" className="mt-4 space-y-4"><div className="space-y-1"><Label htmlFor="page-home-headline">Headline</Label><Input id="page-home-headline" value={pageContent.homepage?.headline || ''} onChange={e => handlePageContentChange('homepage', 'headline', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-home-subheading">Subheading</Label><Textarea id="page-home-subheading" value={pageContent.homepage?.subheading || ''} onChange={e => handlePageContentChange('homepage', 'subheading', e.target.value)} /></div></TabsContent>
+                        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto flex-wrap"><TabsTrigger value="homepage">Homepage</TabsTrigger><TabsTrigger value="about">About</TabsTrigger><TabsTrigger value="faq">FAQ</TabsTrigger><TabsTrigger value="contact">Contact</TabsTrigger><TabsTrigger value="terms">Terms</TabsTrigger><TabsTrigger value="privacy">Privacy</TabsTrigger></TabsList>
+                        
+                        <TabsContent value="homepage" className="mt-4">
+                            <Accordion type="multiple" defaultValue={['hero']} className="w-full space-y-2">
+                                <AccordionItem value="hero">
+                                    <AccordionTrigger className="text-base font-semibold px-3 bg-muted/50 rounded-md">Hero Section</AccordionTrigger>
+                                    <AccordionContent className="p-4 space-y-4">
+                                        <div className="space-y-1"><Label htmlFor="hero-headline">Headline</Label><Input id="hero-headline" value={pageContent.homepage?.hero?.headline || ''} onChange={e => handleHomepageContentChange('hero', 'headline', e.target.value)} /></div>
+                                        <div className="space-y-1"><Label htmlFor="hero-subheading">Subheading</Label><Textarea id="hero-subheading" value={pageContent.homepage?.hero?.subheading || ''} onChange={e => handleHomepageContentChange('hero', 'subheading', e.target.value)} /></div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1"><Label htmlFor="hero-primaryBtn">Primary Button Text</Label><Input id="hero-primaryBtn" value={pageContent.homepage?.hero?.primaryButtonText || ''} onChange={e => handleHomepageContentChange('hero', 'primaryButtonText', e.target.value)} /></div>
+                                            <div className="space-y-1"><Label htmlFor="hero-secondaryBtn">Secondary Button Text</Label><Input id="hero-secondaryBtn" value={pageContent.homepage?.hero?.secondaryButtonText || ''} onChange={e => handleHomepageContentChange('hero', 'secondaryButtonText', e.target.value)} /></div>
+                                        </div>
+                                         <div className="space-y-2"><Label>Background Image</Label>
+                                            {pageContent.homepage?.hero?.backgroundImageUrl ? (
+                                                <div className="flex items-center gap-3 p-2 border rounded-md"><div className="relative w-24 h-16 bg-muted/50 rounded"><Image src={pageContent.homepage.hero.backgroundImageUrl} alt="Hero BG preview" fill className="object-cover" /></div><Button variant="destructive" size="sm" onClick={() => handleHomepageContentChange('hero', 'backgroundImageUrl', undefined)}><X className="mr-1.5 h-4 w-4" /> Remove</Button></div>
+                                            ) : (
+                                                <div><label htmlFor="hero-bg-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/30 hover:bg-muted/50"><div className="flex flex-col items-center justify-center pt-5 pb-6"><Upload className="w-8 h-8 mb-3 text-muted-foreground" /><p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span></p></div><input id="hero-bg-upload" type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'heroBackground')} accept="image/*" /></label>{uploadProgress > 0 && <Progress value={uploadProgress} className="mt-2" />}</div>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="features">
+                                    <AccordionTrigger className="text-base font-semibold px-3 bg-muted/50 rounded-md">Features Section</AccordionTrigger>
+                                    <AccordionContent className="p-4 space-y-4">
+                                        <div className="flex items-center space-x-2"><Checkbox id="features-enabled" checked={pageContent.homepage?.features?.enabled} onCheckedChange={checked => handleHomepageContentChange('features', 'enabled', !!checked)}/><Label htmlFor="features-enabled">Show Features Section</Label></div>
+                                        <div className="space-y-1"><Label htmlFor="features-title">Section Title</Label><Input id="features-title" value={pageContent.homepage?.features?.title || ''} onChange={e => handleHomepageContentChange('features', 'title', e.target.value)} /></div>
+                                        {pageContent.homepage?.features?.items.map((item, index) => (<div key={index} className="p-3 border rounded-md space-y-2 relative"><Label>Feature {index+1}</Label><Input placeholder="Feature Title" value={item.title} onChange={e => handleHomepageNestedItemChange('features', index, 'title', e.target.value)} /><Textarea placeholder="Feature Description" value={item.description} onChange={e => handleHomepageNestedItemChange('features', index, 'description', e.target.value)} /><Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeHomepageNestedItem('features', index)}><Trash2 className="h-4 w-4" /></Button></div>))}
+                                        <Button type="button" variant="outline" onClick={() => addHomepageNestedItem('features')}><PlusCircle className="mr-2 h-4 w-4" /> Add Feature</Button>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="testimonials">
+                                     <AccordionTrigger className="text-base font-semibold px-3 bg-muted/50 rounded-md">Testimonials Section</AccordionTrigger>
+                                    <AccordionContent className="p-4 space-y-4">
+                                        <div className="flex items-center space-x-2"><Checkbox id="testimonials-enabled" checked={pageContent.homepage?.testimonials?.enabled} onCheckedChange={checked => handleHomepageContentChange('testimonials', 'enabled', !!checked)}/><Label htmlFor="testimonials-enabled">Show Testimonials Section</Label></div>
+                                        <div className="space-y-1"><Label htmlFor="testimonials-title">Section Title</Label><Input id="testimonials-title" value={pageContent.homepage?.testimonials?.title || ''} onChange={e => handleHomepageContentChange('testimonials', 'title', e.target.value)} /></div>
+                                        {pageContent.homepage?.testimonials?.items.map((item, index) => (<div key={index} className="p-3 border rounded-md space-y-2 relative"><Label>Testimonial {index+1}</Label><Textarea placeholder="Quote" value={item.quote} onChange={e => handleHomepageNestedItemChange('testimonials', index, 'quote', e.target.value)} /><Input placeholder="Author" value={item.author} onChange={e => handleHomepageNestedItemChange('testimonials', index, 'author', e.target.value)} /><Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeHomepageNestedItem('testimonials', index)}><Trash2 className="h-4 w-4" /></Button></div>))}
+                                        <Button type="button" variant="outline" onClick={() => addHomepageNestedItem('testimonials')}><PlusCircle className="mr-2 h-4 w-4" /> Add Testimonial</Button>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="cta">
+                                     <AccordionTrigger className="text-base font-semibold px-3 bg-muted/50 rounded-md">Call to Action Section</AccordionTrigger>
+                                    <AccordionContent className="p-4 space-y-4">
+                                        <div className="flex items-center space-x-2"><Checkbox id="cta-enabled" checked={pageContent.homepage?.callToAction?.enabled} onCheckedChange={checked => handleHomepageContentChange('callToAction', 'enabled', !!checked)}/><Label htmlFor="cta-enabled">Show Call to Action Section</Label></div>
+                                        <div className="space-y-1"><Label htmlFor="cta-headline">Headline</Label><Input id="cta-headline" value={pageContent.homepage?.callToAction?.headline || ''} onChange={e => handleHomepageContentChange('callToAction', 'headline', e.target.value)} /></div>
+                                        <div className="space-y-1"><Label htmlFor="cta-subheading">Subheading</Label><Input id="cta-subheading" value={pageContent.homepage?.callToAction?.subheading || ''} onChange={e => handleHomepageContentChange('callToAction', 'subheading', e.target.value)} /></div>
+                                        <div className="space-y-1"><Label htmlFor="cta-button">Button Text</Label><Input id="cta-button" value={pageContent.homepage?.callToAction?.buttonText || ''} onChange={e => handleHomepageContentChange('callToAction', 'buttonText', e.target.value)} /></div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </TabsContent>
+                        
                         <TabsContent value="about" className="mt-4 space-y-4"><div className="space-y-1"><Label htmlFor="page-about-title">Page Title</Label><Input id="page-about-title" value={pageContent.about?.title || ''} onChange={e => handlePageContentChange('about', 'title', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-about-body">Content</Label><Textarea id="page-about-body" rows={10} value={pageContent.about?.body || ''} onChange={e => handlePageContentChange('about', 'body', e.target.value)} /></div></TabsContent>
                         <TabsContent value="faq" className="mt-4 space-y-4"><div className="space-y-1"><Label htmlFor="page-faq-title">Page Title</Label><Input id="page-faq-title" value={pageContent.faq?.title || ''} onChange={e => handlePageContentChange('faq', 'title', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-faq-intro">Introduction</Label><Textarea id="page-faq-intro" rows={3} value={pageContent.faq?.introduction || ''} onChange={e => handlePageContentChange('faq', 'introduction', e.target.value)} /></div><Separator /><div className="space-y-4">{pageContent.faq?.questions?.map((item, index) => (<div key={index} className="p-3 border rounded-md space-y-2 relative"><Label>Question {index + 1}</Label><Input placeholder="Question" value={item.question} onChange={e => handleFaqChange(index, 'question', e.target.value)} /><Textarea placeholder="Answer" value={item.answer} onChange={e => handleFaqChange(index, 'answer', e.target.value)} /><Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-7 w-7 text-destructive" onClick={() => removeFaq(index)}><Trash2 className="h-4 w-4" /></Button></div>))}<Button type="button" variant="outline" onClick={addFaq}><PlusCircle className="mr-2 h-4 w-4" /> Add FAQ Item</Button></div></TabsContent>
                         <TabsContent value="contact" className="mt-4 space-y-4"><div className="space-y-1"><Label htmlFor="page-contact-title">Page Title</Label><Input id="page-contact-title" value={pageContent.contact?.title || ''} onChange={e => handlePageContentChange('contact', 'title', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-contact-email">Contact Email</Label><Input id="page-contact-email" type="email" value={pageContent.contact?.email || ''} onChange={e => handlePageContentChange('contact', 'email', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-contact-phone">Contact Phone</Label><Input id="page-contact-phone" value={pageContent.contact?.phone || ''} onChange={e => handlePageContentChange('contact', 'phone', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="page-contact-address">Address</Label><Textarea id="page-contact-address" value={pageContent.contact?.address || ''} onChange={e => handlePageContentChange('contact', 'address', e.target.value)} /></div></TabsContent>
