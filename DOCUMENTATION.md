@@ -38,14 +38,21 @@ The system handles three distinct types of products:
 
 ### 3.1. Generated Storefronts
 
--   **Creation**: Managed in `/dashboard/store/create`. Merchants can set a store name, choose a layout, and define branding.
--   **Configuration**:
-    -   **Layouts**: `casual`, `corporate`, `marketing` themes determine the homepage's look and feel.
-    -   **Volume Discounts**: Merchants can set quantity-based percentage discounts.
+-   **Creation & Configuration**: Managed in `/dashboard/store/create` (and the subsequent `/dashboard/store/[storeId]/...` pages). Merchants can set a store name, choose a layout, and define branding.
+-   **Page Content Management**: A comprehensive editor allows merchants to define the content for all key pages of their store, including:
+    -   **Homepage**: Hero section, features, testimonials, and call-to-action content.
+    -   **Static Pages**: About, Contact, FAQ, Terms of Service, and Privacy Policy.
+-   **Store-Level Management**: Each created store has its own dedicated management area, which includes:
+    -   A **Dashboard** with analytics for total revenue, sales, and customers.
+    -   An **Orders** page to view all purchases made through the store.
+    -   A **Customers** page to see a list of all customers.
+    -   An **Approved Files** manager to upload brand assets (e.g., logos) that become available in the customizer's "Uploads" panel for that specific store.
+-   **Business Logic**: Merchants can configure:
+    -   **Volume Discounts**: Set quantity-based percentage discounts.
     -   **Shipping**: A simple "Local Delivery" option can be enabled with a custom fee and text.
-    -   **Embroidery Fee**: A store-wide, one-time setup fee for embroidery can be enabled, which is explained to customers on the product page.
+    -   **Embroidery Fee**: A store-wide, one-time setup fee for embroidery.
 -   **Deployment**: The `deployStore` Genkit flow simulates a deployment process, generating a mock URL for the storefront. In a real-world scenario, this flow would trigger a CI/CD pipeline.
--   **Public Access**: The generated store is accessible via `/store/{storeId}`.
+-   **Public Access**: The generated store is accessible via `/store/{storeId}`, with its associated pages like `/store/{storeId}/about`, `/store/{storeId}/faq`, etc.
 
 ### 3.2. The Customizer (`/customizer`)
 
@@ -69,6 +76,7 @@ This is where merchants define how a product can be customized.
 -   **Per-View Pricing**: For each view, merchants can set an `Embroidery Additional Fee` and a `Print Additional Fee`. This allows for granular pricing based on both the location of the customization and the technique used.
 -   **Design Areas (Boundary Boxes)**: For each view, merchants can draw rectangular "boundary boxes" to constrain where customers can place their designs.
 -   **Variant Images**: For variable products, merchants can upload specific images that should be displayed when a customer selects a particular color variant.
+-   **Attribute Ordering**: Merchants can re-order color and size attributes using up/down arrows, and this order will be reflected on the Product Detail Page.
 
 ---
 
