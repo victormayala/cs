@@ -8,7 +8,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import AppHeader from '@/components/layout/AppHeader';
-import { StoreNav } from '@/components/layout/StoreNav';
+import { StoreNav, StoreNavHeader } from '@/components/layout/StoreNav';
 
 export default function StoreManagementLayout({
   children,
@@ -33,6 +33,8 @@ export default function StoreManagementLayout({
         }
         setIsLoading(false);
       });
+    } else if (!user) {
+      setIsLoading(false)
     }
   }, [user, storeId]);
   
@@ -47,8 +49,9 @@ export default function StoreManagementLayout({
   return (
     <div className="flex flex-col min-h-screen">
         <AppHeader />
+        <StoreNavHeader storeId={storeId} storeName={storeName} />
         <div className="flex flex-1">
-            <StoreNav storeId={storeId} storeName={storeName} />
+            <StoreNav storeId={storeId} />
             <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
                 {children}
             </main>

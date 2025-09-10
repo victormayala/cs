@@ -14,7 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Users, ChevronsRight, ChevronsLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
-import { StoreNav } from '@/components/layout/StoreNav';
 import type { StoreCustomer } from '@/lib/data-types';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
 
@@ -145,53 +144,48 @@ function CustomersPage() {
     }
     
     return (
-        <div className="flex min-h-screen w-full flex-col bg-muted/40">
-            <StoreNav storeId={storeId} storeName={storeConfig?.storeName} />
-            <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Users /> Store Customers</CardTitle>
-                        <CardDescription>A list of all customers who have made purchases from this store.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? (
-                            <div className="space-y-2">
-                                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-                            </div>
-                        ) : customers.length === 0 ? (
-                            <div className="text-center py-10 text-muted-foreground">No customers found.</div>
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead className="text-center">Orders</TableHead>
-                                        <TableHead className="text-right">Total Spent</TableHead>
-                                        <TableHead>First Purchase</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {customers.map(customer => (
-                                        <TableRow key={customer.id}>
-                                            <TableCell className="font-medium">{customer.name}</TableCell>
-                                            <TableCell>{customer.email}</TableCell>
-                                            <TableCell className="text-center">{customer.orderCount}</TableCell>
-                                            <TableCell className="text-right">${customer.totalSpent.toFixed(2)}</TableCell>
-                                            <TableCell>{customer.createdAt ? format(customer.createdAt.toDate(), 'PPp') : 'N/A'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                        <div className="flex items-center justify-end space-x-2 py-4">
-                            <Button variant="outline" size="sm" onClick={() => fetchPage('prev')} disabled={isFirstPage || isLoading}>Previous</Button>
-                            <Button variant="outline" size="sm" onClick={() => fetchPage('next')} disabled={isLastPage || isLoading}>Next</Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            </main>
-        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Users /> Store Customers</CardTitle>
+                <CardDescription>A list of all customers who have made purchases from this store.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                ) : customers.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">No customers found.</div>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Customer</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead className="text-center">Orders</TableHead>
+                                <TableHead className="text-right">Total Spent</TableHead>
+                                <TableHead>First Purchase</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {customers.map(customer => (
+                                <TableRow key={customer.id}>
+                                    <TableCell className="font-medium">{customer.name}</TableCell>
+                                    <TableCell>{customer.email}</TableCell>
+                                    <TableCell className="text-center">{customer.orderCount}</TableCell>
+                                    <TableCell className="text-right">${customer.totalSpent.toFixed(2)}</TableCell>
+                                    <TableCell>{customer.createdAt ? format(customer.createdAt.toDate(), 'PPp') : 'N/A'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+                <div className="flex items-center justify-end space-x-2 py-4">
+                    <Button variant="outline" size="sm" onClick={() => fetchPage('prev')} disabled={isFirstPage || isLoading}>Previous</Button>
+                    <Button variant="outline" size="sm" onClick={() => fetchPage('next')} disabled={isLastPage || isLoading}>Next</Button>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

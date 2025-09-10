@@ -73,7 +73,7 @@ function StoreDashboardPage() {
       unsubCustomers();
     };
 
-  }, [user, storeId, authIsLoading]);
+  }, [user, storeId, authIsLoading, customers.length, orders.length]);
 
   const stats = useMemo(() => {
     const totalRevenue = orders.reduce((acc, order) => acc + order.totalAmount, 0);
