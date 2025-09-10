@@ -366,65 +366,85 @@ function CreateStorePageContent() {
     }));
   };
 
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performSave = useCallback(async () => {
     if (!user) {
-      toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
-      return;
+        toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
+        return null;
     }
     if (!storeName.trim()) {
-      toast({ title: "Store name is required.", variant: "destructive" });
-      return;
+        toast({ title: "Store name is required.", variant: "destructive" });
+        return null;
     }
 
     setIsSaving(true);
-
     try {
-      const storeConfigData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'> = {
-          userId: user.uid,
-          storeName,
-          layout: selectedLayout,
-          branding: {
-              primaryColorHex: primaryColor,
-              secondaryColorHex: secondaryColor,
-              logoUrl: logoDataUrl || undefined,
-          },
-          volumeDiscounts: {
-              enabled: discountsEnabled,
-              tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
-          },
-          shipping: {
-              localDeliveryEnabled,
-              localDeliveryFee: Number(localDeliveryFee),
-              localDeliveryText,
-          },
-          embroidery: {
-              setupFeeEnabled: embroideryFeeEnabled,
-              setupFeeAmount: Number(embroideryFeeAmount),
-              setupFeeDescription: embroideryFeeDescription,
-          },
-          pages: pageContent,
-      };
+        const storeConfigData: Omit<UserStoreConfig, 'id' | 'createdAt' | 'lastSaved'> = {
+            userId: user.uid,
+            storeName,
+            layout: selectedLayout,
+            branding: {
+                primaryColorHex: primaryColor,
+                secondaryColorHex: secondaryColor,
+                logoUrl: logoDataUrl || undefined,
+            },
+            volumeDiscounts: {
+                enabled: discountsEnabled,
+                tiers: discountTiers.map(t => ({ quantity: Number(t.quantity), percentage: Number(t.percentage) })).filter(t => t.quantity > 0 && t.percentage > 0).sort((a,b) => a.quantity - b.quantity),
+            },
+            shipping: {
+                localDeliveryEnabled,
+                localDeliveryFee: Number(localDeliveryFee),
+                localDeliveryText,
+            },
+            embroidery: {
+                setupFeeEnabled: embroideryFeeEnabled,
+                setupFeeAmount: Number(embroideryFeeAmount),
+                setupFeeDescription: embroideryFeeDescription,
+            },
+            pages: pageContent,
+        };
 
-      const { storeId: savedStoreId, isNew } = await saveUserStoreConfig(storeConfigData, storeId);
-      
-      toast({
-        title: isNew ? "Store Created!" : "Store Updated!",
-        description: "Now, let's add some products.",
-      });
-
-      router.push(`/dashboard/store/${savedStoreId}/select-products`);
+        const { storeId: savedStoreId, isNew } = await saveUserStoreConfig(storeConfigData, storeId);
+        
+        return { savedStoreId, isNew };
 
     } catch (error: any) {
-      let errorMessage = `Failed to save store: ${error.message}`;
-      if (error.code === 'permission-denied') {
-          errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
-      }
-      toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
-      console.error("Save store error:", error);
+        let errorMessage = `Failed to save store: ${error.message}`;
+        if (error.code === 'permission-denied') {
+            errorMessage = "Permission denied. Please check your Firestore security rules for 'userStores'.";
+        }
+        toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
+        console.error("Save store error:", error);
+        return null;
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
+    }
+  }, [user, storeId, storeName, selectedLayout, primaryColor, secondaryColor, logoDataUrl, discountsEnabled, discountTiers, localDeliveryEnabled, localDeliveryFee, localDeliveryText, embroideryFeeEnabled, embroideryFeeAmount, embroideryFeeDescription, pageContent, toast]);
+
+
+  const handleSubmitAndRedirect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = await performSave();
+    if (result) {
+        toast({
+            title: result.isNew ? "Store Created!" : "Store Updated!",
+            description: "Now, let's add some products.",
+        });
+        router.push(`/dashboard/store/${result.savedStoreId}/select-products`);
+    }
+  };
+
+  const handleSaveOnly = async () => {
+    const result = await performSave();
+    if (result) {
+        toast({
+            title: "Store Saved!",
+            description: "Your changes have been saved successfully.",
+        });
+        // If it was a new store, we need to update the URL to reflect the new ID
+        if (result.isNew) {
+            router.replace(`/dashboard/store/create?storeId=${result.savedStoreId}`);
+        }
     }
   };
 
@@ -597,7 +617,7 @@ function CreateStorePageContent() {
     <div className="flex flex-col min-h-screen bg-muted/30">
       <AppHeader />
       <main className="flex-1">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmitAndRedirect}>
           <div className="flex">
              <Sidebar className="h-[calc(100vh-4rem)] sticky top-[calc(4rem+1px)] w-64 hidden lg:flex">
                 <SidebarContent className="px-4 pt-6">
@@ -642,10 +662,16 @@ function CreateStorePageContent() {
                       </p>
                     </div>
                   </div>
-                  <Button type="submit" size="default" disabled={isSaving || !storeName}>
-                      {isSaving ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" />) : ( <PackageCheck className="mr-2 h-4 w-4" /> )}
-                      {isSaving ? "Saving..." : "Save & Select Products"}
-                  </Button>
+                   <div className="flex items-center gap-2">
+                        <Button type="button" onClick={handleSaveOnly} variant="secondary" disabled={isSaving || !storeName}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save
+                        </Button>
+                        <Button type="submit" disabled={isSaving || !storeName}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+                            Save &amp; Select Products
+                        </Button>
+                    </div>
                 </div>
 
               {isSaving && (
@@ -653,7 +679,7 @@ function CreateStorePageContent() {
                     <Zap className="h-4 w-4 text-primary" />
                     <AlertTitle className="text-primary/90 font-medium">Saving Store...</AlertTitle>
                     <AlertDescription className="text-primary/80">
-                      Your store configuration is being saved. You will be redirected shortly.
+                      Your store configuration is being saved.
                     </AlertDescription>
                   </Alert>
               )}
