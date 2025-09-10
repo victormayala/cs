@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ProductCard, ProductCardSkeleton } from '@/components/store/ProductCard';
 import type { PublicProduct } from '@/types/product';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { ArrowRight, ShoppingBag, Heart, Gift, Tag as TagIcon, Rss } from 'lucide-react';
+import { ArrowRight, ShoppingBag, Heart, Gift, Star } from 'lucide-react';
 import Link from 'next/link';
 import { StoreHeader } from '../StoreHeader';
 import { StoreFooter } from '../StoreFooter';
@@ -19,7 +19,6 @@ interface CasualLayoutProps {
 }
 
 export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutProps) {
-  const heroProduct = products?.[0];
   const pageContent = storeConfig.pages?.homepage;
 
   return (
@@ -82,107 +81,62 @@ export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutP
           </div>
         </section>
 
-        {/* Featured Categories */}
-        <section className="py-16 md:py-24 bg-muted/20">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold font-headline text-center mb-10">Shop by Category</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {['T-Shirts', 'Hoodies', 'Mugs', 'Hats'].map(category => (
-                        <Link href={`/store/${storeConfig.id}/products`} key={category}>
-                            <Card className="overflow-hidden group hover:shadow-lg transition-shadow">
-                                <CardContent className="p-0">
-                                    <div className="relative aspect-square">
-                                        <Image src={`https://picsum.photos/seed/${category}/400`} alt={category} fill className="object-cover transition-transform group-hover:scale-105" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <h3 className="text-white text-xl font-bold drop-shadow-md">{category}</h3>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
-                    ))}
+        {/* Features Section */}
+        {pageContent?.features?.enabled && pageContent.features.items.length > 0 && (
+            <section className="py-16 md:py-24 bg-muted/20">
+                <div className="container mx-auto px-4">
+                    <h2 className="text-3xl font-bold font-headline text-center mb-10">{pageContent.features.title || 'Why Choose Us?'}</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                        {pageContent.features.items.map((feature, index) => (
+                            <div key={index} className="p-4">
+                                <Heart className="h-10 w-10 mx-auto mb-4 text-primary" />
+                                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                                <p className="text-muted-foreground">{feature.description}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+        )}
 
-        {/* Special Offers Section */}
-        <section className="py-16 md:py-24 bg-primary text-primary-foreground">
-            <div className="container mx-auto px-4 text-center">
-                <Gift className="h-12 w-12 mx-auto mb-4" />
-                <h2 className="text-3xl font-bold font-headline mb-2">Special Offer!</h2>
-                <p className="text-lg mb-6">Get 15% off your order of $50 or more with code <strong className="bg-primary-foreground/20 px-2 py-1 rounded-md">SAVE15</strong></p>
-                <Button variant="secondary" size="lg" asChild>
-                    <Link href={`/store/${storeConfig.id}/products`}>Start Shopping</Link>
-                </Button>
-            </div>
-        </section>
-
-        {/* Lifestyle Imagery Section */}
-        <section className="py-16 md:py-24">
-            <div className="container mx-auto px-4 grid md:grid-cols-2 gap-8 items-center">
-                <div className="relative aspect-square rounded-lg overflow-hidden shadow-lg">
-                    <Image src="https://picsum.photos/seed/lifestyle-1/600" alt="Lifestyle image" fill className="object-cover" />
+        {/* Testimonials Section */}
+        {pageContent?.testimonials?.enabled && pageContent.testimonials.items.length > 0 && (
+            <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+                <div className="container mx-auto px-4 text-center">
+                    <h2 className="text-3xl font-bold font-headline mb-10">{pageContent.testimonials.title || 'What Our Customers Say'}</h2>
+                    <div className="max-w-3xl mx-auto space-y-8">
+                        {pageContent.testimonials.items.map((testimonial, index) => (
+                            <blockquote key={index}>
+                                <p className="text-xl italic">"{testimonial.quote}"</p>
+                                <footer className="mt-4 font-semibold opacity-90">- {testimonial.author}</footer>
+                            </blockquote>
+                        ))}
+                    </div>
                 </div>
-                <div className="text-center md:text-left">
-                    <h2 className="text-3xl font-bold font-headline mb-4">Made for Your Life</h2>
-                    <p className="text-muted-foreground text-lg">See our products in action and get inspired for your next custom creation. Quality you can feel, designs that tell your story.</p>
-                </div>
-            </div>
-        </section>
-        
-        {/* Personalized Recommendations Section */}
-        <section className="py-16 md:py-24 bg-muted/20">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold font-headline text-center mb-10">Just For You</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    {products.slice(0,4).map((p, i) => <ProductCard key={p.id} product={{...p, imageUrl: `https://picsum.photos/seed/rec${i}/400`}}/>)}
-                </div>
-            </div>
-        </section>
-
-        {/* Blog/Content Integration Section */}
-        <section className="py-16 md:py-24">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold font-headline text-center mb-10">From our Blog</h2>
-                <div className="grid md:grid-cols-3 gap-8">
-                    {[1, 2, 3].map(i => (
-                        <Card key={i} className="group overflow-hidden">
-                            <CardContent className="p-0">
-                                <Link href="#">
-                                    <div className="relative aspect-video">
-                                        <Image src={`https://picsum.photos/seed/blog${i}/400/250`} alt={`Blog post ${i}`} fill className="object-cover group-hover:scale-105 transition-transform" />
-                                    </div>
-                                    <div className="p-4">
-                                        <h3 className="font-semibold text-lg group-hover:text-primary">The Ultimate T-Shirt Design Guide</h3>
-                                        <p className="text-sm text-muted-foreground mt-2">Learn the secrets to creating a design that pops and sells.</p>
-                                    </div>
-                                </Link>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        </section>
+            </section>
+        )}
 
         {/* Call to Action Section */}
-        <section className="py-16 md:py-24 bg-muted/30">
-          <div className="container mx-auto px-4">
-            <div className="bg-card p-10 rounded-lg shadow-lg flex flex-col md:flex-row items-center justify-between gap-8">
-              <div className="text-center md:text-left">
-                <h3 className="text-3xl font-bold font-headline mb-2">Ready to Start Designing?</h3>
-                <p className="text-muted-foreground max-w-lg">
-                  Pick a product and unleash your creativity. Our customizer makes it easy and fun to create one-of-a-kind items.
-                </p>
-              </div>
-              <Button size="lg" asChild className="flex-shrink-0" style={{ backgroundColor: `hsl(var(--secondary))`, color: `hsl(var(--secondary-foreground))` }}>
-                <Link href={`/store/${storeConfig.id}/products`}>
-                  <ShoppingBag className="mr-2 h-5 w-5" />
-                  Browse Products
-                </Link>
-              </Button>
+        {pageContent?.callToAction?.enabled && (
+            <section className="py-16 md:py-24 bg-muted/30">
+            <div className="container mx-auto px-4">
+                <div className="bg-card p-10 rounded-lg shadow-lg flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-left">
+                    <h3 className="text-3xl font-bold font-headline mb-2">{pageContent.callToAction.headline || 'Ready to Start Designing?'}</h3>
+                    <p className="text-muted-foreground max-w-lg">
+                    {pageContent.callToAction.subheading || 'Pick a product and unleash your creativity. Our customizer makes it easy and fun to create one-of-a-kind items.'}
+                    </p>
+                </div>
+                <Button size="lg" asChild className="flex-shrink-0" style={{ backgroundColor: `hsl(var(--secondary))`, color: `hsl(var(--secondary-foreground))` }}>
+                    <Link href={`/store/${storeConfig.id}/products`}>
+                    <ShoppingBag className="mr-2 h-5 w-5" />
+                    {pageContent.callToAction.buttonText || 'Browse Products'}
+                    </Link>
+                </Button>
+                </div>
             </div>
-          </div>
-        </section>
+            </section>
+        )}
       </div>
       <StoreFooter storeConfig={storeConfig} />
     </>
