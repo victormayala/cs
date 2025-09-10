@@ -15,7 +15,7 @@ export function StoreFooter({ storeConfig }: StoreFooterProps) {
   
   const footerLinks = [
     { href: `/store/${storeConfig.id}`, label: 'Home' },
-    { href: `/store/${storeConfig.id}/products`, label: 'Products' },
+    { href: `/store/${storeConfig.id}/shop`, label: 'Shop' },
     { href: `/store/${storeConfig.id}/about`, label: 'About Us' },
     { href: `/store/${storeConfig.id}/faq`, label: 'FAQ' },
     { href: `/store/${storeConfig.id}/contact`, label: 'Contact' },

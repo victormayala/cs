@@ -85,7 +85,7 @@ export default function OrderSuccessPage() {
             Your custom creation is on its way. We've sent a confirmation email with your order details.
           </p>
           <Button size="lg" asChild>
-            <Link href={`/store/${storeId}/products`}>
+            <Link href={`/store/${storeId}/shop`}>
               Continue Shopping <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </Button>

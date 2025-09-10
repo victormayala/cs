@@ -241,8 +241,8 @@ export default function ProductDetailPage() {
                     <h2 className="mt-4 text-xl font-semibold">Error</h2>
                     <p className="mt-2 text-sm">{error}</p>
                     <Button asChild variant="outline" className="mt-6">
-                        <Link href={`/store/${storeId}/products`}>
-                            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Products
+                        <Link href={`/store/${storeId}/shop`}>
+                            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Shop
                         </Link>
                     </Button>
                 </div>
@@ -262,8 +262,8 @@ export default function ProductDetailPage() {
                   <h2 className="mt-4 text-xl font-semibold">Product Not Found</h2>
                   <p className="mt-2 text-sm">The requested product could not be loaded.</p>
                    <Button asChild variant="outline" className="mt-6">
-                        <Link href={`/store/${storeId}/products`}>
-                            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Products
+                        <Link href={`/store/${storeId}/shop`}>
+                            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Shop
                         </Link>
                     </Button>
               </div>

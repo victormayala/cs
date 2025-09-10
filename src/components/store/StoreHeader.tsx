@@ -17,7 +17,7 @@ export function StoreHeader({ storeConfig }: StoreHeaderProps) {
 
   const navLinks = [
     { href: `/store/${storeConfig.id}`, label: 'Home' },
-    { href: `/store/${storeConfig.id}/products`, label: 'Shop' },
+    { href: `/store/${storeConfig.id}/shop`, label: 'Shop' },
     { href: `/store/${storeConfig.id}/faq`, label: 'FAQ' },
     { href: `/store/${storeConfig.id}/contact`, label: 'Contact' },
   ];

@@ -106,7 +106,7 @@ export async function GET(request: Request, { params }: { params: { productId: s
       price: optionsData?.price ?? 0,
       salePrice: optionsData?.salePrice ?? null,
       imageUrl: primaryImageUrl,
-      productUrl: `/store/${storeId}/products/${productId}`, // Use storeId in the URL
+      productUrl: `/store/${storeId}/shop/${productId}`, // Use storeId in the URL
       views: views,
       attributes: optionsData?.nativeAttributes as ProductAttributeOptionsForPDP | undefined,
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,

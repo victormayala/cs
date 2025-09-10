@@ -239,7 +239,7 @@ export default function CartPage() {
                         Looks like you haven't added any custom items yet.
                         </p>
                         <Button asChild className="mt-6">
-                        <Link href={`/store/${storeId}/products`}>
+                        <Link href={`/store/${storeId}/shop`}>
                             Start Shopping
                         </Link>
                         </Button>

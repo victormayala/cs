@@ -20,9 +20,9 @@ interface CasualLayoutProps {
 
 export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
-  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
-  const secondaryButtonLink = pageContent?.hero?.secondaryButtonLink || `/store/${storeConfig.id}/products`;
-  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/shop`;
+  const secondaryButtonLink = pageContent?.hero?.secondaryButtonLink || `/store/${storeConfig.id}/shop`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/shop`;
 
   return (
     <>
@@ -69,7 +69,7 @@ export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutP
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-3xl font-bold font-headline">Featured Products</h2>
               <Button variant="link" asChild>
-                <Link href={`/store/${storeConfig.id}/products`}>
+                <Link href={`/store/${storeConfig.id}/shop`}>
                   View All <ArrowRight className="ml-1 h-4 w-4" />
                 </Link>
               </Button>

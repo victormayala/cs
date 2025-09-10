@@ -20,8 +20,8 @@ interface MarketingLayoutProps {
 
 export function MarketingLayout({ storeConfig, products, isLoading }: MarketingLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
-  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
-  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/shop`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/shop`;
 
   return (
     <>

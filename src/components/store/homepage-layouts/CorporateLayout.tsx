@@ -19,9 +19,9 @@ interface CorporateLayoutProps {
 
 export function CorporateLayout({ storeConfig, products, isLoading }: CorporateLayoutProps) {
   const pageContent = storeConfig.pages?.homepage;
-  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/products`;
+  const primaryButtonLink = pageContent?.hero?.primaryButtonLink || `/store/${storeConfig.id}/shop`;
   const secondaryButtonLink = pageContent?.hero?.secondaryButtonLink || `/store/${storeConfig.id}/contact`;
-  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/products`;
+  const ctaButtonLink = pageContent?.callToAction?.buttonLink || `/store/${storeConfig.id}/shop`;
 
   return (
     <>
@@ -103,7 +103,7 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
            {products.length > 4 && (
                 <div className="text-center mt-12">
                     <Button size="lg" variant="outline" asChild>
-                        <Link href={`/store/${storeConfig.id}/products`}>
+                        <Link href={`/store/${storeConfig.id}/shop`}>
                             View All Products <ArrowRight className="ml-2 h-4 w-4" />
                         </Link>
                     </Button>

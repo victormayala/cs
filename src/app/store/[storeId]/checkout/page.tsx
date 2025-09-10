@@ -116,8 +116,8 @@ export default function CheckoutPage() {
         const storedCart = localStorage.getItem(getCartStorageKey());
         const parsedCart = storedCart ? JSON.parse(storedCart) : [];
         if (parsedCart.length === 0) {
-            toast({ title: "Cart is empty", description: "Redirecting to product page.", variant: "default"});
-            router.replace(`/store/${storeId}/products`);
+            toast({ title: "Cart is empty", description: "Redirecting to shop page.", variant: "default"});
+            router.replace(`/store/${storeId}/shop`);
             return;
         }
         setCartItems(parsedCart);

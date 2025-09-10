@@ -67,7 +67,7 @@ function StoreNotFound() {
     );
 }
 
-export default function ProductListingPage() {
+export default function ShopPage() {
   const params = useParams();
   const storeId = params.storeId as string;
 
