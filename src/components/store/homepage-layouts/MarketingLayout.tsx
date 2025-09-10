@@ -20,6 +20,7 @@ interface MarketingLayoutProps {
 
 export function MarketingLayout({ storeConfig, products, isLoading }: MarketingLayoutProps) {
   const heroProduct = products?.[0];
+  const pageContent = storeConfig.pages?.homepage;
 
   return (
     <>
@@ -28,26 +29,36 @@ export function MarketingLayout({ storeConfig, products, isLoading }: MarketingL
         {/* Hero Section */}
         <section className="w-full py-20 md:py-32 relative text-white bg-gray-900">
           <div className="absolute inset-0 bg-primary/20" style={{backgroundColor: `hsla(var(--primary) / 0.2)`}}>
-            {heroProduct && (
+            {pageContent?.hero?.backgroundImageUrl ? (
+                <Image 
+                  src={pageContent.hero.backgroundImageUrl} 
+                  alt={pageContent.hero.headline || storeConfig.storeName}
+                  fill 
+                  className="object-cover opacity-20"
+                  data-ai-hint="product background"
+                  priority
+                />
+            ) : heroProduct && (
                 <Image 
                   src={heroProduct.imageUrl} 
                   alt="Hero background" 
                   fill 
                   className="object-cover opacity-20"
                   data-ai-hint="product background"
+                  priority
                 />
             )}
           </div>
           <div className="container mx-auto px-4 text-center relative z-10">
             <h1 className="text-4xl md:text-6xl font-extrabold font-headline mb-4 drop-shadow-lg">
-              {storeConfig.storeName}
+              {pageContent?.hero?.headline || storeConfig.storeName}
             </h1>
             <p className="text-lg md:text-xl text-white/90 max-w-3xl mx-auto mb-8 drop-shadow-md">
-              Unleash your creativity with products designed by you, for you. The highest quality custom gear, made simple.
+              {pageContent?.hero?.subheading || "Unleash your creativity with products designed by you, for you. The highest quality custom gear, made simple."}
             </p>
             <Button size="lg" asChild className="transform hover:scale-105 transition-transform duration-300" style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
               <Link href={`/store/${storeConfig.id}/products`}>
-                Start Designing Now <ArrowRight className="ml-2 h-5 w-5" />
+                {pageContent?.hero?.primaryButtonText || 'Start Designing Now'} <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
           </div>

@@ -20,35 +20,45 @@ interface CasualLayoutProps {
 
 export function CasualLayout({ storeConfig, products, isLoading }: CasualLayoutProps) {
   const heroProduct = products?.[0];
+  const pageContent = storeConfig.pages?.homepage;
 
   return (
     <>
       <StoreHeader storeConfig={storeConfig} />
       <div className="w-full">
         {/* Hero Section */}
-        <section className="w-full py-20 md:py-32 bg-muted/30">
-          <div className="container mx-auto px-4 text-center">
-            <h1 className="text-4xl md:text-6xl font-bold font-headline mb-4" style={{ color: `hsl(var(--primary))` }}>
-              Welcome to {storeConfig.storeName}
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-              Your new favorite spot for unique, customizable gear. Let's create something amazing together!
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Button size="lg" asChild style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
-                <Link href={`/store/${storeConfig.id}/products`}>
-                  Shop All Products <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-              {heroProduct && (
-                  <Button size="lg" variant="outline" asChild>
-                  <Link href={heroProduct.productUrl}>
-                      Featured: {heroProduct.name}
-                  </Link>
-                  </Button>
-              )}
+        <section className="w-full py-20 md:py-32 bg-muted/30 relative">
+            {pageContent?.hero?.backgroundImageUrl && (
+                <Image 
+                    src={pageContent.hero.backgroundImageUrl}
+                    alt={pageContent.hero.headline || storeConfig.storeName}
+                    fill
+                    className="object-cover opacity-20"
+                    priority
+                />
+            )}
+            <div className="container mx-auto px-4 text-center relative z-10">
+                <h1 className="text-4xl md:text-6xl font-bold font-headline mb-4" style={{ color: `hsl(var(--primary))` }}>
+                {pageContent?.hero?.headline || `Welcome to ${storeConfig.storeName}`}
+                </h1>
+                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+                {pageContent?.hero?.subheading || "Your new favorite spot for unique, customizable gear. Let's create something amazing together!"}
+                </p>
+                <div className="flex gap-4 justify-center">
+                <Button size="lg" asChild style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
+                    <Link href={`/store/${storeConfig.id}/products`}>
+                    {pageContent?.hero?.primaryButtonText || 'Shop All Products'} <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                </Button>
+                {pageContent?.hero?.secondaryButtonText && (
+                    <Button size="lg" variant="outline" asChild>
+                    <Link href={`/store/${storeConfig.id}/products`}>
+                        {pageContent.hero.secondaryButtonText}
+                    </Link>
+                    </Button>
+                )}
+                </div>
             </div>
-          </div>
         </section>
 
         {/* Featured Products Section */}

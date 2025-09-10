@@ -20,6 +20,7 @@ interface CorporateLayoutProps {
 
 export function CorporateLayout({ storeConfig, products, isLoading }: CorporateLayoutProps) {
   const heroProduct = products?.[0];
+  const pageContent = storeConfig.pages?.homepage;
 
   return (
     <>
@@ -30,30 +31,33 @@ export function CorporateLayout({ storeConfig, products, isLoading }: CorporateL
         <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <h1 className="text-4xl md:text-5xl font-bold font-headline mb-4 text-gray-900 leading-tight">
-              {storeConfig.storeName}: Professional Customization Solutions
+              {pageContent?.hero?.headline || `${storeConfig.storeName}: Professional Customization Solutions`}
             </h1>
             <p className="text-lg text-gray-600 max-w-xl mb-8">
-              Elevate your brand with high-quality, customizable products tailored for corporate needs.
+              {pageContent?.hero?.subheading || "Elevate your brand with high-quality, customizable products tailored for corporate needs."}
             </p>
             <div className="flex gap-4">
               <Button size="lg" asChild style={{ backgroundColor: `hsl(var(--primary))`, color: `hsl(var(--primary-foreground))` }}>
                 <Link href={`/store/${storeConfig.id}/products`}>
-                  Browse Catalog
+                  {pageContent?.hero?.primaryButtonText || 'Browse Catalog'}
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/contact">Contact Sales</Link>
-              </Button>
+              {pageContent?.hero?.secondaryButtonText && (
+                <Button size="lg" variant="outline" asChild>
+                  <Link href="/contact">{pageContent.hero.secondaryButtonText}</Link>
+                </Button>
+              )}
             </div>
           </div>
           <div className="relative aspect-video w-full bg-gray-100 rounded-lg overflow-hidden">
-             {heroProduct ? (
+             {pageContent?.hero?.backgroundImageUrl ? (
                 <Image
-                    src={heroProduct.imageUrl}
-                    alt={`${heroProduct.name} - Featured Product`}
+                    src={pageContent.hero.backgroundImageUrl}
+                    alt={pageContent.hero.headline || storeConfig.storeName}
                     fill
-                    className="object-contain"
-                    data-ai-hint="corporate product"
+                    className="object-cover"
+                    data-ai-hint="corporate hero banner"
+                    priority
                 />
             ) : (
                 <div className="flex items-center justify-center h-full">
