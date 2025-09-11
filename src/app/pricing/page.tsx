@@ -152,7 +152,7 @@ export default function PricingPage() {
                <div className="max-w-5xl mx-auto bg-card rounded-xl border shadow-lg p-2 sm:p-4">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="">
+                      <tr className="bg-muted/50">
                         <th className="text-left font-semibold p-4 w-1/3">Plan Features</th>
                         <th className="text-center font-semibold p-4">Starter</th>
                         <th className="text-center font-semibold p-4">Pro</th>
