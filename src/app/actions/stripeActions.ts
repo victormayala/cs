@@ -9,15 +9,17 @@ import type { CartItem } from '@/app/store/[storeId]/checkout/page';
 import type { UserStoreConfig } from './userStoreActions';
 
 
-// Ensure the Stripe secret key is set
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) {
-  throw new Error("Stripe secret key is not set in environment variables. Please set STRIPE_SECRET_KEY.");
+// Helper function to get the Stripe instance on demand
+function getStripeInstance() {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    throw new Error("Stripe secret key is not set in environment variables. Please set STRIPE_SECRET_KEY.");
+  }
+  return new Stripe(stripeSecretKey, {
+    apiVersion: '2024-06-20',
+  });
 }
 
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2024-06-20',
-});
 
 interface CreateDeferredStripeAccountArgs {
   userId: string;
@@ -42,6 +44,7 @@ export async function createDeferredStripeAccount(
   }
 
   try {
+    const stripe = getStripeInstance();
     const account = await stripe.accounts.create({
       type: 'express',
       email: email,
@@ -105,6 +108,7 @@ export async function createStripeAccountLink(
   const refreshUrl = `${appUrl}/dashboard`;
 
   try {
+    const stripe = getStripeInstance();
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: refreshUrl,
@@ -134,6 +138,7 @@ export async function createStripeLoginLink(
     }
 
     try {
+        const stripe = getStripeInstance();
         const loginLink = await stripe.accounts.createLoginLink(accountId);
         return { success: true, url: loginLink.url };
     } catch (error: any) {
@@ -157,6 +162,7 @@ export async function createCheckoutSession(
   }
 
   try {
+    const stripe = getStripeInstance();
     const storeDocRef = doc(db, 'userStores', storeId);
     const storeDocSnap = await getDoc(storeDocRef);
 
@@ -221,4 +227,3 @@ export async function createCheckoutSession(
     return { error: error.message || 'An unexpected error occurred.' };
   }
 }
-
