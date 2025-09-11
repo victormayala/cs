@@ -5,7 +5,7 @@ import MarketingHeader from '@/components/layout/MarketingHeader';
 import MarketingFooter from '@/components/layout/MarketingFooter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -56,6 +56,27 @@ const pricingTiers = [
     cta: "Contact Us",
     href: "/contact",
   }
+];
+
+const comparisonFeatures = [
+    { feature: "Number of stores", starter: "1", pro: "5", plus: "Unlimited" },
+    { feature: "Additional stores", starter: "$10/mo", pro: "$10/mo", plus: "Included" },
+    { feature: "Number of products", starter: "20", pro: "200/store", plus: "Unlimited" },
+    { feature: "Transaction fee", starter: "7%", pro: "5%", plus: "2%" },
+    { feature: "Storefront customization", starter: true, pro: true, plus: true },
+    { feature: "Automated page generation", starter: true, pro: true, plus: true },
+    { feature: "AI-powered product description", starter: false, pro: true, plus: true },
+    { feature: "Secure Stripe checkout", starter: true, pro: true, plus: true },
+    { feature: "Advance reporting & analytics", starter: false, pro: true, plus: true },
+    { feature: "Team management", starter: false, pro: true, plus: true },
+    { feature: "Custom domain", starter: false, pro: true, plus: true },
+    { feature: "Customizer Studio", starter: false, pro: false, plus: true },
+    { feature: "Virtual mockup generator", starter: false, pro: false, plus: true },
+    { feature: "Client approval flow", starter: true, pro: true, plus: true },
+    { feature: "Client portal", starter: true, pro: true, plus: true },
+    { feature: "White label", starter: true, pro: true, plus: true },
+    { feature: "Priority email support", starter: false, pro: true, plus: true },
+    { feature: "Priority live support", starter: false, pro: false, plus: true },
 ];
 
 export default function PricingPage() {
@@ -116,6 +137,49 @@ export default function PricingPage() {
               </Card>
             ))}
           </div>
+
+           {/* Comparison Table Section */}
+           <div className="mt-20 md:mt-28">
+             <div className="text-center mb-12">
+               <h2 className="text-4xl font-bold font-headline text-foreground mb-4">
+                Compare Our Plans
+               </h2>
+               <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+                 Choose the plan that best fits your needs.
+               </p>
+             </div>
+             <div className="overflow-x-auto">
+               <div className="max-w-5xl mx-auto bg-card rounded-xl border shadow-lg p-2 sm:p-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="">
+                        <th className="text-left font-semibold p-4 w-1/3">Plan Features</th>
+                        <th className="text-center font-semibold p-4">Starter</th>
+                        <th className="text-center font-semibold p-4">Pro</th>
+                        <th className="text-center font-semibold p-4">Plus</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonFeatures.map((item, index) => (
+                        <tr key={index} className="border-t border-border/60">
+                           <td className="p-4 font-medium text-foreground">{item.feature}</td>
+                           {(['starter', 'pro', 'plus'] as const).map(plan => (
+                             <td key={plan} className="p-4 text-center text-muted-foreground">
+                               {typeof item[plan] === 'boolean' ? (
+                                  item[plan] ? <Check className="h-5 w-5 text-green-500 mx-auto" /> : <X className="h-5 w-5 text-destructive mx-auto" />
+                                ) : (
+                                  <span>{item[plan]}</span>
+                                )}
+                             </td>
+                           ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+               </div>
+             </div>
+           </div>
+
           <div className="text-center mt-16">
             <p className="text-muted-foreground">
               Need a custom enterprise solution? <Link href="/contact" className="text-primary font-semibold hover:underline">Contact our sales team</Link>.
