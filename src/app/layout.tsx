@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="data:," />
+        <link rel="icon" href="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Ffavicon.png?alt=media&token=be00daa8-3460-4da0-86dc-bd6e67f7bce8" sizes="any" />
       </head>
       <body className="font-sans antialiased" suppressHydrationWarning={true}>
         <AuthProvider>
