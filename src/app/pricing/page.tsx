@@ -161,7 +161,7 @@ export default function PricingPage() {
                     </thead>
                     <tbody>
                       {comparisonFeatures.map((item, index) => (
-                        <tr key={index} className="border-t border-border/60">
+                        <tr key={index} className="border-t border-border/60 even:bg-muted/20">
                            <td className="p-4 font-medium text-foreground">{item.feature}</td>
                            {(['starter', 'pro', 'plus'] as const).map(plan => (
                              <td key={plan} className="p-4 text-center text-muted-foreground">
