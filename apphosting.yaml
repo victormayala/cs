@@ -43,6 +43,7 @@ env:
     secret: your-stripe-secret-key # <-- REPLACE THIS
     availability:
       - RUNTIME
+  # INSTRUCTION: Create a secret for your Stripe webhook signing secret.
   - variable: STRIPE_WEBHOOK_SECRET
     secret: your-stripe-webhook-secret # <-- REPLACE THIS
     availability:
