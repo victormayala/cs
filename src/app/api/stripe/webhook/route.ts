@@ -7,18 +7,6 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { StoreOrder, StoreCustomer } from '@/lib/data-types';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-if (!stripeSecretKey || !stripeWebhookSecret) {
-  throw new Error("Stripe keys are not set in environment variables.");
-}
-
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2024-06-20',
-  typescript: true,
-});
-
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   const { storeId, merchantId, cartItems: cartItemsString, customerName } = session.metadata || {};
 
@@ -84,6 +72,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 }
 
 export async function POST(request: Request) {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!stripeSecretKey || !stripeWebhookSecret) {
+    console.error("[Stripe Webhook] CRITICAL: Stripe keys are not set in environment variables.");
+    // Return a 500 but don't throw, as that crashes the server instance.
+    return NextResponse.json({ error: 'Server configuration error: Missing Stripe keys.' }, { status: 500 });
+  }
+
+  const stripe = new Stripe(stripeSecretKey, {
+    apiVersion: '2024-06-20',
+    typescript: true,
+  });
+
   const body = await request.text();
   const sig = request.headers.get('stripe-signature');
 
@@ -157,4 +159,3 @@ export async function POST(request: Request) {
 // NOTE: You need to configure this endpoint in your Stripe dashboard:
 // URL: https://<your-app-url>/api/stripe/webhook
 // Events to listen for: 'account.updated', 'checkout.session.completed'
-
