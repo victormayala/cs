@@ -8,7 +8,7 @@ Customizer Studio is a full-stack Next.js application designed to provide a powe
 1.  **A SaaS Dashboard**: A secure, multi-tenant interface where business owners (merchants) can connect their e-commerce stores (Shopify, WooCommerce), configure customization options for their products, and build their own standalone storefronts.
 2.  **An Embeddable Customizer Tool**: A highly interactive interface that can be embedded via an iframe into external e-commerce sites (like Shopify or WordPress) or used within its own generated storefronts.
 
-The stack includes Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, Firebase (for authentication and database), and Google's Genkit (for all generative AI features).
+The stack includes Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, Firebase (for authentication and database), Stripe (for payments and merchant onboarding), and Google's Genkit (for generative AI features).
 
 ---
 
@@ -19,7 +19,7 @@ The stack includes Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, Firebase
 The `configUserId` is the **most critical identifier** in the system. It is the unique ID of a registered user (merchant) in Customizer Studio. This ID acts as the primary key that links a merchant's account to all their associated data, including:
 
 -   **Product Configurations**: Which products are customizable, their views (e.g., front, back), design areas, and variant-specific images.
--   **Store Credentials**: Securely stored API keys for connected Shopify or WooCommerce stores.
+-   **Store Credentials**: Securely stored API keys for connected Shopify or WooCommerce stores, and their Stripe Connect Account ID for payments.
 -   **Generated Store Settings**: The configuration for a merchant's own generated storefront, including layout, branding, volume discounts, and shipping options.
 
 When the customizer tool is embedded, the `configUserId` is passed as a query parameter, allowing the application to fetch the correct set of rules and assets for the specific merchant's store.
@@ -36,7 +36,16 @@ The system handles three distinct types of products:
 
 ## 3. Key Features and Flows
 
-### 3.1. Generated Storefronts
+### 3.1. Stripe Integration (Payments & Onboarding)
+
+Customizer Studio uses **Stripe Connect** to handle payments for generated storefronts and to onboard merchants so they can receive payouts.
+
+-   **Merchant Onboarding**: When a new user signs up, a Stripe Connect Express account is automatically created for them in a deferred state. From the dashboard, the merchant can click "Start Onboarding" to be redirected to a secure, Stripe-hosted flow where they provide their identity and bank information.
+-   **Account Status**: The dashboard reflects the merchant's Stripe account status (e.g., onboarding in progress, payouts enabled), which is updated automatically via Stripe webhooks.
+-   **Secure Checkout**: The generated storefronts use Stripe Checkout for a secure, PCI-compliant payment experience. When a customer pays, the funds are routed to the merchant's Stripe account, with a platform fee taken by Customizer Studio.
+-   **Order Fulfillment**: A Stripe webhook for `checkout.session.completed` triggers the creation of an order and customer record in the merchant's Firestore database, ensuring that all successful payments result in a fulfillable order.
+
+### 3.2. Generated Storefronts
 
 -   **Creation & Configuration**: Managed in `/dashboard/store/create` (and the subsequent `/dashboard/store/[storeId]/...` pages). Merchants can set a store name, choose a layout, and define branding.
 -   **Page Content Management**: A comprehensive editor allows merchants to define the content for all key pages of their store, including:
@@ -52,9 +61,9 @@ The system handles three distinct types of products:
     -   **Shipping**: A simple "Local Delivery" option can be enabled with a custom fee and text.
     -   **Embroidery Fee**: A store-wide, one-time setup fee for embroidery.
 -   **Deployment**: The `deployStore` Genkit flow simulates a deployment process, generating a mock URL for the storefront. In a real-world scenario, this flow would trigger a CI/CD pipeline.
--   **Public Access**: The generated store is accessible via `/store/{storeId}`, with its associated pages like `/store/{storeId}/about`, `/store/{storeId}/faq`, etc.
+-   **Public Access**: The generated store is accessible via `/store/{storeId}`, with its associated pages like `/store/{storeId}/about`, `/store/{storeId}/faq`, etc. The checkout flow culminates in a successful order confirmation page at `/store/{storeId}/order/success`.
 
-### 3.2. The Customizer (`/customizer`)
+### 3.3. The Customizer (`/customizer`)
 
 This is the core interactive component. It's a single page that dynamically loads product data based on URL query parameters.
 
@@ -67,7 +76,7 @@ This is the core interactive component. It's a single page that dynamically load
 -   **Technique Selection**: If a product has multiple customization techniques enabled (e.g., Embroidery, Print), the user can select their preferred method from a dropdown, which dynamically adjusts the pricing based on per-view fees.
 -   **`postMessage` API**: When in `embedded` mode, the customizer uses the browser's `postMessage` API to send the final, complete design data object back to the parent window (the Shopify or WordPress site). This is crucial for adding the customization details to the cart.
 
-### 3.3. Product Options Configuration (`/dashboard/products/.../options`)
+### 3.4. Product Options Configuration (`/dashboard/products/.../options`)
 
 This is where merchants define how a product can be customized.
 
@@ -101,3 +110,6 @@ The application exposes several serverless API routes under `src/app/api/` that 
 -   **`/api/preview`**: A POST endpoint that receives the state of the customizer canvas (base image, elements, transforms) and returns a final composited preview image by calling the `compositeImages` flow.
 -   **`/api/product-customization-check`**: A simple endpoint for the WordPress plugin to check if customization is enabled for a specific product ID for a given `configUserId`.
 -   **`/api/shopify/...`**: Handles the OAuth flow for connecting a Shopify store.
+-   **`/api/stripe/webhook`**: The endpoint that receives and processes events from Stripe, such as `account.updated` and `checkout.session.completed`.
+
+    
