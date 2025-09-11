@@ -33,6 +33,7 @@ interface CreateDeferredStripeAccountArgs {
  * Creates a deferred Stripe Connect Express account for a new user.
  * This function is called immediately after a user signs up.
  * It creates the account but does not initiate the onboarding flow.
+ * IT NO LONGER WRITES TO FIRESTORE. It only returns the accountId.
  * @param {CreateDeferredStripeAccountArgs} args - The user details required.
  * @returns {Promise<{success: boolean; accountId?: string; error?: string}>} - The result of the operation.
  */
@@ -42,7 +43,9 @@ export async function createDeferredStripeAccount(
   const { userId, email, name } = args;
 
   if (!userId || !email || typeof email !== 'string' || email.trim() === '') {
-    return { success: false, error: 'A valid User ID and Email are required to create a Stripe account.' };
+    const errorMessage = 'A valid User ID and Email are required to create a Stripe account.';
+    console.error(`createDeferredStripeAccount validation failed: ${errorMessage}`, { userId, email });
+    return { success: false, error: errorMessage };
   }
 
   // Use email as a fallback if name is not provided or is empty
@@ -56,7 +59,6 @@ export async function createDeferredStripeAccount(
       business_type: 'individual',
       business_profile: {
         name: businessName,
-        // It's good practice to provide a default support email
         support_email: email,
       },
       capabilities: {
@@ -65,31 +67,17 @@ export async function createDeferredStripeAccount(
       },
     });
 
-    // Save the Stripe Connect Account ID to the user's document in Firestore
-    const userDocRef = doc(db, 'users', userId);
-    // Use setDoc with merge:true to safely add/update fields without overwriting the doc
-    await setDoc(userDocRef, {
-      stripeConnectAccountId: account.id,
-      connectOnboardingStatus: "not_started",
-      chargesEnabled: false,
-      payoutsEnabled: false,
-      detailsSubmitted: false,
-    }, { merge: true });
-
-    console.log(`Successfully created deferred Stripe account ${account.id} for user ${userId}`);
+    console.log(`Successfully created deferred Stripe account ${account.id} for user ${userId}. Returning ID to client for Firestore write.`);
+    // IMPORTANT: Return the account ID to the client. The client will handle the Firestore write.
     return { success: true, accountId: account.id };
 
   } catch (error: any) {
-    console.error('Error creating Stripe deferred account:', error);
-    // It's important not to expose raw Stripe errors to the client
-    const errorMessage = error.raw?.message || `An unexpected error occurred while creating the Stripe account. Raw error: ${String(error)}`;
+    console.error(`Error creating Stripe deferred account for user ${userId}:`, error);
+    const errorMessage = error.raw?.message || `An unexpected error occurred while creating the Stripe account. Please check server logs. Raw error: ${String(error)}`;
     
-    // You might want to update the user doc with an error state here
-    const userDocRef = doc(db, 'users', userId);
-    await setDoc(userDocRef, {
-        stripeConnectAccountError: errorMessage,
-    }, { merge: true }).catch(dbError => console.error("Failed to write Stripe error to user doc:", dbError));
-
+    // We cannot write an error state to the user doc here due to permissions.
+    // The client will have to handle the failure.
+    
     return { success: false, error: errorMessage };
   }
 }

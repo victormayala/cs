@@ -237,27 +237,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
   
   const createUserProfile = async (firebaseUser: FirebaseUser) => {
+    if (!db) throw new Error("Firestore is not initialized.");
     const userDocRef = doc(db, "users", firebaseUser.uid);
     const userDocSnap = await getDoc(userDocRef);
+
     if (!userDocSnap.exists()) {
-        await setDoc(userDocRef, {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            role: 'user', // Default role
-            createdAt: serverTimestamp(),
-        });
-        
-        // Asynchronously create the deferred Stripe account
-        createDeferredStripeAccount({
-            userId: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || firebaseUser.email || ''
-        }).catch(err => {
-            console.error("Failed to create deferred Stripe account:", err);
-            // Optionally, you could set a flag in the user's doc to retry this later
-        });
+        try {
+            await setDoc(userDocRef, {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                role: 'user', // Default role
+                createdAt: serverTimestamp(),
+            });
+
+            // Asynchronously create the deferred Stripe account
+            const stripeResult = await createDeferredStripeAccount({
+                userId: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: firebaseUser.displayName || firebaseUser.email || '',
+            });
+
+            if (stripeResult.success && stripeResult.accountId) {
+                // Now, update the user doc with the Stripe account ID
+                await setDoc(userDocRef, { 
+                    stripeConnectAccountId: stripeResult.accountId,
+                    connectOnboardingStatus: 'not_started',
+                    chargesEnabled: false,
+                    payoutsEnabled: false,
+                    detailsSubmitted: false,
+                }, { merge: true });
+            } else {
+                 console.error("Failed to create deferred Stripe account on signup:", stripeResult.error);
+                 await setDoc(userDocRef, { stripeConnectAccountError: stripeResult.error || 'Failed to create account.' }, { merge: true });
+            }
+        } catch (error) {
+            console.error("Error during user profile and Stripe account creation:", error);
+            // Handle the error appropriately, maybe log it or show a notification
+        }
+    } else {
+        // If user doc exists, check if they are missing a stripe account id and create it.
+        const userData = userDocSnap.data();
+        if (!userData.stripeConnectAccountId) {
+            console.log(`User ${firebaseUser.uid} exists but is missing a Stripe account. Creating one now.`);
+             try {
+                const stripeResult = await createDeferredStripeAccount({
+                    userId: firebaseUser.uid,
+                    email: firebaseUser.email || '',
+                    name: firebaseUser.displayName || firebaseUser.email || '',
+                });
+                if (stripeResult.success && stripeResult.accountId) {
+                    await updateDoc(userDocRef, { 
+                        stripeConnectAccountId: stripeResult.accountId,
+                        connectOnboardingStatus: 'not_started',
+                        chargesEnabled: false,
+                        payoutsEnabled: false,
+                        detailsSubmitted: false,
+                    });
+                } else {
+                     console.error(`Failed to create Stripe account for existing user ${firebaseUser.uid}:`, stripeResult.error);
+                     await updateDoc(userDocRef, { stripeConnectAccountError: stripeResult.error || 'Failed to create account.' });
+                }
+             } catch (error) {
+                 console.error(`Error during Stripe account creation for existing user ${firebaseUser.uid}:`, error);
+             }
+        }
     }
   };
 
