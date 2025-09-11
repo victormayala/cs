@@ -24,7 +24,7 @@
     --secondary-foreground: 240 10% 3.9%; /* Dark text for new secondary */
     
     --muted: 210 40% 96.1%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted-foreground: 0 0% 16.1%; /* #292929 */
     
     --accent: 167 79% 50%; /* New: #1BE5BE */
     --accent-foreground: 240 10% 3.9%; /* Dark for contrast on new accent */
@@ -69,7 +69,7 @@
     --secondary-foreground: 167 79% 10%; /* Darker teal for contrast */
     
     --muted: 240 4% 15.9%;
-    --muted-foreground: 240 5% 54.9%;
+    --muted-foreground: 0 0% 89.8%; /* Lighter version of #292929 for dark mode */
     
     --accent: 167 79% 60%; /* Lighter teal accent for dark mode based on #1BE5BE */
     --accent-foreground: 167 79% 10%; /* Darker teal for contrast */
