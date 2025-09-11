@@ -3,10 +3,11 @@
 
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import type { User } from '@/contexts/AuthContext';
 import type { CartItem } from '@/app/store/[storeId]/checkout/page';
 import type { UserStoreConfig } from './userStoreActions';
+import type { StoreOrder } from '@/lib/data-types';
 
 
 // Helper function to get the Stripe instance on demand
@@ -226,4 +227,53 @@ export async function createCheckoutSession(
     console.error('Error creating Stripe Checkout session:', error);
     return { error: error.message || 'An unexpected error occurred.' };
   }
+}
+
+/**
+ * Retrieves an order from Firestore based on the Stripe Checkout Session ID.
+ */
+export async function getOrderByStripeSessionId(
+    storeId: string, 
+    stripeSessionId: string
+): Promise<{ order: StoreOrder | null, error?: string }> {
+    if (!storeId || !stripeSessionId) {
+        return { order: null, error: "Store ID and Session ID are required." };
+    }
+
+    try {
+        const storeDocRef = doc(db, 'userStores', storeId);
+        const storeDocSnap = await getDoc(storeDocRef);
+        if (!storeDocSnap.exists()) {
+            return { order: null, error: "Store not found." };
+        }
+        const merchantId = storeDocSnap.data().userId;
+
+        const ordersRef = collection(db, `users/${merchantId}/orders`);
+        const q = query(
+            ordersRef,
+            where("stripeCheckoutSessionId", "==", stripeSessionId),
+            limit(1)
+        );
+
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return { order: null, error: "Order not found." };
+        }
+
+        const orderDoc = querySnapshot.docs[0];
+        const orderData = orderDoc.data() as Omit<StoreOrder, 'id'>;
+
+        // Manually convert Firestore Timestamp to JSON-serializable format (ISO string)
+        const serializableOrder: StoreOrder = {
+            id: orderDoc.id,
+            ...orderData,
+            createdAt: (orderData.createdAt as Timestamp).toDate().toISOString(),
+        };
+
+        return { order: serializableOrder };
+    } catch (err: any) {
+        console.error("Error fetching order by session ID:", err);
+        return { order: null, error: "Failed to retrieve order details from the database." };
+    }
 }
