@@ -12,29 +12,30 @@ import { cn } from '@/lib/utils';
 const pricingTiers = [
   {
     name: "Starter",
-    price: "$19",
-    frequency: "/month",
-    description: "For individuals and small projects getting started.",
+    price: "FREE",
+    priceSub: "$10/mo per additional store",
+    description: "For individuals and small projects just getting started.",
     features: [
-      "5 Customizable Products",
-      "Basic Customization Tools",
-      "AI Design Suggestions",
-      "Community Support",
+      "1 Store",
+      "20 Products",
+      "7% Transaction Fee",
+      "Storefront customization",
     ],
-    cta: "Choose Starter",
+    cta: "Get Started",
     href: "/signup?plan=starter",
   },
   {
     name: "Pro",
-    price: "$49",
+    price: "$59",
     frequency: "/month",
-    description: "For professionals and growing businesses.",
+    priceSub: "$10/mo per additional store",
+    description: "For growing businesses that need more power and support.",
     features: [
-      "25 Customizable Products",
-      "All Customization Tools",
-      "Advanced AI Design Generation",
-      "Shopify & WooCommerce Integration",
-      "Priority Email Support",
+      "5 Stores",
+      "200 Products per store",
+      "5% Transaction Fee",
+      "Team management",
+      "Priority email support",
     ],
     cta: "Choose Pro",
     href: "/signup?plan=pro",
@@ -42,17 +43,18 @@ const pricingTiers = [
   },
   {
     name: "Plus",
-    price: "$99",
-    frequency: "/month",
-    description: "For businesses scaling their customization offerings.",
+    price: "Custom",
+    priceSub: "For large-scale operations with custom needs.",
+    description: "For large-scale operations with custom needs.",
     features: [
-      "100 Customizable Products",
-      "Everything in Pro",
-      "API Access (Beta)",
-      "Dedicated Account Manager",
+      "Unlimited Stores",
+      "Unlimited Products",
+      "2% Transaction Fee",
+      "Client portal",
+      "Priority live support",
     ],
-    cta: "Choose Plus",
-    href: "/signup?plan=plus",
+    cta: "Contact Us",
+    href: "/contact",
   }
 ];
 
@@ -79,17 +81,13 @@ export default function PricingPage() {
                 tier.popular ? 'border-primary ring-2 ring-primary scale-105 bg-card' : 'border-border bg-card/60 hover:bg-card hover:shadow-xl'
               )}>
                 <CardHeader className="pb-4">
-                  {tier.popular && (
-                    <div className="text-sm font-semibold text-primary text-center mb-2 bg-primary/10 py-1 px-3 rounded-full w-fit mx-auto">
-                      Most Popular
-                    </div>
-                  )}
                   <CardTitle className="font-headline text-2xl text-center text-card-foreground">{tier.name}</CardTitle>
-                  <div className="text-center">
-                    <span className="text-4xl font-bold text-foreground">{tier.price}</span>
-                    <span className="text-muted-foreground">{tier.frequency}</span>
-                  </div>
                   <CardDescription className="text-center h-10">{tier.description}</CardDescription>
+                  <div className="text-center pt-4">
+                    <span className="text-5xl font-bold text-foreground">{tier.price}</span>
+                    {tier.frequency && <span className="text-muted-foreground">{tier.frequency}</span>}
+                  </div>
+                  {tier.price !== 'Custom' && <p className="text-center text-sm text-muted-foreground">{tier.priceSub}</p>}
                 </CardHeader>
                 <CardContent className="flex-grow">
                   <ul className="space-y-3">
@@ -106,8 +104,10 @@ export default function PricingPage() {
                     asChild 
                     className={cn(
                         "w-full",
-                        tier.popular ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-accent text-accent-foreground hover:bg-accent/90'
+                        tier.popular ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-accent text-accent-foreground hover:bg-accent/90',
+                        tier.price === 'Custom' && 'bg-background text-foreground border border-input hover:bg-accent'
                     )}
+                    variant={tier.popular ? 'default' : 'outline'}
                     size="lg"
                   >
                     <Link href={tier.href}>{tier.cta}</Link>
