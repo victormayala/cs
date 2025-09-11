@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3, ShieldCheck, FileCheck } from "lucide-react";
+import { RefreshCcw, MoreHorizontal, Settings, Code, Trash2, AlertTriangle, Loader2, LogOut, Link as LinkIcon, KeyRound, Save, Package as PackageIcon, Server, UserCircle, XCircle, Clipboard, Check, Info, Store, PlusCircle, ExternalLink, Folder as FolderIcon, Edit, FolderPlus, BarChart3, ShieldCheck, FileCheck, Banknote } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from 'next/navigation';
 import NextImage from 'next/image';
@@ -19,6 +19,7 @@ import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/act
 import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
 import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
+import { createStripeAccountLink, createStripeLoginLink } from "@/app/actions/stripeActions";
 import { db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, onSnapshot, addDoc, updateDoc } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
@@ -46,7 +47,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import { Alert as ShadCnAlert, AlertDescription as ShadCnAlertDescription, AlertTitle as ShadCnAlertTitle } from "@/components/ui/alert";
-import { FaShopify, FaWordpress } from 'react-icons/fa';
+import { FaShopify, FaWordpress, FaStripe } from 'react-icons/fa';
 import { Logo } from "@/components/icons/Logo";
 
 
@@ -427,21 +428,32 @@ function DashboardPageContent() {
   const [isLoadingUserStores, setIsLoadingUserStores] = useState(true);
   const [storeToDelete, setStoreToDelete] = useState<UserStoreConfig | null>(null);
 
+  // New state for Stripe onboarding
+  const [isCreatingAccountLink, setIsCreatingAccountLink] = useState(false);
+
 
   // Effect to handle Shopify OAuth error callback
   useEffect(() => {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
+    const stripeReturn = searchParams.get('stripe_return');
 
     if (error === 'shopify_auth_failed' && errorDescription) {
       toast({
         title: "Shopify Connection Failed",
         description: `Reason: ${errorDescription}`,
         variant: "destructive",
-        duration: 10000, // Show for longer
+        duration: 10000,
       });
-      // Clean up the URL
       router.replace('/dashboard', { scroll: false });
+    }
+    if (stripeReturn === 'true') {
+        toast({
+            title: "Returned from Stripe",
+            description: "Your Stripe account status has been refreshed.",
+        });
+        // You might want to trigger a refresh of user data here
+        router.replace('/dashboard', { scroll: false });
     }
   }, [searchParams, router, toast]);
 
@@ -817,6 +829,48 @@ function DashboardPageContent() {
     }
   };
 
+  const handleStripeOnboarding = async () => {
+    if (!user?.stripeConnectAccountId) {
+        toast({ title: "Error", description: "Stripe account ID not found for this user.", variant: "destructive"});
+        return;
+    }
+    setIsCreatingAccountLink(true);
+    try {
+        const { url, error } = await createStripeAccountLink(user.stripeConnectAccountId, 'account_onboarding');
+        if (error) throw new Error(error);
+        if (url) {
+            window.location.href = url; // Redirect user to Stripe
+        } else {
+            throw new Error("Failed to get a valid onboarding URL from Stripe.");
+        }
+    } catch (err: any) {
+        toast({ title: "Onboarding Error", description: err.message, variant: "destructive"});
+    } finally {
+        setIsCreatingAccountLink(false);
+    }
+  };
+  
+  const handleStripeDashboardLink = async () => {
+      if (!user?.stripeConnectAccountId) {
+          toast({ title: "Error", description: "Stripe account ID not found for this user.", variant: "destructive"});
+          return;
+      }
+      setIsCreatingAccountLink(true);
+      try {
+          const { url, error } = await createStripeLoginLink(user.stripeConnectAccountId);
+          if (error) throw new Error(error);
+          if (url) {
+              window.open(url, '_blank');
+          } else {
+              throw new Error("Failed to get a valid dashboard URL from Stripe.");
+          }
+      } catch (err: any) {
+          toast({ title: "Stripe Dashboard Error", description: err.message, variant: "destructive"});
+      } finally {
+          setIsCreatingAccountLink(false);
+      }
+  };
+
   useEffect(() => {
     if (activeTab === 'products' && user && !isLoadingWcCredentials && !isLoadingShopifyCredentials && products.length === 0 && !isLoadingProducts && !error) {
         loadAllProducts(false, false);
@@ -904,6 +958,27 @@ function DashboardPageContent() {
   const isLoadingAnyCredentials = isLoadingWcCredentials || isLoadingShopifyCredentials;
   const isAnyStoreConnected = wcCredentialsExist || shopifyCredentialsExist;
   const isStoreConnectionIssueError = error && (error.includes("Connect your") || error.includes("Store Integration"));
+
+  const onboardingStatus = user.onboardingStatus || 'not_started';
+  const chargesEnabled = user.chargesEnabled;
+  const payoutsEnabled = user.payoutsEnabled;
+
+  const renderStripeOnboardingButton = () => {
+      if (onboardingStatus === 'completed') {
+          return (
+              <Button onClick={handleStripeDashboardLink} disabled={isCreatingAccountLink}>
+                  {isCreatingAccountLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                  View Stripe Dashboard
+              </Button>
+          );
+      }
+      return (
+          <Button onClick={handleStripeOnboarding} disabled={isCreatingAccountLink}>
+              {isCreatingAccountLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FaStripe className="mr-2 h-5 w-5" />}
+              {onboardingStatus === 'in_progress' ? 'Resume Onboarding' : 'Start Onboarding'}
+          </Button>
+      );
+  };
 
 
   return (
@@ -1190,7 +1265,49 @@ function DashboardPageContent() {
 
 
               {activeTab === 'settings' && (
-                <Card className="shadow-lg border-border bg-card"><CardHeader><CardTitle className="font-headline text-xl text-card-foreground">Settings</CardTitle><CardDescription className="text-muted-foreground">Application settings and preferences.</CardDescription></CardHeader><CardContent><p className="text-muted-foreground">Settings content will go here. (Coming Soon)</p></CardContent></Card>
+                  <div className="space-y-8">
+                      <Card className="shadow-lg border-border bg-card">
+                          <CardHeader>
+                              <CardTitle className="font-headline text-xl text-card-foreground flex items-center gap-2"><FaStripe className="text-[#635BFF]" /> Payments (Stripe)</CardTitle>
+                              <CardDescription className="text-muted-foreground">Manage your Stripe account to receive payouts for sales.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                              {user.stripeConnectAccountId ? (
+                                  <div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                                          <div className="p-4 border rounded-lg bg-muted/30">
+                                              <p className="text-sm font-medium text-muted-foreground">Onboarding Status</p>
+                                              <Badge variant={onboardingStatus === 'completed' ? 'default' : 'secondary'} className={cn("mt-1 capitalize", onboardingStatus === 'completed' ? 'bg-green-500/20 text-green-800 border-green-500/30' : 'bg-yellow-500/20 text-yellow-800 border-yellow-500/30')}>
+                                                  {onboardingStatus.replace('_', ' ')}
+                                              </Badge>
+                                          </div>
+                                          <div className="p-4 border rounded-lg bg-muted/30">
+                                              <p className="text-sm font-medium text-muted-foreground">Can Receive Payments?</p>
+                                              <Badge variant={chargesEnabled ? 'default' : 'destructive'} className={cn("mt-1", chargesEnabled ? 'bg-green-500/20 text-green-800 border-green-500/30' : '')}>
+                                                  {chargesEnabled ? 'Yes' : 'No'}
+                                              </Badge>
+                                          </div>
+                                          <div className="p-4 border rounded-lg bg-muted/30">
+                                              <p className="text-sm font-medium text-muted-foreground">Can Receive Payouts?</p>
+                                              <Badge variant={payoutsEnabled ? 'default' : 'destructive'} className={cn("mt-1", payoutsEnabled ? 'bg-green-500/20 text-green-800 border-green-500/30' : '')}>
+                                                  {payoutsEnabled ? 'Yes' : 'No'}
+                                              </Badge>
+                                          </div>
+                                      </div>
+                                      {renderStripeOnboardingButton()}
+                                      <p className="text-xs text-muted-foreground mt-3">Payments and payouts are securely handled by Stripe. You will be redirected to Stripe to manage your account details.</p>
+                                  </div>
+                              ) : (
+                                  <ShadCnAlert variant="destructive">
+                                      <AlertTriangle className="h-4 w-4" />
+                                      <ShadCnAlertTitle>Stripe Account Not Found</ShadCnAlertTitle>
+                                      <ShadCnAlertDescription>Your Stripe account was not created during signup. Please contact support.</ShadCnAlertDescription>
+                                  </ShadCnAlert>
+                              )}
+                          </CardContent>
+                      </Card>
+                      <Card className="shadow-lg border-border bg-card"><CardHeader><CardTitle className="font-headline text-xl text-card-foreground">General Settings</CardTitle><CardDescription className="text-muted-foreground">Other application settings and preferences.</CardDescription></CardHeader><CardContent><p className="text-muted-foreground">More settings coming soon.</p></CardContent></Card>
+                  </div>
               )}
 
               {activeTab === 'profile' && (

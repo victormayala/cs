@@ -14,17 +14,23 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, firebaseInitializationError } from '@/lib/firebase'; 
 import { clearAccessCookie } from '@/app/access-login/actions';
 import { useToast } from '@/hooks/use-toast';
+import { createDeferredStripeAccount } from '@/app/actions/stripeActions';
 
-interface User {
+export interface User {
   uid: string;
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
   role: 'user' | 'admin';
+  stripeConnectAccountId?: string;
+  onboardingStatus?: 'not_started' | 'in_progress' | 'completed';
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  detailsSubmitted?: boolean;
 }
 
 interface AuthContextType {
@@ -63,19 +69,35 @@ function AuthLogicHandler({
         // Fetch user role from Firestore
         const userDocRef = doc(db, "users", firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
-        let userRole: 'user' | 'admin' = 'user'; // Default to 'user'
+        
+        let userData: User;
+
         if (userDocSnap.exists()) {
-            userRole = userDocSnap.data()?.role || 'user';
+            const data = userDocSnap.data();
+            userData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                role: data?.role || 'user',
+                stripeConnectAccountId: data?.stripeConnectAccountId,
+                onboardingStatus: data?.connectOnboardingStatus || 'not_started',
+                chargesEnabled: data?.chargesEnabled || false,
+                payoutsEnabled: data?.payoutsEnabled || false,
+                detailsSubmitted: data?.detailsSubmitted || false,
+            };
+        } else {
+             // This case should be handled by createUserProfile, but as a fallback:
+            userData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                role: 'user',
+            };
         }
 
-        const appUser: User = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          role: userRole,
-        };
-        setAuthProviderUser(appUser);
+        setAuthProviderUser(userData);
 
         if (typeof window !== 'undefined') {
           (window as any).__USER_ID__ = firebaseUser.uid;
@@ -86,7 +108,7 @@ function AuthLogicHandler({
         const isAdminPage = pathname.startsWith('/admin');
         
         // If user is not an admin but tries to access an admin page, redirect them
-        if (isAdminPage && appUser.role !== 'admin') {
+        if (isAdminPage && userData.role !== 'admin') {
             toast({ title: "Access Denied", description: "You do not have permission to view this page.", variant: "destructive"});
             router.push('/dashboard');
             return; // Stop further redirection logic
@@ -225,6 +247,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             photoURL: firebaseUser.photoURL,
             role: 'user', // Default role
             createdAt: serverTimestamp(),
+        });
+        
+        // Asynchronously create the deferred Stripe account
+        createDeferredStripeAccount({
+            userId: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email || ''
+        }).catch(err => {
+            console.error("Failed to create deferred Stripe account:", err);
+            // Optionally, you could set a flag in the user's doc to retry this later
         });
     }
   };

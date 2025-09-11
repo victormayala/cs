@@ -37,6 +37,17 @@ env:
     availability:
       - RUNTIME
 
+  # --- Required for Stripe Integration ---
+  # INSTRUCTION: Create secrets for your Stripe keys in Google Secret Manager.
+  - variable: STRIPE_SECRET_KEY
+    secret: your-stripe-secret-key # <-- REPLACE THIS
+    availability:
+      - RUNTIME
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: your-stripe-webhook-secret # <-- REPLACE THIS
+    availability:
+      - RUNTIME
+
   # --- Optional for Password Protection ---
   # - variable: APP_ACCESS_PASSWORD
   #   secret: APP_ACCESS_PASSWORD
