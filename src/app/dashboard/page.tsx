@@ -19,7 +19,7 @@ import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/act
 import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
 import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
-import { createStripeAccountLink, createStripeLoginLink } from "@/app/actions/stripeActions";
+import { createStripeAccountLink, createStripeLoginLink, createDeferredStripeAccount } from "@/app/actions/stripeActions";
 import { db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, onSnapshot, addDoc, updateDoc } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
@@ -430,6 +430,7 @@ function DashboardPageContent() {
 
   // New state for Stripe onboarding
   const [isCreatingAccountLink, setIsCreatingAccountLink] = useState(false);
+  const [isCreatingStripeAccount, setIsCreatingStripeAccount] = useState(false);
 
 
   // Effect to handle Shopify OAuth error callback
@@ -847,6 +848,34 @@ function DashboardPageContent() {
         toast({ title: "Onboarding Error", description: err.message, variant: "destructive"});
     } finally {
         setIsCreatingAccountLink(false);
+    }
+  };
+
+  const handleCreateStripeAccount = async () => {
+    if (!user) return;
+    setIsCreatingStripeAccount(true);
+    try {
+      const result = await createDeferredStripeAccount({
+        userId: user.uid,
+        email: user.email || '',
+        name: user.displayName || user.email || 'New User',
+      });
+
+      if (result.success && result.accountId) {
+        toast({
+          title: 'Stripe Account Created!',
+          description: 'You can now proceed with onboarding.',
+        });
+        // Manually update the user object in the auth context to reflect the new account ID.
+        // This is a simplified approach; a full solution might involve re-fetching the user profile.
+        user.stripeConnectAccountId = result.accountId;
+      } else {
+        throw new Error(result.error || 'An unknown error occurred.');
+      }
+    } catch (err: any) {
+      toast({ title: 'Stripe Account Creation Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsCreatingStripeAccount(false);
     }
   };
   
@@ -1301,7 +1330,13 @@ function DashboardPageContent() {
                                   <ShadCnAlert variant="destructive">
                                       <AlertTriangle className="h-4 w-4" />
                                       <ShadCnAlertTitle>Stripe Account Not Found</ShadCnAlertTitle>
-                                      <ShadCnAlertDescription>Your Stripe account was not created during signup. Please contact support.</ShadCnAlertDescription>
+                                      <ShadCnAlertDescription>
+                                          Your Stripe account was not created during signup. You can create one now.
+                                          <Button onClick={handleCreateStripeAccount} disabled={isCreatingStripeAccount} className="mt-3" size="sm">
+                                            {isCreatingStripeAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FaStripe className="mr-2 h-4 w-4" />}
+                                            Create Stripe Account
+                                          </Button>
+                                      </ShadCnAlertDescription>
                                   </ShadCnAlert>
                               )}
                           </CardContent>

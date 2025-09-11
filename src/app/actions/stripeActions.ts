@@ -3,7 +3,7 @@
 
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
 import type { User } from '@/contexts/AuthContext';
 import type { CartItem } from '@/app/store/[storeId]/checkout/page';
 import type { UserStoreConfig } from './userStoreActions';
