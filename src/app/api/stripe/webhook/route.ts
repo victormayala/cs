@@ -4,7 +4,8 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import type { StoreOrder, StoreCustomer } from '@/lib/data-types';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -17,6 +18,70 @@ const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2024-06-20',
   typescript: true,
 });
+
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+  const { storeId, merchantId, cartItems: cartItemsString, customerName } = session.metadata || {};
+
+  if (!storeId || !merchantId || !session.payment_intent) {
+    console.error(`[Stripe Webhook] Missing required metadata or payment_intent from session ${session.id}. Cannot fulfill order.`);
+    return;
+  }
+  
+  try {
+    const customerEmail = session.customer_details?.email;
+    if (!customerEmail) {
+        console.error(`[Stripe Webhook] No customer email found for session ${session.id}.`);
+        return;
+    }
+
+    let customerId: string;
+    const customerQuery = query(collection(db, `users/${merchantId}/customers`), where("email", "==", customerEmail));
+    const customerSnapshot = await getDocs(customerQuery);
+    
+    if (customerSnapshot.empty) {
+        // Create new customer
+        const newCustomerData: Omit<StoreCustomer, 'id'> = {
+            name: customerName || session.customer_details?.name || 'N/A',
+            email: customerEmail,
+            storeId: storeId,
+            createdAt: serverTimestamp(),
+            totalSpent: (session.amount_total || 0) / 100,
+            orderCount: 1,
+        };
+        const customerDocRef = await addDoc(collection(db, `users/${merchantId}/customers`), newCustomerData);
+        customerId = customerDocRef.id;
+    } else {
+        // Update existing customer
+        const customerDoc = customerSnapshot.docs[0];
+        customerId = customerDoc.id;
+        const customerData = customerDoc.data() as StoreCustomer;
+        await updateDoc(doc(db, `users/${merchantId}/customers`, customerId), {
+            totalSpent: customerData.totalSpent + ((session.amount_total || 0) / 100),
+            orderCount: customerData.orderCount + 1,
+        });
+    }
+
+    // Create the order document
+    const newOrderData: Omit<StoreOrder, 'id'> = {
+        storeId: storeId,
+        customerId: customerId,
+        customerName: customerName || session.customer_details?.name || 'N/A',
+        totalAmount: (session.amount_total || 0) / 100,
+        status: 'processing',
+        items: cartItemsString ? JSON.parse(cartItemsString) : [],
+        stripeCheckoutSessionId: session.id, // Store stripe session ID for reference
+        createdAt: serverTimestamp(),
+    };
+    await addDoc(collection(db, `users/${merchantId}/orders`), newOrderData);
+
+    console.log(`[Stripe Webhook] Successfully fulfilled order for session ${session.id}.`);
+
+  } catch (error) {
+    console.error(`[Stripe Webhook] Error fulfilling order for session ${session.id}:`, error);
+    // We don't throw here because we want to send a 200 to Stripe to prevent retries
+    // for this specific error. The error is logged for manual follow-up.
+  }
+}
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -76,11 +141,10 @@ export async function POST(request: Request) {
       }
       break;
     
-    // We will add logic for this in the next step to create orders in our DB.
     case 'checkout.session.completed':
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log(`[Stripe Webhook] Checkout session completed for ${session.id}. This will be handled in the next step.`);
-      // TODO: Fulfill the purchase.
+      console.log(`[Stripe Webhook] Checkout session completed for ${session.id}. Fulfilling purchase...`);
+      await handleCheckoutSessionCompleted(session);
       break;
 
     default:
@@ -93,3 +157,4 @@ export async function POST(request: Request) {
 // NOTE: You need to configure this endpoint in your Stripe dashboard:
 // URL: https://<your-app-url>/api/stripe/webhook
 // Events to listen for: 'account.updated', 'checkout.session.completed'
+

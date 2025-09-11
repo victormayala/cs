@@ -12,17 +12,16 @@ import { Label } from '@/components/ui/label';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import type { UserStoreConfig } from '@/app/actions/userStoreActions';
-import { CreditCard, Lock, AlertTriangle, ArrowRight, Loader2, ShoppingCart } from 'lucide-react';
-import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { CreditCard, Lock, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import type { StoreOrder, StoreCustomer } from '@/lib/data-types';
+import { createCheckoutSession } from '@/app/actions/stripeActions';
 
 // Represents a single item in the shopping cart
-interface CartItem {
+export interface CartItem {
     id: string; // Unique ID for this cart item instance (e.g., crypto.randomUUID())
     productId: string;
     productName: string; 
@@ -74,7 +73,6 @@ export default function CheckoutPage() {
   const router = useRouter();
   const storeId = params.storeId as string;
   const { toast } = useToast();
-  const { user } = useAuth(); // We don't require login for checkout, but can use if available
 
   const [storeConfig, setStoreConfig] = useState<UserStoreConfig | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -148,39 +146,29 @@ export default function CheckoutPage() {
         return;
     }
     setIsPlacingOrder(true);
-    toast({ title: "Processing Order...", description: "Please wait while we finalize your purchase." });
+    toast({ title: "Redirecting to Payment...", description: "Please wait while we prepare your secure checkout." });
 
     try {
-        const customerRef = collection(db, `users/${storeConfig.userId}/customers`);
-        const newCustomer: Omit<StoreCustomer, 'id'> = {
-            name: `${customerInfo.firstName} ${customerInfo.lastName}`,
+        const { url, error } = await createCheckoutSession(storeId, cartItems, {
             email: customerInfo.email,
-            storeId: storeId,
-            createdAt: serverTimestamp(),
-            totalSpent: total,
-            orderCount: 1,
-        };
-        const customerDocRef = await addDoc(customerRef, newCustomer);
+            name: `${customerInfo.firstName} ${customerInfo.lastName}`,
+        });
 
-        const orderRef = collection(db, `users/${storeConfig.userId}/orders`);
-        const newOrder: Omit<StoreOrder, 'id'> = {
-            storeId: storeId,
-            customerId: customerDocRef.id,
-            customerName: newCustomer.name,
-            totalAmount: total,
-            status: 'processing',
-            items: cartItems,
-            createdAt: serverTimestamp(),
-        };
-        await addDoc(orderRef, newOrder);
+        if (error) {
+            throw new Error(error);
+        }
 
-        // On successful order creation, clear the cart and redirect
-        localStorage.removeItem(getCartStorageKey());
-        router.push(`/store/${storeId}/order/success`);
+        if (url) {
+            // On successful session creation, clear the cart and redirect to Stripe
+            localStorage.removeItem(getCartStorageKey());
+            window.location.href = url;
+        } else {
+            throw new Error("Could not retrieve a valid checkout URL.");
+        }
 
     } catch (err: any) {
-        console.error("Failed to place order:", err);
-        toast({ title: "Order Failed", description: `Could not save your order: ${err.message}`, variant: "destructive" });
+        console.error("Failed to create checkout session:", err);
+        toast({ title: "Checkout Failed", description: `Could not create a checkout session: ${err.message}`, variant: "destructive" });
         setIsPlacingOrder(false);
     }
   };
@@ -218,14 +206,6 @@ export default function CheckoutPage() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardHeader><CardTitle>Payment Details</CardTitle></CardHeader>
-                        <CardContent className="text-center py-10 text-muted-foreground">
-                            <CreditCard className="mx-auto h-12 w-12 mb-4" />
-                            <p className="font-medium">Payment Integration Coming Soon</p>
-                            <p className="text-sm mt-1">This is a simulated checkout. No real payment will be processed.</p>
-                        </CardContent>
-                    </Card>
                 </div>
 
                 {/* Right side: Order Summary */}
@@ -260,11 +240,11 @@ export default function CheckoutPage() {
                         <CardFooter className="flex-col gap-4">
                              <Button type="submit" size="lg" className="w-full" disabled={isPlacingOrder}>
                                 {isPlacingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
-                                {isPlacingOrder ? "Processing..." : "Place Order"}
+                                {isPlacingOrder ? "Processing..." : "Continue to Payment"}
                             </Button>
                             <p className="text-xs text-muted-foreground text-center">
                                 <Lock className="inline-block h-3 w-3 mr-1" />
-                                Secure checkout simulation.
+                                You will be redirected to Stripe for secure payment.
                             </p>
                         </CardFooter>
                     </Card>

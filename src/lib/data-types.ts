@@ -22,6 +22,7 @@ export interface StoreOrder {
     status: 'processing' | 'shipped' | 'completed' | 'cancelled';
     items: any[]; // A detailed list of items in the order
     createdAt: Timestamp;
+    stripeCheckoutSessionId?: string; // For reference
 }
 
 // Data for the sales chart
