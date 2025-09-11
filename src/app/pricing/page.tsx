@@ -5,70 +5,54 @@ import MarketingHeader from '@/components/layout/MarketingHeader';
 import MarketingFooter from '@/components/layout/MarketingFooter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const pricingTiers = [
   {
-    name: "Hobby",
-    price: "$0",
+    name: "Starter",
+    price: "$19",
     frequency: "/month",
-    description: "For personal projects & hobbyists getting started.",
+    description: "For individuals and small projects getting started.",
     features: [
-      "1 Customizable Product",
+      "5 Customizable Products",
       "Basic Customization Tools",
-      "Watermarked Previews",
+      "AI Design Suggestions",
       "Community Support",
     ],
-    cta: "Start for Free",
-    href: "/signup?plan=free",
-  },
-  {
-    name: "Creator",
-    price: "$29",
-    frequency: "/month",
-    description: "For creators & small businesses ready to sell.",
-    features: [
-      "10 Customizable Products",
-      "All Customization Tools",
-      "No Watermarks",
-      "Email Support",
-      "Shopify Integration",
-    ],
-    cta: "Choose Creator",
-    href: "/signup?plan=creator",
+    cta: "Choose Starter",
+    href: "/signup?plan=starter",
   },
   {
     name: "Pro",
-    price: "$79",
+    price: "$49",
     frequency: "/month",
-    description: "For growing businesses scaling their operations.",
+    description: "For professionals and growing businesses.",
     features: [
-      "50 Customizable Products",
-      "Advanced AI Design Features",
-      "WooCommerce Integration",
+      "25 Customizable Products",
+      "All Customization Tools",
+      "Advanced AI Design Generation",
+      "Shopify & WooCommerce Integration",
       "Priority Email Support",
-      "API Access (Beta)",
     ],
     cta: "Choose Pro",
     href: "/signup?plan=pro",
     popular: true,
   },
   {
-    name: "Agency",
-    price: "$149",
+    name: "Plus",
+    price: "$99",
     frequency: "/month",
-    description: "For agencies and teams managing multiple stores.",
+    description: "For businesses scaling their customization offerings.",
     features: [
-        "Unlimited Products",
-        "White-Labeling Options",
-        "Dedicated Account Manager",
-        "Custom Integrations",
-        "24/7 Priority Support",
+      "100 Customizable Products",
+      "Everything in Pro",
+      "API Access (Beta)",
+      "Dedicated Account Manager",
     ],
-    cta: "Contact Us",
-    href: "/contact?plan=agency",
+    cta: "Choose Plus",
+    href: "/signup?plan=plus",
   }
 ];
 
@@ -84,11 +68,11 @@ export default function PricingPage() {
               Find the perfect plan
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Start for free, then upgrade as you grow. No hidden fees, cancel anytime.
+              Start with a plan that fits your needs. Upgrade as you grow.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 items-stretch">
+          <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto">
             {pricingTiers.map((tier) => (
               <Card key={tier.name} className={cn(
                 "flex flex-col shadow-lg transition-all duration-300", 
@@ -125,7 +109,6 @@ export default function PricingPage() {
                         tier.popular ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-accent text-accent-foreground hover:bg-accent/90'
                     )}
                     size="lg"
-                    variant={tier.popular ? 'default' : 'outline'}
                   >
                     <Link href={tier.href}>{tier.cta}</Link>
                   </Button>
@@ -135,7 +118,7 @@ export default function PricingPage() {
           </div>
           <div className="text-center mt-16">
             <p className="text-muted-foreground">
-              Need a custom solution? <Link href="/contact" className="text-accent-foreground font-semibold hover:underline">Contact our sales team</Link>.
+              Need a custom enterprise solution? <Link href="/contact" className="text-primary font-semibold hover:underline">Contact our sales team</Link>.
             </p>
           </div>
         </div>
