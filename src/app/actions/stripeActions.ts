@@ -40,11 +40,11 @@ export async function createDeferredStripeAccount(
 ): Promise<{success: boolean; accountId?: string; error?: string}> {
   const { userId, email, name } = args;
 
-  if (!userId || !email) {
-    return { success: false, error: 'User ID and email are required.' };
+  if (!userId || !email || typeof email !== 'string' || email.trim() === '') {
+    return { success: false, error: 'A valid User ID and Email are required to create a Stripe account.' };
   }
 
-  // Use email as a fallback if name is not provided
+  // Use email as a fallback if name is not provided or is empty
   const businessName = name && name.trim() !== '' ? name.trim() : email;
 
   try {
@@ -81,7 +81,7 @@ export async function createDeferredStripeAccount(
   } catch (error: any) {
     console.error('Error creating Stripe deferred account:', error);
     // It's important not to expose raw Stripe errors to the client
-    const errorMessage = error.raw?.message || 'An unexpected error occurred while creating the Stripe account.';
+    const errorMessage = error.raw?.message || `An unexpected error occurred while creating the Stripe account. Raw error: ${String(error)}`;
     
     // You might want to update the user doc with an error state here
     const userDocRef = doc(db, 'users', userId);
@@ -281,3 +281,5 @@ export async function getOrderByStripeSessionId(
         return { order: null, error: "Failed to retrieve order details from the database." };
     }
 }
+
+    
