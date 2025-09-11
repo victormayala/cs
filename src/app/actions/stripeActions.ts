@@ -3,7 +3,7 @@
 
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp, limit, setDoc } from 'firebase/firestore';
 import type { User } from '@/contexts/AuthContext';
 import type { CartItem } from '@/app/store/[storeId]/checkout/page';
 import type { UserStoreConfig } from './userStoreActions';
@@ -63,13 +63,14 @@ export async function createDeferredStripeAccount(
 
     // Save the Stripe Connect Account ID to the user's document in Firestore
     const userDocRef = doc(db, 'users', userId);
-    await updateDoc(userDocRef, {
+    // Use setDoc with merge:true to safely add/update fields without overwriting the doc
+    await setDoc(userDocRef, {
       stripeConnectAccountId: account.id,
       connectOnboardingStatus: "not_started",
       chargesEnabled: false,
       payoutsEnabled: false,
       detailsSubmitted: false,
-    });
+    }, { merge: true });
 
     console.log(`Successfully created deferred Stripe account ${account.id} for user ${userId}`);
     return { success: true, accountId: account.id };
@@ -81,9 +82,9 @@ export async function createDeferredStripeAccount(
     
     // You might want to update the user doc with an error state here
     const userDocRef = doc(db, 'users', userId);
-    await updateDoc(userDocRef, {
+    await setDoc(userDocRef, {
         stripeConnectAccountError: errorMessage,
-    }).catch(dbError => console.error("Failed to write Stripe error to user doc:", dbError));
+    }, { merge: true }).catch(dbError => console.error("Failed to write Stripe error to user doc:", dbError));
 
     return { success: false, error: errorMessage };
   }
