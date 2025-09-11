@@ -1,6 +1,7 @@
 
 'use server';
 
+import '@/lib/config'; // Explicitly load environment variables
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';

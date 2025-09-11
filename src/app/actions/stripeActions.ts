@@ -1,6 +1,7 @@
 
 'use server';
 
+import '@/lib/config'; // Explicitly load environment variables
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp, limit, setDoc } from 'firebase/firestore';
@@ -281,5 +282,3 @@ export async function getOrderByStripeSessionId(
         return { order: null, error: "Failed to retrieve order details from the database." };
     }
 }
-
-    
