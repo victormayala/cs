@@ -44,6 +44,9 @@ export async function createDeferredStripeAccount(
     return { success: false, error: 'User ID and email are required.' };
   }
 
+  // Use email as a fallback if name is not provided
+  const businessName = name && name.trim() !== '' ? name.trim() : email;
+
   try {
     const stripe = getStripeInstance();
     const account = await stripe.accounts.create({
@@ -51,7 +54,7 @@ export async function createDeferredStripeAccount(
       email: email,
       business_type: 'individual',
       business_profile: {
-        name: name,
+        name: businessName,
         // It's good practice to provide a default support email
         support_email: email,
       },
