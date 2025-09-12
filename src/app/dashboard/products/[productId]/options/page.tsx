@@ -549,17 +549,17 @@ function ProductOptionsPage() {
         else { setProductOptions({ ...productOptions, [field]: numValue }); }
     };
     
-    const handleOpenViewEditor = (color: string) => {
-        if (!productOptions) return;
-        setActiveEditingColor(color);
-        const initialViews = (productOptions.optionsByColor[color]?.views || productOptions.defaultViews).map(v => ({
-            ...v,
-            boundaryBoxes: v.boundaryBoxes || [] // Ensure boundaryBoxes is always an array
-        }));
-        setEditorViews(initialViews);
-        setActiveViewIdInEditor(initialViews[0]?.id || null);
-        setIsViewEditorOpen(true);
-    };
+    const handleOpenViewEditor = useCallback((color: string) => {
+      if (!productOptions) return;
+      setActiveEditingColor(color);
+      const initialViews = (productOptions.optionsByColor[color]?.views || productOptions.defaultViews).map(v => ({
+          ...v,
+          boundaryBoxes: v.boundaryBoxes || [] 
+      }));
+      setEditorViews(initialViews);
+      setActiveViewIdInEditor(initialViews[0]?.id || null);
+      setIsViewEditorOpen(true);
+    }, [productOptions]);
 
     const handleSaveViewsForColor = () => {
         if (!productOptions) return;
@@ -576,7 +576,7 @@ function ProductOptionsPage() {
     };
 
     // New handlers for inside the modal
-    const handleAddNewViewInEditor = () => {
+    const handleAddNewViewInEditor = useCallback(() => {
         setEditorViews(prev => {
             if (prev.length >= MAX_PRODUCT_VIEWS) {
                 toast({ title: "View Limit Reached", description: `You can only have up to ${MAX_PRODUCT_VIEWS} views.`, variant: "destructive" });
@@ -594,7 +594,7 @@ function ProductOptionsPage() {
             return [...prev, newView];
         });
         setHasUnsavedChanges(true);
-    };
+    }, [toast]);
     const handleEditorViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id'|'boundaryBoxes'>, value: string | number) => {
         setHasUnsavedChanges(true);
         setEditorViews(prev => prev.map(v => v.id === viewId ? { ...v, [field]: value } : v));
@@ -634,12 +634,19 @@ function ProductOptionsPage() {
         });
     }, [activeViewIdInEditor, toast]);
 
+    const handleRemoveBoundaryBoxFromEditor = useCallback((boxId: string) => {
+      setEditorViews(prevViews => prevViews.map(v => {
+        if (v.id === activeViewIdInEditor) {
+          return { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) };
+        }
+        return v;
+      }));
+      if (selectedBoundaryBoxId === boxId) {
+        setSelectedBoundaryBoxId(null);
+      }
+      setHasUnsavedChanges(true);
+    }, [activeViewIdInEditor, selectedBoundaryBoxId]);
 
-    const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
-        if (!activeViewIdInEditor) return;
-        setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v));
-        if (selectedBoundaryBoxId === boxId) setSelectedBoundaryBoxId(null);
-    };
     const handleBoundaryBoxNameChangeInEditor = (boxId: string, newName: string) => {
         if (!activeViewIdInEditor) return;
         setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor ? { ...v, boundaryBoxes: v.boundaryBoxes.map(b => b.id === boxId ? {...b, name: newName} : b) } : v));
@@ -1154,11 +1161,11 @@ function ProductOptionsPage() {
                                     <>
                                         <div className="flex justify-between items-center mb-3">
                                             <h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>
-                                            {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.length < 3 && (
+                                            {(!currentViewInEditor.boundaryBoxes || currentViewInEditor.boundaryBoxes.length < 3) && (
                                                 <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>
                                             )}
                                         </div>
-                                        {currentViewInEditor.boundaryBoxes.map((box) => (
+                                        {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.map((box) => (
                                             <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                                 <div className="flex items-center gap-2">
                                                     <Input 
@@ -1173,7 +1180,7 @@ function ProductOptionsPage() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {currentViewInEditor.boundaryBoxes.length === 0 && (
+                                        {(!currentViewInEditor.boundaryBoxes || currentViewInEditor.boundaryBoxes.length === 0) && (
                                             <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
                                         )}
                                     </>
@@ -1202,3 +1209,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
+    
