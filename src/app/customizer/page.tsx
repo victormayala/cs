@@ -708,21 +708,40 @@ function CustomizerLayoutAndLogic() {
         
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
         
-        // Use a sequential `for...of` loop to handle async operations correctly
+        const originalActiveView = activeViewId;
+        
+        const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const waitForNextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
+        const loadImage = (src: string) => new Promise((resolve, reject) => {
+          const img = new window.Image();
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+
         for (const view of viewsToPreview) {
-            setActiveViewId(view.id);
-            // This promise waits for the next animation frame, ensuring React has had a chance to start re-rendering
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            // This additional small delay helps ensure images have started loading/painting
-            await new Promise(resolve => setTimeout(resolve, 50)); 
-            
-            const canvasArea = document.getElementById('product-image-canvas-area');
-            if (!canvasArea) {
-                throw new Error("Could not find the canvas area to generate previews.");
-            }
-            
-            const dataUrl = await toPng(canvasArea, { pixelRatio: 1.5 });
-            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
+          try {
+            await loadImage(view.imageUrl);
+          } catch(e) {
+            console.warn(`Could not preload image for view ${view.name}. Screenshot may be incorrect.`, e);
+          }
+
+          setActiveViewId(view.id);
+          
+          await waitForNextFrame();
+          await wait(50); // A small extra delay to be safe
+
+          const canvasArea = document.getElementById('product-image-canvas-area');
+          if (!canvasArea) {
+              throw new Error("Could not find the canvas area to generate previews.");
+          }
+          
+          const dataUrl = await toPng(canvasArea, { pixelRatio: 1.5 });
+          previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
+        }
+        
+        if (originalActiveView) {
+          setActiveViewId(originalActiveView);
         }
       
         const customizedViewsData = (productDetails?.views || [])
@@ -961,3 +980,5 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
