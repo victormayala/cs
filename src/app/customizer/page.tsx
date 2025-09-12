@@ -708,17 +708,14 @@ function CustomizerLayoutAndLogic() {
         
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
         
-        const originalActiveViewId = activeViewId;
-
         // Use a sequential `for...of` loop to handle async operations correctly
         for (const view of viewsToPreview) {
-            // Set the active view ID to trigger a re-render of the canvas
             setActiveViewId(view.id);
-
-            // IMPORTANT: Wait for React to re-render the component.
-            // This is a more reliable way than just a simple timeout.
-            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 50)));
-
+            // This promise waits for the next animation frame, ensuring React has had a chance to start re-rendering
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            // This additional small delay helps ensure images have started loading/painting
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+            
             const canvasArea = document.getElementById('product-image-canvas-area');
             if (!canvasArea) {
                 throw new Error("Could not find the canvas area to generate previews.");
@@ -726,10 +723,6 @@ function CustomizerLayoutAndLogic() {
             
             const dataUrl = await toPng(canvasArea, { pixelRatio: 1.5 });
             previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
-        }
-        // Restore original view after loop
-        if (originalActiveViewId) {
-           setActiveViewId(originalActiveViewId);
         }
       
         const customizedViewsData = (productDetails?.views || [])
