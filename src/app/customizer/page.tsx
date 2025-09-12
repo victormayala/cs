@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -716,8 +715,8 @@ function CustomizerLayoutAndLogic() {
                       resolve();
                   };
                   imageEl.onerror = (e) => {
-                    console.error(`Failed to load image: ${img.name} from ${img.dataUrl}`, e);
-                    // Resolve instead of reject to allow partial previews
+                    // Don't reject, just log the error and resolve. This prevents one bad image from failing the whole cart.
+                    console.error(`Failed to load design image: ${img.name} from ${img.dataUrl}`, e);
                     resolve(); 
                   };
                   imageEl.src = img.dataUrl;
@@ -736,21 +735,38 @@ function CustomizerLayoutAndLogic() {
         const ctx = offscreenCanvas.getContext('2d');
         if (!ctx) continue;
         
-        const bgImage = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const img = new window.Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(`Failed to load background for view: ${view.name}`);
-          img.src = view.imageUrl;
-        });
+        let bgImage: HTMLImageElement | null = null;
+        try {
+            bgImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const img = new window.Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(`Failed to load background for view: ${view.name}`);
+                img.src = view.imageUrl;
+            });
+        } catch (bgLoadError) {
+            console.warn(bgLoadError);
+            // Don't crash. We will draw a fallback background.
+        }
 
-        const canvasSize = Math.max(bgImage.naturalWidth, bgImage.naturalHeight, 600);
+        const canvasSize = 600; // Use a fixed size for consistency
         offscreenCanvas.width = canvasSize;
         offscreenCanvas.height = canvasSize;
         
-        const offsetX = (canvasSize - bgImage.naturalWidth) / 2;
-        const offsetY = (canvasSize - bgImage.naturalHeight) / 2;
-        ctx.drawImage(bgImage, offsetX, offsetY);
+        if (bgImage) {
+            const offsetX = (canvasSize - bgImage.naturalWidth) / 2;
+            const offsetY = (canvasSize - bgImage.naturalHeight) / 2;
+            ctx.drawImage(bgImage, offsetX, offsetY);
+        } else {
+            // Draw a fallback background if the image failed to load
+            ctx.fillStyle = '#f0f0f0'; // Light gray
+            ctx.fillRect(0, 0, canvasSize, canvasSize);
+            ctx.fillStyle = '#a0a0a0';
+            ctx.textAlign = 'center';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Preview for ${view.name}`, canvasSize / 2, canvasSize / 2);
+        }
+        
 
         const elementsForView = [
             ...canvasImages.filter(i => i.viewId === viewId),
@@ -1047,6 +1063,3 @@ export default function CustomizerPage() {
 }
 
     
-
-    
-
