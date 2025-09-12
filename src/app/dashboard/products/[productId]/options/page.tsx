@@ -610,26 +610,28 @@ function ProductOptionsPage() {
     };
     
     const handleAddBoundaryBoxToEditor = useCallback(() => {
-        setEditorViews(currentViews => currentViews.map(view => {
-            if (view.id === activeViewIdInEditor) {
-                const currentBoxes = view.boundaryBoxes || [];
-                if (currentBoxes.length >= 3) {
-                    toast({ title: "Limit Reached", description: "You can add a maximum of 3 customization areas per view." });
-                    return view;
+        setEditorViews(currentViews => {
+            return currentViews.map(view => {
+                if (view.id === activeViewIdInEditor) {
+                    const currentBoxes = view.boundaryBoxes || [];
+                    if (currentBoxes.length >= 3) {
+                        toast({ title: "Limit Reached", description: "You can add a maximum of 3 customization areas per view." });
+                        return view;
+                    }
+                    const newBox: BoundaryBox = {
+                        id: crypto.randomUUID(),
+                        name: `Area ${currentBoxes.length + 1}`,
+                        x: 10 + currentBoxes.length * 5,
+                        y: 10 + currentBoxes.length * 5,
+                        width: 30,
+                        height: 20
+                    };
+                    setHasUnsavedChanges(true);
+                    return { ...view, boundaryBoxes: [...currentBoxes, newBox] };
                 }
-                const newBox: BoundaryBox = {
-                    id: crypto.randomUUID(),
-                    name: `Area ${currentBoxes.length + 1}`,
-                    x: 10 + currentBoxes.length * 5,
-                    y: 10 + currentBoxes.length * 5,
-                    width: 30,
-                    height: 20
-                };
-                setHasUnsavedChanges(true);
-                return { ...view, boundaryBoxes: [...currentBoxes, newBox] };
-            }
-            return view;
-        }));
+                return view;
+            });
+        });
     }, [activeViewIdInEditor, toast]);
 
 
@@ -1094,20 +1096,25 @@ function ProductOptionsPage() {
                               {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
                                   {editorViews.map((view, index) => (
-                                    <div key={`${view.id}-${index}`} className={cn("p-3 border rounded-md", activeViewIdInEditor === view.id ? 'border-primary' : 'bg-background')}>
+                                    <button
+                                      type="button"
+                                      key={`${view.id}-${index}`}
+                                      onClick={() => setActiveViewIdInEditor(view.id)}
+                                      className={cn("p-3 border rounded-md w-full text-left", activeViewIdInEditor === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/50')}
+                                    >
                                         <div className="flex items-center justify-between">
                                             <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium">View {index + 1}</Label>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
-                                        <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} className="mt-1 h-8"/>
+                                        <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} onClick={e => e.stopPropagation()} className="mt-1 h-8"/>
                                         <div className="grid grid-cols-2 gap-2 mt-2">
                                           <div>
                                             <Label htmlFor={`embroideryFee-${view.id}`} className="mt-2 block text-xs">Embroidery Fee ($)</Label>
-                                            <Input id={`embroideryFee-${view.id}`} type="number" placeholder="Optional" value={view.embroideryAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'embroideryAdditionalFee', parseFloat(e.target.value) || 0)} className="mt-1 h-8" />
+                                            <Input id={`embroideryFee-${view.id}`} type="number" placeholder="Optional" value={view.embroideryAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'embroideryAdditionalFee', parseFloat(e.target.value) || 0)} onClick={e => e.stopPropagation()} className="mt-1 h-8" />
                                           </div>
                                           <div>
                                             <Label htmlFor={`printFee-${view.id}`} className="mt-2 block text-xs">Print Fee ($)</Label>
-                                            <Input id={`printFee-${view.id}`} type="number" placeholder="Optional" value={view.printAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'printAdditionalFee', parseFloat(e.target.value) || 0)} className="mt-1 h-8" />
+                                            <Input id={`printFee-${view.id}`} type="number" placeholder="Optional" value={view.printAdditionalFee ?? ''} onChange={(e) => handleEditorViewDetailChange(view.id, 'printAdditionalFee', parseFloat(e.target.value) || 0)} onClick={e => e.stopPropagation()} className="mt-1 h-8" />
                                           </div>
                                         </div>
                                         <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block text-xs">View Image</Label>
@@ -1116,7 +1123,7 @@ function ProductOptionsPage() {
                                                 <Image src={view.imageUrl} alt={view.name || 'View preview'} fill className="object-contain" />
                                             </div>
                                             <div className="flex-grow space-y-2">
-                                                <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => fileInputRef.current[view.id]?.click()}>
+                                                <Button type="button" size="sm" variant="outline" className="w-full" onClick={(e) => { e.stopPropagation(); fileInputRef.current[view.id]?.click();}}>
                                                     <UploadCloud className="mr-2 h-4 w-4" /> Upload
                                                 </Button>
                                                 <Input 
@@ -1136,8 +1143,7 @@ function ProductOptionsPage() {
                                                 )}
                                             </div>
                                         </div>
-                                        <Button onClick={() => setActiveViewIdInEditor(view.id)} variant="link" size="sm" className="p-0 h-auto mt-2">Edit Areas</Button>
-                                    </div>
+                                    </button>
                                   ))}
                               </div>
                             </TabsContent>
@@ -1150,7 +1156,7 @@ function ProductOptionsPage() {
                                                 <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>
                                             )}
                                         </div>
-                                        {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.map((box) => (
+                                        {(currentViewInEditor.boundaryBoxes || []).map((box) => (
                                             <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                                 <div className="flex items-center gap-2">
                                                     <Input 
@@ -1165,12 +1171,12 @@ function ProductOptionsPage() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.length === 0 && (
+                                        {(currentViewInEditor.boundaryBoxes || []).length === 0 && (
                                             <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
                                         )}
                                     </>
                                 ) : (
-                                    <p className="text-center text-muted-foreground p-4">Select a view to manage its areas.</p>
+                                    <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p>
                                 )}
                             </TabsContent>
                           </Tabs>
@@ -1195,4 +1201,3 @@ export default function ProductOptions() {
   );
 }
 
-    
