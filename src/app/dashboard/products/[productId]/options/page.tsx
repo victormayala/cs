@@ -277,7 +277,9 @@ function ProductOptionsPage() {
                 salePrice: firestoreOptions?.salePrice ?? baseProduct.salePrice,
                 shipping: firestoreOptions?.shipping ?? baseProduct.shipping ?? { weight: 0, length: 0, width: 0, height: 0 },
                 type: firestoreOptions?.type ?? baseProduct.type,
-                defaultViews: firestoreOptions?.defaultViews || [{ id: 'default_plp_view', name: 'Default Image', imageUrl: 'https://placehold.co/600x600/eee/ccc?text=Default', boundaryBoxes: [], price: 0 }],
+                defaultViews: firestoreOptions?.defaultViews && firestoreOptions.defaultViews.length > 0 
+                    ? firestoreOptions.defaultViews 
+                    : [{ id: 'default_plp_view', name: 'Default Image', imageUrl: 'https://placehold.co/600x600/eee/ccc?text=Default', boundaryBoxes: [], price: 0 }],
                 optionsByColor: firestoreOptions?.optionsByColor || {},
                 groupingAttributeName: firestoreOptions?.groupingAttributeName || (source === 'customizer-studio' ? 'Color' : null),
                 nativeAttributes: { colors: nativeAttributesFromFS.colors, sizes: validatedSizes },
@@ -551,7 +553,6 @@ function ProductOptionsPage() {
         if (!productOptions) return;
         setActiveEditingColor(color);
         const initialEditorViews = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
-        
         setEditorViews(JSON.parse(JSON.stringify(initialEditorViews)));
         setActiveViewIdInEditor(initialEditorViews[0]?.id || null);
         setIsViewEditorOpen(true);
@@ -1050,7 +1051,7 @@ function ProductOptionsPage() {
                         </div>
                         <div className="overflow-y-auto">
                           <Tabs defaultValue="views" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!editorViews || editorViews.length === 0}>Customization Areas</TabsTrigger></TabsList>
+                            <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!currentViewInEditor}>Customization Areas</TabsTrigger></TabsList>
                             <TabsContent value="views" className="mt-4 space-y-4">
                               {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
@@ -1103,7 +1104,7 @@ function ProductOptionsPage() {
                               </div>
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
-                              {!activeViewIdInEditor || !currentViewInEditor ? <p>Select a view to manage its areas.</p> : <>
+                              {!currentViewInEditor ? <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p> : <>
                                   <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
                                   {currentViewInEditor.boundaryBoxes.map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
@@ -1143,5 +1144,6 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
 
