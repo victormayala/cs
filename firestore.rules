@@ -4,74 +4,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    // Helper function to check if the requesting user is the owner of the data
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Rules for the 'users' collection
+    // Users can only read and update their own user document.
     match /users/{userId} {
-      // Any authenticated user can create their own user profile document.
-      allow create: if isOwner(userId);
-      // Only the owner can read or update their own user document.
-      allow read, update: if isOwner(userId);
+      allow read, update: if request.auth != null && request.auth.uid == userId;
       
-      // Rules for user-specific subcollections
+      // Allow users to manage their own subcollections.
       match /products/{productId} {
-        // Only the owner of the user profile can manage their products.
-        allow read, write, delete: if isOwner(userId);
-      }
-      match /productCategories/{categoryId} {
-        // Only the owner of the user profile can manage their product categories.
-        allow read, write, delete: if isOwner(userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       match /orders/{orderId} {
-        // Only the owner of the user profile can read their orders.
-        allow read: if isOwner(userId);
-        // Customer creation is handled by webhook with elevated privileges.
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       match /customers/{customerId} {
-        // Only the owner of the user profile can read their customers.
-        allow read: if isOwner(userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+       match /productCategories/{categoryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
-    
-    // Rules for 'userProductOptions' collection
-    match /userProductOptions/{userId}/products/{productId} {
-      // The owner can create, update, and delete their own product options.
-      allow read, write, delete: if isOwner(userId);
+
+    // Product options can be read publicly (needed for customizer tool),
+    // but only the owner can write to them.
+    match /userProductOptions/{userId}/{document=**} {
+       allow read: if true;
+       allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Rules for 'userShopifyCredentials' and 'userWooCommerceCredentials'
+    // User credentials can only be accessed by the owner.
     match /userShopifyCredentials/{userId} {
-      allow read, write, delete: if isOwner(userId);
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
     match /userWooCommerceCredentials/{userId} {
-      allow read, write, delete: if isOwner(userId);
-    }
-
-    // --- NEW RULE TO FIX THE ERROR ---
-    // Rules for 'userStores' collection
-    match /userStores/{storeId} {
-      // Allow read access to anyone (for public storefronts)
-      allow read: if true;
-      // Allow create, update, delete only if the document's userId matches the user's auth uid.
-      allow write, delete: if isOwner(request.resource.data.userId);
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Rules for 'approvedFiles' subcollection within a store
-    match /userStores/{storeId}/approvedFiles/{fileId} {
-        // To read, user must be authenticated. This is a basic gate.
-        // For stricter rules, you could check if they own the parent store.
-        allow read: if isAuthenticated();
-        // To write/delete, the user must be the owner of the parent store document.
-        // This requires reading the store document to check the userId.
-        allow write, delete: if isOwner(get(/databases/$(database)/documents/userStores/$(storeId)).data.userId);
+    // User-generated stores can be read publicly (for the storefronts to work),
+    // but only the owner can create, update, or delete them.
+    match /userStores/{storeId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
 }
