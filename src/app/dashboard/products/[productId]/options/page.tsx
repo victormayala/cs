@@ -557,7 +557,7 @@ function ProductOptionsPage() {
             boundaryBoxes: v.boundaryBoxes || [] // Ensure boundaryBoxes is always an array
         }));
         setEditorViews(initialViews);
-        setActiveViewIdInEditor(initialViews[0]?.id || null); // Set active view on open
+        setActiveViewIdInEditor(initialViews[0]?.id || null);
         setIsViewEditorOpen(true);
     };
 
@@ -1158,7 +1158,7 @@ function ProductOptionsPage() {
                                                 <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>
                                             )}
                                         </div>
-                                        {(currentViewInEditor.boundaryBoxes || []).map((box) => (
+                                        {currentViewInEditor.boundaryBoxes.map((box) => (
                                             <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                                 <div className="flex items-center gap-2">
                                                     <Input 
@@ -1173,7 +1173,7 @@ function ProductOptionsPage() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {(currentViewInEditor.boundaryBoxes || []).length === 0 && (
+                                        {currentViewInEditor.boundaryBoxes.length === 0 && (
                                             <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
                                         )}
                                     </>
