@@ -693,6 +693,9 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating AI previews of your custom product. This can take a moment." });
     
+    const PREVIEW_WIDTH = 600;
+    const PREVIEW_HEIGHT = 600;
+    
     try {
         const customizedViewIds = new Set<string>();
         canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
@@ -708,10 +711,8 @@ function CustomizerLayoutAndLogic() {
             return;
         }
         
-        // This is a map to hold the final image data for each element, including newly generated text/shape images
         const elementImageDataCache = new Map<string, string>();
         
-        // Generate images for text and shape elements first
         for (const view of viewsToPreview) {
             const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
             for (const textItem of textsOnView) {
@@ -730,34 +731,47 @@ function CustomizerLayoutAndLogic() {
             }
         }
         
-        // Now, generate composite previews for each customized view
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
 
         for (const view of viewsToPreview) {
             const imagesOnView = canvasImages.filter(item => item.viewId === view.id);
             const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
             const shapesOnView = canvasShapes.filter(item => item.viewId === view.id);
-
+            
             const overlayTransforms: ImageTransform[] = [
                 ...imagesOnView.map(item => ({
                     imageDataUri: item.dataUrl,
-                    x: item.x, y: item.y, scale: item.scale, rotation: item.rotation, zIndex: item.zIndex,
-                    originalWidthPx: 200, originalHeightPx: 200 // Assuming a base size
+                    x: (item.x / 100) * PREVIEW_WIDTH,
+                    y: (item.y / 100) * PREVIEW_HEIGHT,
+                    width: item.scale * 200, // Assuming a base width, might need adjustment
+                    height: item.scale * 200,
+                    rotation: item.rotation, 
+                    zIndex: item.zIndex
                 })),
                 ...textsOnView.map(item => ({
                     imageDataUri: elementImageDataCache.get(item.id)!,
-                    x: item.x, y: item.y, scale: 1, rotation: item.rotation, zIndex: item.zIndex
+                    x: (item.x / 100) * PREVIEW_WIDTH,
+                    y: (item.y / 100) * PREVIEW_HEIGHT,
+                    width: item.fontSize * item.scale * 10, // Approximation
+                    height: item.fontSize * item.scale,
+                    rotation: item.rotation, 
+                    zIndex: item.zIndex
                 })),
                  ...shapesOnView.map(item => ({
                     imageDataUri: elementImageDataCache.get(item.id)!,
-                    x: item.x, y: item.y, scale: 1, rotation: item.rotation, zIndex: item.zIndex
+                    x: (item.x / 100) * PREVIEW_WIDTH,
+                    y: (item.y / 100) * PREVIEW_HEIGHT,
+                    width: item.width * item.scale,
+                    height: item.height * item.scale,
+                    rotation: item.rotation, 
+                    zIndex: item.zIndex
                 })),
             ];
 
             const compositionInput: CompositeImagesInput = {
                 baseImageDataUri: view.imageUrl,
-                baseImageWidthPx: 600, // Target output size
-                baseImageHeightPx: 600,
+                baseImageWidthPx: PREVIEW_WIDTH,
+                baseImageHeightPx: PREVIEW_HEIGHT,
                 overlays: overlayTransforms,
             };
 

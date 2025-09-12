@@ -15,13 +15,14 @@ const ImageTransformSchema = z.object({
   imageDataUri: z.string().url().describe(
     "Data URI of the image to overlay. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
-  x: z.number().describe('X-coordinate (percentage from left, 0-100) for the center of the overlay image.'),
-  y: z.number().describe('Y-coordinate (percentage from top, 0-100) for the center of the overlay image.'),
-  scale: z.number().optional().default(1).describe('Scale factor (e.g., 1 for original size, 0.5 for half).'),
+  // Replacing percentage-based coordinates with exact pixel coordinates
+  x: z.number().describe('X-coordinate (in pixels from left) for the center of the overlay image.'),
+  y: z.number().describe('Y-coordinate (in pixels from top) for the center of the overlay image.'),
+  width: z.number().describe('Width of the overlay image in pixels.'),
+  height: z.number().describe('Height of the overlay image in pixels.'),
   rotation: z.number().optional().default(0).describe('Rotation angle in degrees (0-360).'),
   zIndex: z.number().optional().default(0).describe('Stacking order (higher is on top).'),
-  originalWidthPx: z.number().optional().describe('Original width of this element on the design canvas in pixels.'),
-  originalHeightPx: z.number().optional().describe('Original height of this element on the design canvas in pixels.'),
+  // Removing optional scale and original size context as we now provide exact dimensions
 });
 export type ImageTransform = z.infer<typeof ImageTransformSchema>;
 
@@ -63,13 +64,11 @@ const compositeImagesFlow = ai.defineFlow(
         { media: { url: input.baseImageDataUri, mimeType: input.baseImageDataUri.split(';')[0].split(':')[1] } },
         { text: `
           You are an expert image composition AI.
-          The first image provided is the base image. Its container has dimensions: ${input.baseImageWidthPx}px width, ${input.baseImageHeightPx}px height. Render the final output with these dimensions and a 1:1 aspect ratio.
-          The subsequent images are overlays that need to be placed onto this base image.
-          For each overlay, I will provide its image data, its intended center X and Y coordinates as percentages of the base image dimensions (0-100),
-          its scale factor, its rotation in degrees, and optionally its original size on the design canvas to give context for its intended final size.
-          All overlay images have transparent backgrounds unless their content is opaque. Preserve transparency.
-          The final composited image should be a high-quality PNG.
-          Generate a single image that composites all overlays onto the base image accurately according to their transforms.
+          The first image provided is the base image. Create a final canvas with the exact dimensions: ${input.baseImageWidthPx}px width, ${input.baseImageHeightPx}px height. The base image should fill this canvas.
+          The subsequent images are overlays that need to be placed with pixel-perfect precision onto this base image.
+          For each overlay, I will provide its image data, its target center X and Y coordinates in pixels, its target width and height in pixels, and its rotation in degrees.
+          All overlay images have transparent backgrounds unless their content is opaque. Preserve transparency during composition.
+          Generate a single image that composites all overlays onto the base image *exactly* according to their transforms.
           Do not add any extra elements or embellishments not specified.
           The final output should be the composited image and a one-sentence alt text describing the final image.
         `}
@@ -77,21 +76,15 @@ const compositeImagesFlow = ai.defineFlow(
 
       sortedOverlays.forEach((overlay, index) => {
         promptParts.push({ media: { url: overlay.imageDataUri, mimeType: overlay.imageDataUri.split(';')[0].split(':')[1] } });
-        let overlayInstruction = `
+        // Updated prompt with exact pixel values
+        const overlayInstruction = `
           Overlay Image ${index + 1}:
-          - Center X: ${overlay.x.toFixed(1)}% (from left of base image)
-          - Center Y: ${overlay.y.toFixed(1)}% (from top of base image)
-          - Scale: ${overlay.scale.toFixed(2)}
+          - Target Width: ${overlay.width.toFixed(0)}px
+          - Target Height: ${overlay.height.toFixed(0)}px
+          - Target Center X: ${overlay.x.toFixed(0)}px (from left of canvas)
+          - Target Center Y: ${overlay.y.toFixed(0)}px (from top of canvas)
           - Rotation: ${overlay.rotation.toFixed(0)} degrees
-        `;
-        if (overlay.originalWidthPx && overlay.originalHeightPx) {
-          overlayInstruction += `
-          - Intended size context (original size on a ${input.baseImageWidthPx}x${input.baseImageHeightPx} canvas): ${overlay.originalWidthPx.toFixed(0)}px width, ${overlay.originalHeightPx.toFixed(0)}px height.
-            The scale factor of ${overlay.scale.toFixed(2)} should be applied to this intended size.
-          `;
-        }
-        overlayInstruction += `
-          Place this overlay (Overlay Image ${index + 1}) onto the base image.
+          Place this overlay (Overlay Image ${index + 1}) onto the base image with these exact dimensions and position.
         `;
         promptParts.push({ text: overlayInstruction });
       });
@@ -129,4 +122,3 @@ const compositeImagesFlow = ai.defineFlow(
     }
   }
 );
-    
