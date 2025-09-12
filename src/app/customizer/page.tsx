@@ -715,7 +715,11 @@ function CustomizerLayoutAndLogic() {
                       imageCache.set(img.sourceImageId, imageEl);
                       resolve();
                   };
-                  imageEl.onerror = (e) => reject(`Failed to load image: ${img.name}`);
+                  imageEl.onerror = (e) => {
+                    console.error(`Failed to load image: ${img.name} from ${img.dataUrl}`, e);
+                    // Resolve instead of reject to allow partial previews
+                    resolve(); 
+                  };
                   imageEl.src = img.dataUrl;
               }));
           }
@@ -1045,3 +1049,4 @@ export default function CustomizerPage() {
     
 
     
+
