@@ -375,8 +375,8 @@ function CustomizerLayoutAndLogic() {
     
     let finalDefaultViews = firestoreOptions?.defaultViews || [];
     if (finalDefaultViews.length === 0) {
-        const defaultImageUrl = source === 'shopify' 
-            ? (await fetchShopifyProductById((await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.shop, (await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions!))).data()?.accessToken, baseProductDetails.id)).product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl
+        const defaultImageUrl = (source === 'shopify' && userIdForFirestoreOptions)
+            ? (await fetchShopifyProductById((await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions))).data()?.shop, (await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions))).data()?.accessToken, baseProductDetails.id)).product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl
             : defaultFallbackProduct.views[0].imageUrl;
         
         finalDefaultViews = [{
