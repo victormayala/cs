@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -758,8 +757,7 @@ function CustomizerLayoutAndLogic() {
             configUserId: productDetails?.meta?.configUserIdUsed || null,
           };
         
-          const isNativeStore = productDetails?.meta?.source === 'customizer-studio';
-          const nativeStoreConfigUserId = isNativeStore ? (productDetails?.meta?.configUserIdUsed || user?.uid) : null;
+          const isNativeStore = sourceFromUrl === 'customizer-studio';
   
           if (isEmbedded) {
             let targetOrigin = '*';
@@ -771,8 +769,8 @@ function CustomizerLayoutAndLogic() {
             }
             window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
             toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
-          } else if (isNativeStore && nativeStoreConfigUserId) {
-            const cartKey = `cs_cart_${nativeStoreConfigUserId}`;
+          } else if (isNativeStore && storeIdFromUrl) {
+            const cartKey = `cs_cart_${storeIdFromUrl}`;
             try {
               let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
               const newCartItem = {
@@ -969,4 +967,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
