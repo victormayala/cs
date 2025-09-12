@@ -554,16 +554,15 @@ function ProductOptionsPage() {
         if (!productOptions) return;
         setActiveEditingColor(color);
         
-        // Deep copy the views and ensure `boundaryBoxes` is an array
-        const initialEditorViews = JSON.parse(JSON.stringify(
-            productOptions.optionsByColor[color]?.views || productOptions.defaultViews
-        )).map((view: ProductView) => ({
+        const initialViews = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
+        
+        const safeInitialViews = initialViews.map(view => ({
             ...view,
             boundaryBoxes: view.boundaryBoxes || [],
         }));
 
-        setEditorViews(initialEditorViews);
-        setActiveViewIdInEditor(initialEditorViews[0]?.id || null);
+        setEditorViews(safeInitialViews);
+        setActiveViewIdInEditor(safeInitialViews[0]?.id || null);
         setIsViewEditorOpen(true);
     };
 
@@ -610,7 +609,23 @@ function ProductOptionsPage() {
     };
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-        setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor && v.boundaryBoxes.length < 3 ? { ...v, boundaryBoxes: [...v.boundaryBoxes, { id: crypto.randomUUID(), name: `Area ${v.boundaryBoxes.length + 1}`, x: 10 + v.boundaryBoxes.length * 5, y: 10 + v.boundaryBoxes.length * 5, width: 30, height: 20 }] } : v));
+        setEditorViews(prev => prev.map(v => {
+            if (v.id === activeViewIdInEditor && (v.boundaryBoxes?.length ?? 0) < 3) {
+                const newBoxes = [
+                    ...(v.boundaryBoxes || []),
+                    { 
+                        id: crypto.randomUUID(), 
+                        name: `Area ${(v.boundaryBoxes?.length ?? 0) + 1}`, 
+                        x: 10 + (v.boundaryBoxes?.length ?? 0) * 5, 
+                        y: 10 + (v.boundaryBoxes?.length ?? 0) * 5, 
+                        width: 30, 
+                        height: 20 
+                    }
+                ];
+                return { ...v, boundaryBoxes: newBoxes };
+            }
+            return v;
+        }));
     };
     const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
         if (!activeViewIdInEditor) return;
@@ -1122,8 +1137,8 @@ function ProductOptionsPage() {
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
                               {!currentViewInEditor ? <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p> : <>
-                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                  {(currentViewInEditor.boundaryBoxes).map((box, index) => (
+                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes?.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
+                                  {currentViewInEditor.boundaryBoxes?.map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                       <div className="flex items-center gap-2">
                                           <Input 
@@ -1138,7 +1153,7 @@ function ProductOptionsPage() {
                                       </div>
                                     </div>
                                   ))}
-                                  {currentViewInEditor.boundaryBoxes.length === 0 && (
+                                  {currentViewInEditor.boundaryBoxes?.length === 0 && (
                                     <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
                                   )}
                               </>}
@@ -1164,4 +1179,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
