@@ -715,7 +715,6 @@ function CustomizerLayoutAndLogic() {
                       resolve();
                   };
                   imageEl.onerror = (e) => {
-                    // Don't reject, just log the error and resolve. This prevents one bad image from failing the whole cart.
                     console.error(`Failed to load design image: ${img.name} from ${img.dataUrl}`, e);
                     resolve(); 
                   };
@@ -746,25 +745,25 @@ function CustomizerLayoutAndLogic() {
             });
         } catch (bgLoadError) {
             console.warn(bgLoadError);
-            // Don't crash. We will draw a fallback background.
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, 600, 600);
+            ctx.fillStyle = '#a0a0a0';
+            ctx.textAlign = 'center';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Preview for ${view.name}`, 300, 300);
         }
 
-        const canvasSize = 600; // Use a fixed size for consistency
+        const canvasSize = 600; 
         offscreenCanvas.width = canvasSize;
         offscreenCanvas.height = canvasSize;
         
         if (bgImage) {
-            const offsetX = (canvasSize - bgImage.naturalWidth) / 2;
-            const offsetY = (canvasSize - bgImage.naturalHeight) / 2;
-            ctx.drawImage(bgImage, offsetX, offsetY);
-        } else {
-            // Draw a fallback background if the image failed to load
-            ctx.fillStyle = '#f0f0f0'; // Light gray
-            ctx.fillRect(0, 0, canvasSize, canvasSize);
-            ctx.fillStyle = '#a0a0a0';
-            ctx.textAlign = 'center';
-            ctx.font = '16px Arial';
-            ctx.fillText(`Preview for ${view.name}`, canvasSize / 2, canvasSize / 2);
+            const scaleToFit = Math.min(canvasSize / bgImage.naturalWidth, canvasSize / bgImage.naturalHeight);
+            const scaledWidth = bgImage.naturalWidth * scaleToFit;
+            const scaledHeight = bgImage.naturalHeight * scaleToFit;
+            const offsetX = (canvasSize - scaledWidth) / 2;
+            const offsetY = (canvasSize - scaledHeight) / 2;
+            ctx.drawImage(bgImage, offsetX, offsetY, scaledWidth, scaledHeight);
         }
         
 
