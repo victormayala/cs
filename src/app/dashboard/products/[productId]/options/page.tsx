@@ -610,26 +610,24 @@ function ProductOptionsPage() {
     
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-
-        setEditorViews(prev => {
-            const newViews = prev.map(v => {
-                if (v.id === activeViewIdInEditor && (v.boundaryBoxes?.length ?? 0) < 3) {
+        setEditorViews(prev => 
+            prev.map(v => {
+                if (v.id === activeViewIdInEditor) {
+                    const currentBoxes = v.boundaryBoxes || [];
+                    if (currentBoxes.length >= 3) return v;
                     const newBox = {
                         id: crypto.randomUUID(),
-                        name: `Area ${(v.boundaryBoxes?.length ?? 0) + 1}`,
-                        x: 10 + (v.boundaryBoxes?.length ?? 0) * 5,
-                        y: 10 + (v.boundaryBoxes?.length ?? 0) * 5,
+                        name: `Area ${currentBoxes.length + 1}`,
+                        x: 10 + currentBoxes.length * 5,
+                        y: 10 + currentBoxes.length * 5,
                         width: 30,
                         height: 20
                     };
-                    // Ensure boundaryBoxes is an array before spreading
-                    const updatedBoxes = [...(v.boundaryBoxes || []), newBox];
-                    return { ...v, boundaryBoxes: updatedBoxes };
+                    return { ...v, boundaryBoxes: [...currentBoxes, newBox] };
                 }
                 return v;
-            });
-            return newViews;
-        });
+            })
+        );
         setHasUnsavedChanges(true);
     };
 
@@ -1145,7 +1143,7 @@ function ProductOptionsPage() {
                             <TabsContent value="areas" className="mt-4">
                               {currentViewInEditor ? ( <>
                                   <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes?.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                  {(currentViewInEditor.boundaryBoxes || []).map((box, index) => (
+                                  {currentViewInEditor.boundaryBoxes.map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                       <div className="flex items-center gap-2">
                                           <Input 
@@ -1189,5 +1187,4 @@ export default function ProductOptions() {
   );
 }
 
-
-
+    
