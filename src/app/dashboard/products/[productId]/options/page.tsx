@@ -553,10 +553,16 @@ function ProductOptionsPage() {
     const handleOpenViewEditor = (color: string) => {
         if (!productOptions) return;
         setActiveEditingColor(color);
-        // Ensure initial views are a deep copy to prevent direct state mutation
-        const initialEditorViews = JSON.parse(JSON.stringify(productOptions.optionsByColor[color]?.views || productOptions.defaultViews));
+        
+        // Deep copy the views and ensure `boundaryBoxes` is an array
+        const initialEditorViews = JSON.parse(JSON.stringify(
+            productOptions.optionsByColor[color]?.views || productOptions.defaultViews
+        )).map((view: ProductView) => ({
+            ...view,
+            boundaryBoxes: view.boundaryBoxes || [],
+        }));
+
         setEditorViews(initialEditorViews);
-        // Explicitly set the active view ID when opening the editor
         setActiveViewIdInEditor(initialEditorViews[0]?.id || null);
         setIsViewEditorOpen(true);
     };
@@ -1116,8 +1122,8 @@ function ProductOptionsPage() {
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
                               {!currentViewInEditor ? <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p> : <>
-                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes?.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                  {(currentViewInEditor.boundaryBoxes || []).map((box, index) => (
+                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
+                                  {(currentViewInEditor.boundaryBoxes).map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                       <div className="flex items-center gap-2">
                                           <Input 
@@ -1158,8 +1164,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
-
-
-
 
