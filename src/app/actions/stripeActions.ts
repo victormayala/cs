@@ -180,9 +180,8 @@ export async function createCheckoutSession(
         currency: 'usd',
         product_data: {
           name: item.productName,
-          // You could add a description or images here if desired
-          // description: `Customized product: ${item.customizationDetails...}`
-          images: item.previewImageUrls?.map(p => p.url).slice(0, 8), // Stripe allows up to 8 images
+          // Images removed to prevent URL length error with base64 data URIs
+          // images: item.previewImageUrls?.map(p => p.url).slice(0, 8),
         },
         unit_amount: Math.round(item.totalCustomizationPrice * 100), // Price in cents
       },
