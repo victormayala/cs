@@ -1050,7 +1050,7 @@ function ProductOptionsPage() {
                         </div>
                         <div className="overflow-y-auto">
                           <Tabs defaultValue="views" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!activeViewIdInEditor}>Customization Areas</TabsTrigger></TabsList>
+                            <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="views">Manage Views</TabsTrigger><TabsTrigger value="areas" disabled={!editorViews || editorViews.length === 0}>Customization Areas</TabsTrigger></TabsList>
                             <TabsContent value="views" className="mt-4 space-y-4">
                               {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
@@ -1143,4 +1143,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
