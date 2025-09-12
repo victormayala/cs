@@ -3,7 +3,6 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
-import * as htmlToImage from 'html-to-image';
 import AppHeader from '@/components/layout/AppHeader';
 import DesignCanvas from '@/components/customizer/DesignCanvas';
 import RightPanel from '@/components/customizer/RightPanel';
@@ -48,6 +47,12 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
+
+// Import AI flows for preview generation
+import { compositeImages, type CompositeImagesInput, type ImageTransform } from '@/ai/flows/composite-images';
+import { generateTextImage } from '@/ai/flows/generate-text-image';
+import { generateShapeImage } from '@/ai/flows/generate-shape-image';
+
 
 interface BoundaryBox {
   id: string;
@@ -686,54 +691,80 @@ function CustomizerLayoutAndLogic() {
     }
 
     setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. Please wait." });
+    toast({ title: "Preparing Your Design...", description: "Generating AI previews of your custom product. This can take a moment." });
     
-    const customizedViewIds = new Set<string>();
-    canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-
-    const allProductViews = productDetails?.views || [];
-    const viewsToPreview = allProductViews.filter(v => customizedViewIds.has(v.id));
-
-    if (viewsToPreview.length === 0 && customizedViewIds.size > 0) {
-        toast({ title: "View Mismatch", description: "Customized views not found in product details. Cannot generate previews.", variant: "destructive" });
-        setIsAddingToCart(false);
-        return;
-    }
-
-    if (viewsToPreview.length === 0) {
-        toast({ title: "No Customizations", description: "Add elements to a view to customize it.", variant: "default" });
-        setIsAddingToCart(false);
-        return;
-    }
-
-    const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-    
-    for (const view of viewsToPreview) {
-      setActiveViewId(view.id);
-      
-      // Wait for the next paint cycle to ensure the view is rendered
-      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 50)));
-
-      const canvasElement = designCanvasWrapperRef.current;
-      if (!canvasElement) {
-        toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
-        continue;
-      }
-      try {
-        const dataUrl = await htmlToImage.toPng(canvasElement, {
-            quality: 0.95,
-            fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
-        });
-        previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
-      } catch (singleViewError: any) {
-        console.error(`Screenshot failed for view "${view.name}":`, singleViewError);
-        toast({ title: "Preview Warning", description: `Could not generate preview for "${view.name}". It will be skipped.`, variant: "destructive" });
-      }
-    }
-      
     try {
+        const customizedViewIds = new Set<string>();
+        canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+        canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+        canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+
+        const allProductViews = productDetails?.views || [];
+        const viewsToPreview = allProductViews.filter(v => customizedViewIds.has(v.id));
+
+        if (viewsToPreview.length === 0) {
+            toast({ title: "No Customizations Found", description: "Add design elements to a view to generate a preview.", variant: "default" });
+            setIsAddingToCart(false);
+            return;
+        }
+        
+        // This is a map to hold the final image data for each element, including newly generated text/shape images
+        const elementImageDataCache = new Map<string, string>();
+        
+        // Generate images for text and shape elements first
+        for (const view of viewsToPreview) {
+            const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
+            for (const textItem of textsOnView) {
+                if (!elementImageDataCache.has(textItem.id)) {
+                    const { imageDataUri } = await generateTextImage(textItem);
+                    elementImageDataCache.set(textItem.id, imageDataUri);
+                }
+            }
+
+            const shapesOnView = canvasShapes.filter(item => item.viewId === view.id);
+            for (const shapeItem of shapesOnView) {
+                 if (!elementImageDataCache.has(shapeItem.id)) {
+                    const { imageDataUri } = await generateShapeImage(shapeItem);
+                    elementImageDataCache.set(shapeItem.id, imageDataUri);
+                }
+            }
+        }
+        
+        // Now, generate composite previews for each customized view
+        const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+
+        for (const view of viewsToPreview) {
+            const imagesOnView = canvasImages.filter(item => item.viewId === view.id);
+            const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
+            const shapesOnView = canvasShapes.filter(item => item.viewId === view.id);
+
+            const overlayTransforms: ImageTransform[] = [
+                ...imagesOnView.map(item => ({
+                    imageDataUri: item.dataUrl,
+                    x: item.x, y: item.y, scale: item.scale, rotation: item.rotation, zIndex: item.zIndex,
+                    originalWidthPx: 200, originalHeightPx: 200 // Assuming a base size
+                })),
+                ...textsOnView.map(item => ({
+                    imageDataUri: elementImageDataCache.get(item.id)!,
+                    x: item.x, y: item.y, scale: 1, rotation: item.rotation, zIndex: item.zIndex
+                })),
+                 ...shapesOnView.map(item => ({
+                    imageDataUri: elementImageDataCache.get(item.id)!,
+                    x: item.x, y: item.y, scale: 1, rotation: item.rotation, zIndex: item.zIndex
+                })),
+            ];
+
+            const compositionInput: CompositeImagesInput = {
+                baseImageDataUri: view.imageUrl,
+                baseImageWidthPx: 600, // Target output size
+                baseImageHeightPx: 600,
+                overlays: overlayTransforms,
+            };
+
+            const { compositeImageUrl } = await compositeImages(compositionInput);
+            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: compositeImageUrl });
+        }
+      
         const customizedViewsData = (productDetails?.views || [])
             .map(view => ({
                 viewId: view.id,
