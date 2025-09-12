@@ -48,10 +48,8 @@ import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
-// Import AI flows for preview generation
-import { compositeImages, type CompositeImagesInput, type ImageTransform } from '@/ai/flows/composite-images';
-import { generateTextImage } from '@/ai/flows/generate-text-image';
-import { generateShapeImage } from '@/ai/flows/generate-shape-image';
+// Import client-side screenshot library
+import { toPng } from 'html-to-image';
 
 
 interface BoundaryBox {
@@ -691,10 +689,7 @@ function CustomizerLayoutAndLogic() {
     }
 
     setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating AI previews of your custom product. This can take a moment." });
-    
-    const PREVIEW_WIDTH = 600;
-    const PREVIEW_HEIGHT = 600;
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
     
     try {
         const customizedViewIds = new Set<string>();
@@ -711,72 +706,27 @@ function CustomizerLayoutAndLogic() {
             return;
         }
         
-        const elementImageDataCache = new Map<string, string>();
-        
-        for (const view of viewsToPreview) {
-            const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
-            for (const textItem of textsOnView) {
-                if (!elementImageDataCache.has(textItem.id)) {
-                    const { imageDataUri } = await generateTextImage(textItem);
-                    elementImageDataCache.set(textItem.id, imageDataUri);
-                }
-            }
-
-            const shapesOnView = canvasShapes.filter(item => item.viewId === view.id);
-            for (const shapeItem of shapesOnView) {
-                 if (!elementImageDataCache.has(shapeItem.id)) {
-                    const { imageDataUri } = await generateShapeImage(shapeItem);
-                    elementImageDataCache.set(shapeItem.id, imageDataUri);
-                }
-            }
-        }
-        
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+        
+        const originalActiveViewId = activeViewId;
+        const canvasArea = document.getElementById('product-image-canvas-area');
+        if (!canvasArea) {
+            throw new Error("Could not find the canvas area to generate previews.");
+        }
 
         for (const view of viewsToPreview) {
-            const imagesOnView = canvasImages.filter(item => item.viewId === view.id);
-            const textsOnView = canvasTexts.filter(item => item.viewId === view.id);
-            const shapesOnView = canvasShapes.filter(item => item.viewId === view.id);
-            
-            const overlayTransforms: ImageTransform[] = [
-                ...imagesOnView.map(item => ({
-                    imageDataUri: item.dataUrl,
-                    x: (item.x / 100) * PREVIEW_WIDTH,
-                    y: (item.y / 100) * PREVIEW_HEIGHT,
-                    width: item.scale * 200, // Assuming a base width, might need adjustment
-                    height: item.scale * 200,
-                    rotation: item.rotation, 
-                    zIndex: item.zIndex
-                })),
-                ...textsOnView.map(item => ({
-                    imageDataUri: elementImageDataCache.get(item.id)!,
-                    x: (item.x / 100) * PREVIEW_WIDTH,
-                    y: (item.y / 100) * PREVIEW_HEIGHT,
-                    width: item.fontSize * item.scale * 10, // Approximation
-                    height: item.fontSize * item.scale,
-                    rotation: item.rotation, 
-                    zIndex: item.zIndex
-                })),
-                 ...shapesOnView.map(item => ({
-                    imageDataUri: elementImageDataCache.get(item.id)!,
-                    x: (item.x / 100) * PREVIEW_WIDTH,
-                    y: (item.y / 100) * PREVIEW_HEIGHT,
-                    width: item.width * item.scale,
-                    height: item.height * item.scale,
-                    rotation: item.rotation, 
-                    zIndex: item.zIndex
-                })),
-            ];
+            // Set the active view and wait for the DOM to update
+            setActiveViewId(view.id);
+            // This is a crucial step: wait for React to re-render.
+            // A small timeout with requestAnimationFrame is a reliable way to do this.
+            await new Promise(resolve => setTimeout(() => requestAnimationFrame(resolve), 100));
 
-            const compositionInput: CompositeImagesInput = {
-                baseImageDataUri: view.imageUrl,
-                baseImageWidthPx: PREVIEW_WIDTH,
-                baseImageHeightPx: PREVIEW_HEIGHT,
-                overlays: overlayTransforms,
-            };
-
-            const { compositeImageUrl } = await compositeImages(compositionInput);
-            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: compositeImageUrl });
+            const dataUrl = await toPng(canvasArea, { pixelRatio: 1.5 });
+            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
+        }
+        // Restore original view
+        if (originalActiveViewId) {
+           setActiveViewId(originalActiveViewId);
         }
       
         const customizedViewsData = (productDetails?.views || [])
@@ -943,7 +893,7 @@ function CustomizerLayoutAndLogic() {
           <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
             {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
              {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             <div ref={designCanvasWrapperRef} id="design-canvas-area-for-screenshot" className="w-full flex flex-col flex-1 min-h-0 pb-4">
+             <div ref={designCanvasWrapperRef} className="w-full flex flex-col flex-1 min-h-0 pb-4">
               <DesignCanvas productImageUrl={currentProductImage} productImageAlt={`${currentProductName} - ${currentProductAlt}`} productImageAiHint={currentProductAiHint} productDefinedBoundaryBoxes={currentBoundaryBoxes} activeViewId={activeViewId} showGrid={showGrid} showBoundaryBoxes={showBoundaryBoxes} />
             </div>
           </main>
