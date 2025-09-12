@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -553,16 +552,12 @@ function ProductOptionsPage() {
     const handleOpenViewEditor = (color: string) => {
         if (!productOptions) return;
         setActiveEditingColor(color);
-        
-        const initialViews = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
-        
-        const safeInitialViews = initialViews.map(view => ({
-            ...view,
-            boundaryBoxes: view.boundaryBoxes || [],
+        const initialViews = (productOptions.optionsByColor[color]?.views || productOptions.defaultViews).map(v => ({
+            ...v,
+            boundaryBoxes: v.boundaryBoxes || [] // Ensure boundaryBoxes is always an array
         }));
-
-        setEditorViews(safeInitialViews);
-        setActiveViewIdInEditor(safeInitialViews[0]?.id || null);
+        setEditorViews(initialViews);
+        setActiveViewIdInEditor(initialViews[0]?.id || null); // Set active view on open
         setIsViewEditorOpen(true);
     };
 
@@ -582,17 +577,23 @@ function ProductOptionsPage() {
 
     // New handlers for inside the modal
     const handleAddNewViewInEditor = () => {
-        if (editorViews.length >= MAX_PRODUCT_VIEWS) return;
-        const newView: ProductView = { 
-            id: crypto.randomUUID(), 
-            name: `View ${editorViews.length + 1}`, 
-            imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', 
-            aiHint: 'product view', 
-            boundaryBoxes: [], 
-            price: 0 
-        };
-        setEditorViews(prev => [...prev, newView]);
-        setActiveViewIdInEditor(newView.id);
+        setEditorViews(prev => {
+            if (prev.length >= MAX_PRODUCT_VIEWS) {
+                toast({ title: "View Limit Reached", description: `You can only have up to ${MAX_PRODUCT_VIEWS} views.`, variant: "destructive" });
+                return prev;
+            }
+            const newView: ProductView = { 
+                id: crypto.randomUUID(), 
+                name: `View ${prev.length + 1}`, 
+                imageUrl: 'https://placehold.co/600x600/eee/ccc.png?text=New+View', 
+                aiHint: 'product view', 
+                boundaryBoxes: [], 
+                price: 0 
+            };
+            setActiveViewIdInEditor(newView.id);
+            return [...prev, newView];
+        });
+        setHasUnsavedChanges(true);
     };
     const handleEditorViewDetailChange = (viewId: string, field: keyof Omit<ProductView, 'id'|'boundaryBoxes'>, value: string | number) => {
         setHasUnsavedChanges(true);
@@ -609,33 +610,26 @@ function ProductOptionsPage() {
     };
     
     const handleAddBoundaryBoxToEditor = useCallback(() => {
-        setEditorViews(currentViews => {
-            if (!activeViewIdInEditor) {
-                console.warn("Add Area clicked with no active view in editor.");
-                return currentViews;
-            }
-            
-            return currentViews.map(view => {
-                if (view.id === activeViewIdInEditor) {
-                    const currentBoxes = view.boundaryBoxes || [];
-                    if (currentBoxes.length >= 3) {
-                        toast({ title: "Limit Reached", description: "You can add a maximum of 3 customization areas per view." });
-                        return view;
-                    }
-                    const newBox: BoundaryBox = {
-                        id: crypto.randomUUID(),
-                        name: `Area ${currentBoxes.length + 1}`,
-                        x: 10 + currentBoxes.length * 5,
-                        y: 10 + currentBoxes.length * 5,
-                        width: 30,
-                        height: 20
-                    };
-                    setHasUnsavedChanges(true);
-                    return { ...view, boundaryBoxes: [...currentBoxes, newBox] };
+        setEditorViews(currentViews => currentViews.map(view => {
+            if (view.id === activeViewIdInEditor) {
+                const currentBoxes = view.boundaryBoxes || [];
+                if (currentBoxes.length >= 3) {
+                    toast({ title: "Limit Reached", description: "You can add a maximum of 3 customization areas per view." });
+                    return view;
                 }
-                return view;
-            });
-        });
+                const newBox: BoundaryBox = {
+                    id: crypto.randomUUID(),
+                    name: `Area ${currentBoxes.length + 1}`,
+                    x: 10 + currentBoxes.length * 5,
+                    y: 10 + currentBoxes.length * 5,
+                    width: 30,
+                    height: 20
+                };
+                setHasUnsavedChanges(true);
+                return { ...view, boundaryBoxes: [...currentBoxes, newBox] };
+            }
+            return view;
+        }));
     }, [activeViewIdInEditor, toast]);
 
 
@@ -1148,29 +1142,36 @@ function ProductOptionsPage() {
                               </div>
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
-                              {currentViewInEditor ? ( <>
-                                  <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes?.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                  {currentViewInEditor.boundaryBoxes?.map((box, index) => (
-                                    <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
-                                      <div className="flex items-center gap-2">
-                                          <Input 
-                                              value={box.name}
-                                              onClick={(e) => e.stopPropagation()} // Prevent parent onClick
-                                              onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} 
-                                              className="flex-grow h-8 text-sm"
-                                          />
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBoxFromEditor(box.id); }}>
-                                              <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {currentViewInEditor.boundaryBoxes?.length === 0 && (
-                                    <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
-                                  )}
-                              </>) : (
-                                  <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p>
-                              )}
+                                {currentViewInEditor ? (
+                                    <>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>
+                                            {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.length < 3 && (
+                                                <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>
+                                            )}
+                                        </div>
+                                        {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.map((box) => (
+                                            <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
+                                                <div className="flex items-center gap-2">
+                                                    <Input 
+                                                        value={box.name}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={e => handleBoundaryBoxNameChangeInEditor(box.id, e.target.value)} 
+                                                        className="flex-grow h-8 text-sm"
+                                                    />
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveBoundaryBoxFromEditor(box.id); }}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {currentViewInEditor.boundaryBoxes && currentViewInEditor.boundaryBoxes.length === 0 && (
+                                            <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className="text-center text-muted-foreground p-4">Select a view to manage its areas.</p>
+                                )}
                             </TabsContent>
                           </Tabs>
                         </div>
