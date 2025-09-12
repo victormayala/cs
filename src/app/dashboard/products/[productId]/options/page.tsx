@@ -607,26 +607,33 @@ function ProductOptionsPage() {
         });
         setIsDeleteViewDialogOpen(false); setViewIdToDelete(null);
     };
+    
     const handleAddBoundaryBoxToEditor = () => {
         if (!activeViewIdInEditor) return;
-        setEditorViews(prev => prev.map(v => {
-            if (v.id === activeViewIdInEditor && (v.boundaryBoxes?.length ?? 0) < 3) {
-                const newBoxes = [
-                    ...(v.boundaryBoxes || []),
-                    { 
-                        id: crypto.randomUUID(), 
-                        name: `Area ${(v.boundaryBoxes?.length ?? 0) + 1}`, 
-                        x: 10 + (v.boundaryBoxes?.length ?? 0) * 5, 
-                        y: 10 + (v.boundaryBoxes?.length ?? 0) * 5, 
-                        width: 30, 
-                        height: 20 
-                    }
-                ];
-                return { ...v, boundaryBoxes: newBoxes };
-            }
-            return v;
-        }));
+
+        setEditorViews(prev => {
+            const newViews = prev.map(v => {
+                if (v.id === activeViewIdInEditor && (v.boundaryBoxes?.length ?? 0) < 3) {
+                    const newBox = {
+                        id: crypto.randomUUID(),
+                        name: `Area ${(v.boundaryBoxes?.length ?? 0) + 1}`,
+                        x: 10 + (v.boundaryBoxes?.length ?? 0) * 5,
+                        y: 10 + (v.boundaryBoxes?.length ?? 0) * 5,
+                        width: 30,
+                        height: 20
+                    };
+                    // Ensure boundaryBoxes is an array before spreading
+                    const updatedBoxes = [...(v.boundaryBoxes || []), newBox];
+                    return { ...v, boundaryBoxes: updatedBoxes };
+                }
+                return v;
+            });
+            return newViews;
+        });
+        setHasUnsavedChanges(true);
     };
+
+
     const handleRemoveBoundaryBoxFromEditor = (boxId: string) => {
         if (!activeViewIdInEditor) return;
         setEditorViews(prev => prev.map(v => v.id === activeViewIdInEditor ? { ...v, boundaryBoxes: v.boundaryBoxes.filter(b => b.id !== boxId) } : v));
@@ -1136,9 +1143,9 @@ function ProductOptionsPage() {
                               </div>
                             </TabsContent>
                             <TabsContent value="areas" className="mt-4">
-                              {!currentViewInEditor ? <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p> : <>
+                              {currentViewInEditor ? ( <>
                                   <div className="flex justify-between items-center mb-3"><h4 className="text-base font-semibold">Areas for: <span className="text-primary">{currentViewInEditor.name}</span></h4>{currentViewInEditor.boundaryBoxes?.length < 3 && <Button onClick={handleAddBoundaryBoxToEditor} variant="outline" size="sm"><PlusCircle className="mr-1.5 h-4 w-4" />Add Area</Button>}</div>
-                                  {currentViewInEditor.boundaryBoxes?.map((box, index) => (
+                                  {(currentViewInEditor.boundaryBoxes || []).map((box, index) => (
                                     <div key={box.id} onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }} className={cn("p-2 mb-2 border rounded-md cursor-pointer", selectedBoundaryBoxId === box.id ? 'border-primary' : 'border-border')}>
                                       <div className="flex items-center gap-2">
                                           <Input 
@@ -1153,10 +1160,12 @@ function ProductOptionsPage() {
                                       </div>
                                     </div>
                                   ))}
-                                  {currentViewInEditor.boundaryBoxes?.length === 0 && (
+                                  {currentViewInEditor.boundaryBoxes.length === 0 && (
                                     <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
                                   )}
-                              </>}
+                              </>) : (
+                                  <p className="text-center text-muted-foreground p-4">Select a view from the "Manage Views" tab to edit its customization areas.</p>
+                              )}
                             </TabsContent>
                           </Tabs>
                         </div>
@@ -1179,5 +1188,6 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
 
