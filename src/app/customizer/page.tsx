@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -164,7 +165,7 @@ function CustomizerLayoutAndLogic() {
   const isEmbedded = useMemo(() => viewMode === 'embedded', [viewMode]);
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
   const editCartItemId = useMemo(() => searchParams.get('editCartItemId'), [searchParams]);
-  const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]); // Correctly defined here
+  const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]);
   const sourceFromUrl = useMemo(() => {
     const sourceParam = searchParams.get('source');
     if (sourceParam === 'shopify' || sourceParam === 'woocommerce' || sourceParam === 'customizer-studio') {
@@ -265,9 +266,10 @@ function CustomizerLayoutAndLogic() {
   const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify' | 'customizer-studio', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
     setIsLoading(true);
     setError(null);
+    setActiveViewId(null);
     setProductVariations(null); setConfigurableAttributes(null);
     setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
-    setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0); setActiveViewId(null);
+    setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0);
     setSelectedTechnique(null);
     
     const metaForProduct = { proxyUsed: !!wpApiBaseUrlToUse, configUserIdUsed: configUserIdToUse, source };
@@ -435,7 +437,6 @@ function CustomizerLayoutAndLogic() {
     }
     
     setProductDetails(productWithViews);
-    setActiveViewId(finalDefaultViews[0]?.id || null);
 
     if (source === 'woocommerce' && fetchedVariations) {
         setProductVariations(fetchedVariations);
@@ -480,6 +481,7 @@ function CustomizerLayoutAndLogic() {
     }
     
     setIsLoading(false);
+    setActiveViewId(finalDefaultViews[0]?.id || null);
   }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot, basePriceFromUrl]);
 
 
