@@ -164,6 +164,7 @@ function CustomizerLayoutAndLogic() {
   const isEmbedded = useMemo(() => viewMode === 'embedded', [viewMode]);
   const productIdFromUrl = useMemo(() => searchParams.get('productId'), [searchParams]);
   const editCartItemId = useMemo(() => searchParams.get('editCartItemId'), [searchParams]);
+  const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]); // Correctly defined here
   const sourceFromUrl = useMemo(() => {
     const sourceParam = searchParams.get('source');
     if (sourceParam === 'shopify' || sourceParam === 'woocommerce' || sourceParam === 'customizer-studio') {
