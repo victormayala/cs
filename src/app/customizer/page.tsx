@@ -682,7 +682,6 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. Please wait." });
     
-    // Determine which views have customizations
     const customizedViewIds = new Set<string>();
     canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
@@ -706,7 +705,6 @@ function CustomizerLayoutAndLogic() {
     const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
     
     for (const view of viewsToPreview) {
-        // This is the main change: We set the active view and wait for re-render
         setActiveViewId(view.id);
         
         await new Promise(resolve => requestAnimationFrame(resolve));
