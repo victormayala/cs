@@ -704,28 +704,29 @@ function CustomizerLayoutAndLogic() {
 
     const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
     
+    // This is a sequential loop that waits for each screenshot.
     for (const view of viewsToPreview) {
-        setActiveViewId(view.id);
-        
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Set the active view ID to render the correct background
+      setActiveViewId(view.id);
+      
+      // Wait for React to re-render. requestAnimationFrame and a small timeout are a pragmatic way to do this.
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 50)));
 
-        const canvasElement = designCanvasWrapperRef.current;
-        if (!canvasElement) {
-            toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
-            continue; 
-        }
-
-        try {
-            const dataUrl = await htmlToImage.toPng(canvasElement, {
-                quality: 0.95,
-                fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
-            });
-            previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
-        } catch (singleViewError: any) {
-            console.error(`Screenshot failed for view "${view.name}":`, singleViewError);
-            toast({ title: "Preview Warning", description: `Could not generate preview for "${view.name}". It will be skipped.`, variant: "destructive" });
-        }
+      const canvasElement = designCanvasWrapperRef.current;
+      if (!canvasElement) {
+        toast({ title: "Preview Error", description: `Could not find the canvas element to capture view "${view.name}".`, variant: "destructive" });
+        continue;
+      }
+      try {
+        const dataUrl = await htmlToImage.toPng(canvasElement, {
+            quality: 0.95,
+            fetchRequestInit: { mode: 'cors', cache: 'force-cache' }
+        });
+        previewImageUrls.push({ viewId: view.id, viewName: view.name, url: dataUrl });
+      } catch (singleViewError: any) {
+        console.error(`Screenshot failed for view "${view.name}":`, singleViewError);
+        toast({ title: "Preview Warning", description: `Could not generate preview for "${view.name}". It will be skipped.`, variant: "destructive" });
+      }
     }
       
     try {
