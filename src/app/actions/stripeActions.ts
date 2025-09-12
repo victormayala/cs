@@ -180,8 +180,6 @@ export async function createCheckoutSession(
         currency: 'usd',
         product_data: {
           name: item.productName,
-          // Images removed to prevent URL length error with base64 data URIs
-          // images: item.previewImageUrls?.map(p => p.url).slice(0, 8),
         },
         unit_amount: Math.round(item.totalCustomizationPrice * 100), // Price in cents
       },
