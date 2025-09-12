@@ -174,6 +174,19 @@ export async function createCheckoutSession(
       throw new Error('The store owner has not configured their payment account.');
     }
     
+    // ** NEW: Retroactive fix for existing accounts **
+    // Check and update the merchant's Stripe account capabilities if needed.
+    const merchantAccount = await stripe.accounts.retrieve(merchantStripeAccountId);
+    if (merchantAccount.capabilities?.transfers !== 'active' && merchantAccount.capabilities?.transfers !== 'pending') {
+        console.log(`Merchant account ${merchantStripeAccountId} missing 'transfers' capability. Attempting to add it now.`);
+        await stripe.accounts.update(merchantStripeAccountId, {
+            capabilities: {
+                transfers: { requested: true },
+            },
+        });
+        console.log(`Successfully requested 'transfers' capability for ${merchantStripeAccountId}.`);
+    }
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const line_items = cartItems.map((item) => ({
       price_data: {
@@ -267,3 +280,5 @@ export async function getOrderByStripeSessionId(
         return { order: null, error: "Failed to retrieve order details from the database." };
     }
 }
+
+    
