@@ -377,9 +377,19 @@ function CustomizerLayoutAndLogic() {
     
     let finalDefaultViews = firestoreOptions?.defaultViews || [];
     if (finalDefaultViews.length === 0) {
-        const defaultImageUrl = (source === 'shopify' && userIdForFirestoreOptions)
-            ? (await fetchShopifyProductById((await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions))).data()?.shop, (await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions))).data()?.accessToken, baseProductDetails.id)).product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl
-            : defaultFallbackProduct.views[0].imageUrl;
+        let defaultImageUrl: string;
+        if (source === 'shopify' && userIdForFirestoreOptions) {
+            const credDoc = await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions));
+            const creds = credDoc.data();
+            if (creds?.shop && creds.accessToken) {
+                const { product } = await fetchShopifyProductById(creds.shop, creds.accessToken, baseProductDetails.id);
+                defaultImageUrl = product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl;
+            } else {
+                defaultImageUrl = defaultFallbackProduct.views[0].imageUrl;
+            }
+        } else {
+            defaultImageUrl = defaultFallbackProduct.views[0].imageUrl;
+        }
         
         finalDefaultViews = [{
             id: `default_view_${baseProductDetails.id}`, name: "Front View",
@@ -935,7 +945,7 @@ function CustomizerLayoutAndLogic() {
                 )}
                 <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
                     {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
-                    {isAddingToCart ? "Processing..." : (productDetails?.allowCustomization === false ? "Not Customizable" : (editCartItemId ? "Update Cart Item" : "Add to Cart"))}
+                    {isAddingToCart ? "Processing..." : (editCartItemId ? "Update Cart Item" : "Add to Cart")}
                 </Button>
             </div>
         </footer>
@@ -959,3 +969,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
