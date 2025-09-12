@@ -3,62 +3,57 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is the owner of a document
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+    // Allow authenticated users to write to their own user document, but allow public reads.
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+
+      // Allow public read for native products, but only owner can write/delete
+      match /products/{productId} {
+        allow read: if true;
+        allow write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Allow read for customers and orders by store owner
+      match /customers/{customerId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+       match /orders/{orderId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /productCategories/{categoryId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
-    
-    // Allow public read for stores, but only owner write
+
+    // Allow authenticated users to manage their own credentials
+    match /userWooCommerceCredentials/{userId} {
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+     match /userShopifyCredentials/{userId} {
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow public read for product options, but only owner can write/delete
+    match /userProductOptions/{userId}/products/{productId} {
+       allow read: if true;
+       allow write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- Storefront Rules ---
+
+    // Allow public read for store configs.
+    // Allow owner to create, update, and delete their own stores.
     match /userStores/{storeId} {
       allow read: if true;
-      allow write: if isOwner(resource.data.userId);
-      
-      // Subcollection for approved files
-      match /approvedFiles/{fileId} {
-        allow read: if true; // Allow public read for customizer access
-        allow write: if isOwner(get(/databases/$(database)/documents/userStores/$(storeId)).data.userId);
-      }
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
-    match /users/{userId} {
-      // Allow user to read/write their own document
-      allow read, write: if isOwner(userId);
-      
-      // Allow public read for specific fields needed for checkout
-      allow get: if true;
-
-      // Products subcollection
-      match /products/{productId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      // Categories subcollection
-      match /productCategories/{categoryId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      // Credentials subcollections
-      match /userWooCommerceCredentials/{credId} {
-        allow read, write: if isOwner(userId);
-      }
-      match /userShopifyCredentials/{credId} {
-         allow read, write: if isOwner(userId);
-      }
-      
-      // Orders and Customers subcollections (private to the merchant)
-      match /orders/{orderId} {
-        allow read, write: if isOwner(userId);
-      }
-      match /customers/{customerId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-
-    // Product options can be read by anyone (for the public customizer)
-    // but only written to by the owner.
-    match /userProductOptions/{userId}/products/{productId} {
+    // Allow ANYONE to read approved files for a store, but only owner can write/delete.
+    match /userStores/{storeId}/approvedFiles/{fileId} {
       allow read: if true;
-      allow write: if isOwner(userId);
+      allow create, delete, write: if request.auth != null && get(/databases/$(database)/documents/userStores/$(storeId)).data.userId == request.auth.uid;
     }
   }
 }
