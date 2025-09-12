@@ -18,7 +18,7 @@ import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firest
 import { auth, db, firebaseInitializationError } from '@/lib/firebase'; 
 import { clearAccessCookie } from '@/app/access-login/actions';
 import { useToast } from '@/hooks/use-toast';
-import { createDeferredStripeAccount } from '@/app/actions/stripeActions';
+import { createStripeAccount } from '@/app/actions/stripeActions';
 
 export interface User {
   uid: string;
@@ -252,8 +252,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 createdAt: serverTimestamp(),
             });
 
-            // Asynchronously create the deferred Stripe account
-            const stripeResult = await createDeferredStripeAccount({
+            // Asynchronously create the Stripe account
+            const stripeResult = await createStripeAccount({
                 userId: firebaseUser.uid,
                 email: firebaseUser.email || '',
                 name: firebaseUser.displayName || firebaseUser.email || '',
@@ -269,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     detailsSubmitted: false,
                 }, { merge: true });
             } else {
-                 console.error("Failed to create deferred Stripe account on signup:", stripeResult.error);
+                 console.error("Failed to create Stripe account on signup:", stripeResult.error);
                  await setDoc(userDocRef, { stripeConnectAccountError: stripeResult.error || 'Failed to create account.' }, { merge: true });
             }
         } catch (error) {
@@ -282,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!userData.stripeConnectAccountId) {
             console.log(`User ${firebaseUser.uid} exists but is missing a Stripe account. Creating one now.`);
              try {
-                const stripeResult = await createDeferredStripeAccount({
+                const stripeResult = await createStripeAccount({
                     userId: firebaseUser.uid,
                     email: firebaseUser.email || '',
                     name: firebaseUser.displayName || firebaseUser.email || '',
@@ -397,3 +397,5 @@ export function useAuth() {
   }
   return context;
 }
+
+    

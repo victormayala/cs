@@ -19,7 +19,7 @@ import { fetchWooCommerceProducts, type WooCommerceCredentials } from "@/app/act
 import type { UserWooCommerceCredentials } from "@/app/actions/userCredentialsActions"; 
 import { fetchShopifyProducts } from "@/app/actions/shopifyActions";
 import type { UserShopifyCredentials, ShopifyCredentials } from "@/app/actions/userShopifyCredentialsActions";
-import { createStripeAccountLink, createStripeLoginLink, createDeferredStripeAccount } from "@/app/actions/stripeActions";
+import { createStripeAccountLink, createStripeLoginLink, createStripeAccount } from "@/app/actions/stripeActions";
 import { db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, serverTimestamp, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, onSnapshot, addDoc, updateDoc } from 'firebase/firestore'; 
 import type { WCCustomProduct } from '@/types/woocommerce';
@@ -855,7 +855,7 @@ function DashboardPageContent() {
     if (!user) return;
     setIsCreatingStripeAccount(true);
     try {
-      const result = await createDeferredStripeAccount({
+      const result = await createStripeAccount({
         userId: user.uid,
         email: user.email || '',
         name: user.displayName || user.email || 'New User',
@@ -1103,6 +1103,18 @@ function DashboardPageContent() {
                   </Button>
                 )}
               </div>
+                {user && !user.payoutsEnabled && (
+                    <ShadCnAlert variant="destructive">
+                        <Banknote className="h-4 w-4" />
+                        <ShadCnAlertTitle>Action Required: Complete Your Payment Setup</ShadCnAlertTitle>
+                        <ShadCnAlertDescription>
+                            Your Stripe account setup is not complete. Your stores cannot accept payments until you finish the onboarding process.
+                            <Button variant="link" className="p-0 h-auto ml-2 text-destructive font-bold" onClick={handleStripeOnboarding}>
+                                {onboardingStatus === 'in_progress' ? 'Resume Onboarding' : 'Start Onboarding Now'}
+                            </Button>
+                        </ShadCnAlertDescription>
+                    </ShadCnAlert>
+                )}
 
               {activeTab === 'products' && (
                 <Card className="shadow-lg border-border bg-card">
@@ -1412,3 +1424,5 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
+
+    

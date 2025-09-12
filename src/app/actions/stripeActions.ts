@@ -23,28 +23,28 @@ function getStripeInstance() {
 }
 
 
-interface CreateDeferredStripeAccountArgs {
+interface CreateStripeAccountArgs {
   userId: string;
   email: string;
   name: string;
 }
 
 /**
- * Creates a deferred Stripe Connect Express account for a new user.
+ * Creates a Stripe Connect Express account for a new user.
  * This function is called immediately after a user signs up.
  * It creates the account but does not initiate the onboarding flow.
  * IT NO LONGER WRITES TO FIRESTORE. It only returns the accountId.
- * @param {CreateDeferredStripeAccountArgs} args - The user details required.
+ * @param {CreateStripeAccountArgs} args - The user details required.
  * @returns {Promise<{success: boolean; accountId?: string; error?: string}>} - The result of the operation.
  */
-export async function createDeferredStripeAccount(
-  args: CreateDeferredStripeAccountArgs
+export async function createStripeAccount(
+  args: CreateStripeAccountArgs
 ): Promise<{success: boolean; accountId?: string; error?: string}> {
   const { userId, email, name } = args;
 
   if (!userId || !email || typeof email !== 'string' || email.trim() === '') {
     const errorMessage = 'A valid User ID and Email are required to create a Stripe account.';
-    console.error(`createDeferredStripeAccount validation failed: ${errorMessage}`, { userId, email });
+    console.error(`createStripeAccount validation failed: ${errorMessage}`, { userId, email });
     return { success: false, error: errorMessage };
   }
 
@@ -67,16 +67,13 @@ export async function createDeferredStripeAccount(
       },
     });
 
-    console.log(`Successfully created deferred Stripe account ${account.id} for user ${userId}. Returning ID to client for Firestore write.`);
+    console.log(`Successfully created Stripe account ${account.id} for user ${userId}. Returning ID to client for Firestore write.`);
     // IMPORTANT: Return the account ID to the client. The client will handle the Firestore write.
     return { success: true, accountId: account.id };
 
   } catch (error: any) {
-    console.error(`Error creating Stripe deferred account for user ${userId}:`, error);
+    console.error(`Error creating Stripe account for user ${userId}:`, error);
     const errorMessage = error.raw?.message || `An unexpected error occurred while creating the Stripe account. Please check server logs. Raw error: ${String(error)}`;
-    
-    // We cannot write an error state to the user doc here due to permissions.
-    // The client will have to handle the failure.
     
     return { success: false, error: errorMessage };
   }
@@ -174,18 +171,13 @@ export async function createCheckoutSession(
       throw new Error('The store owner has not configured their payment account.');
     }
     
-    // ** NEW: Retroactive fix for existing accounts **
-    // Check and update the merchant's Stripe account capabilities if needed.
+    // ** NEW: Check if the merchant's account has payouts enabled. **
     const merchantAccount = await stripe.accounts.retrieve(merchantStripeAccountId);
-    if (merchantAccount.capabilities?.transfers !== 'active' && merchantAccount.capabilities?.transfers !== 'pending') {
-        console.log(`Merchant account ${merchantStripeAccountId} missing 'transfers' capability. Attempting to add it now.`);
-        await stripe.accounts.update(merchantStripeAccountId, {
-            capabilities: {
-                transfers: { requested: true },
-            },
-        });
-        console.log(`Successfully requested 'transfers' capability for ${merchantStripeAccountId}.`);
+    if (!merchantAccount.payouts_enabled) {
+      console.warn(`Checkout blocked for store ${storeId} because merchant ${merchantStripeAccountId} has not enabled payouts.`);
+      throw new Error('This store is not currently able to accept payments. The store owner needs to complete their payment setup.');
     }
+
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const line_items = cartItems.map((item) => ({
@@ -280,5 +272,7 @@ export async function getOrderByStripeSessionId(
         return { order: null, error: "Failed to retrieve order details from the database." };
     }
 }
+
+    
 
     
