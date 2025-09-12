@@ -549,14 +549,18 @@ function ProductOptionsPage() {
         if (isNaN(numValue)) { setProductOptions({ ...productOptions, [field]: field === 'price' ? 0 : null }); }
         else { setProductOptions({ ...productOptions, [field]: numValue }); }
     };
+    
     const handleOpenViewEditor = (color: string) => {
         if (!productOptions) return;
         setActiveEditingColor(color);
-        const initialEditorViews = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
-        setEditorViews(JSON.parse(JSON.stringify(initialEditorViews)));
+        // Ensure initial views are a deep copy to prevent direct state mutation
+        const initialEditorViews = JSON.parse(JSON.stringify(productOptions.optionsByColor[color]?.views || productOptions.defaultViews));
+        setEditorViews(initialEditorViews);
+        // Explicitly set the active view ID when opening the editor
         setActiveViewIdInEditor(initialEditorViews[0]?.id || null);
         setIsViewEditorOpen(true);
     };
+
     const handleSaveViewsForColor = () => {
         if (!productOptions) return;
         setHasUnsavedChanges(true);
@@ -1128,6 +1132,9 @@ function ProductOptionsPage() {
                                       </div>
                                     </div>
                                   ))}
+                                  {currentViewInEditor.boundaryBoxes.length === 0 && (
+                                    <p className="text-sm text-center text-muted-foreground py-4">No areas defined for this view.</p>
+                                  )}
                               </>}
                             </TabsContent>
                           </Tabs>
@@ -1151,6 +1158,7 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
 
 
