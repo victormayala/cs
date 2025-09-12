@@ -36,6 +36,8 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
+import { toPng } from 'html-to-image';
+
 
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
@@ -675,228 +677,218 @@ function CustomizerLayoutAndLogic() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   const handleAddToCart = async () => {
-      if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
-      if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
-          toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
-          return;
+    if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
+    if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
+      toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
+      return;
+    }
+    if (!isEmbedded && !user && hasCanvasElements) {
+      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+      return;
+    }
+
+    setIsAddingToCart(true);
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
+
+    try {
+      const customizedViewIds = new Set<string>();
+      [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
+        if (item.viewId) customizedViewIds.add(item.viewId);
+      });
+
+      if (customizedViewIds.size === 0) {
+        toast({ title: "No Customizations Found", description: "Add design elements to a view to generate a preview.", variant: "default" });
+        setIsAddingToCart(false);
+        return;
       }
-      if (!isEmbedded && !user && hasCanvasElements) {
-          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-          return;
-      }
-  
-      setIsAddingToCart(true);
-      toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
-  
-      try {
-          // Identify which views have customizations
-          const customizedViewIds = new Set<string>();
-          [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
-              if (item.viewId) customizedViewIds.add(item.viewId);
-          });
-  
-          if (customizedViewIds.size === 0) {
-              toast({ title: "No Customizations Found", description: "Add design elements to a view to generate a preview.", variant: "default" });
-              setIsAddingToCart(false);
-              return;
-          }
-  
-          // Create a map of preloaded design element images (from data URLs)
-          const imageCache = new Map<string, HTMLImageElement>();
-          await Promise.all(
-              canvasImages.map(img => new Promise<void>((resolve, reject) => {
+      
+      const imageCache = new Map<string, HTMLImageElement>();
+      const imagePromises: Promise<void>[] = [];
+
+      canvasImages.forEach(img => {
+          if (!imageCache.has(img.sourceImageId)) {
+              imagePromises.push(new Promise<void>((resolve, reject) => {
                   const imageEl = new window.Image();
                   imageEl.crossOrigin = "anonymous";
                   imageEl.onload = () => {
-                      imageCache.set(img.id, imageEl);
+                      imageCache.set(img.sourceImageId, imageEl);
                       resolve();
                   };
-                  imageEl.onerror = reject;
+                  imageEl.onerror = (e) => reject(`Failed to load image: ${img.name}`);
                   imageEl.src = img.dataUrl;
-              }))
-          );
-  
-          const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-  
-          // Sequentially generate a preview for each customized view
-          for (const viewId of Array.from(customizedViewIds)) {
-              const view = productDetails?.views.find(v => v.id === viewId);
-              if (!view) continue;
-  
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              if (!ctx) continue;
-  
-              // 1. Load the background image for this view
-              const bgImage = await new Promise<HTMLImageElement>((resolve, reject) => {
-                  const img = new window.Image();
-                  img.crossOrigin = "anonymous";
-                  img.onload = () => resolve(img);
-                  img.onerror = reject;
-                  img.src = view.imageUrl;
-              });
-  
-              // Set canvas size to match background image for best quality
-              canvas.width = bgImage.naturalWidth;
-              canvas.height = bgImage.naturalHeight;
-  
-              // 2. Draw the background
-              ctx.drawImage(bgImage, 0, 0);
-  
-              // 3. Get and sort all elements for this view
-              const elementsForView = [
-                  ...canvasImages.filter(i => i.viewId === viewId),
-                  ...canvasTexts.filter(t => t.viewId === viewId),
-                  ...canvasShapes.filter(s => s.viewId === viewId),
-              ].sort((a, b) => a.zIndex - b.zIndex);
-  
-              // 4. Draw each element
-              elementsForView.forEach(item => {
-                  ctx.save();
-                  // Translate to the item's center point
-                  const centerX = item.x / 100 * canvas.width;
-                  const centerY = item.y / 100 * canvas.height;
-                  ctx.translate(centerX, centerY);
-                  ctx.rotate(item.rotation * Math.PI / 180);
-                  
-                  if (item.itemType === 'image') {
-                      const imgEl = imageCache.get(item.id);
-                      if (imgEl) {
-                          const w = 200 * item.scale; // Assuming base size, should be stored in CanvasImage
-                          const h = 200 * item.scale;
-                          ctx.drawImage(imgEl, -w / 2, -h / 2, w, h);
-                      }
-                  } else if (item.itemType === 'text') {
-                      // Text rendering logic
-                      const fs = item.fontSize * item.scale;
-                      ctx.font = `${item.fontStyle} ${item.fontWeight} ${fs}px ${item.fontFamily}`;
-                      ctx.fillStyle = item.color;
-                      ctx.textAlign = 'center';
-                      ctx.textBaseline = 'middle';
-  
-                      if(item.outlineEnabled && item.outlineWidth > 0){
-                          ctx.strokeStyle = item.outlineColor;
-                          ctx.lineWidth = item.outlineWidth * 2; // Canvas stroke is centered
-                          ctx.strokeText(item.content, 0, 0);
-                      }
-  
-                      ctx.fillText(item.content, 0, 0);
-                  } else if (item.itemType === 'shape') {
-                      // Shape rendering logic
-                       const w = item.width * item.scale;
-                       const h = item.height * item.scale;
-                       ctx.fillStyle = item.color;
-                       ctx.strokeStyle = item.strokeColor;
-                       ctx.lineWidth = item.strokeWidth;
-                       
-                       if(item.shapeType === 'rectangle') {
-                           ctx.fillRect(-w/2, -h/2, w, h);
-                           if(item.strokeWidth > 0) ctx.strokeRect(-w/2, -h/2, w, h);
-                       } else if (item.shapeType === 'circle') {
-                           ctx.beginPath();
-                           ctx.arc(0, 0, w/2, 0, 2 * Math.PI);
-                           ctx.fill();
-                           if(item.strokeWidth > 0) ctx.stroke();
-                       }
-                  }
-                  
-                  ctx.restore();
-              });
-  
-              // 5. Export the final image
-              previewImageUrls.push({
-                  viewId: view.id,
-                  viewName: view.name,
-                  url: canvas.toDataURL('image/png')
-              });
+              }));
           }
-  
-          // ... (rest of the add to cart logic remains the same)
-          const customizedViewsData = (productDetails?.views || [])
-            .map(view => ({
-                viewId: view.id,
-                viewName: view.name,
-                viewImageUrl: view.imageUrl,
-                images: canvasImages.filter(item => item.viewId === view.id),
-                texts: canvasTexts.filter(item => item.viewId === view.id),
-                shapes: canvasShapes.filter(item => item.viewId === view.id),
-            }))
-            .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+      });
+      await Promise.all(imagePromises);
 
-        const designData = {
-            productId: productIdFromUrl || productDetails?.id,
-            variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
-            quantity: 1,
-            productName: productDetails?.name || 'Custom Product',
-            customizationDetails: {
-              viewData: customizedViewsData,
-              selectedOptions: selectedVariationOptions,
-              baseProductPrice: productDetails?.basePrice ?? 0,
-              totalCustomizationPrice: totalCustomizationPrice,
-            },
-            userId: user?.uid || null,
-            configUserId: productDetails?.meta?.configUserIdUsed || null,
-          };
+      const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+
+      for (const viewId of Array.from(customizedViewIds)) {
+        const view = productDetails?.views.find(v => v.id === viewId);
+        if (!view) continue;
+
+        const offscreenCanvas = document.createElement('canvas');
+        const ctx = offscreenCanvas.getContext('2d');
+        if (!ctx) continue;
         
-          const isNativeStore = sourceFromUrl === 'customizer-studio';
-  
-          if (isEmbedded) {
-            let targetOrigin = '*';
-            if (document.referrer) {
-              try { targetOrigin = new URL(document.referrer).origin; }
-              catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
-            } else {
-              console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
-            }
-            window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
-            toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
-          } else if (isNativeStore && storeIdFromUrl) {
-            const cartKey = `cs_cart_${storeIdFromUrl}`;
-            try {
-              let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-              const newCartItem = {
-                id: editCartItemId || crypto.randomUUID(), 
-                productId: designData.productId,
-                variationId: designData.variationId,
-                quantity: 1,
-                productName: designData.productName,
-                totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-                previewImageUrls: previewImageUrls, 
-                customizationDetails: designData.customizationDetails,
-              };
-              
-              if (editCartItemId) {
-                currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
-                toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
-              } else {
-                currentCart.push(newCartItem);
-                toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+        const bgImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new window.Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(`Failed to load background for view: ${view.name}`);
+          img.src = view.imageUrl;
+        });
+
+        const canvasSize = Math.max(bgImage.naturalWidth, bgImage.naturalHeight, 600);
+        offscreenCanvas.width = canvasSize;
+        offscreenCanvas.height = canvasSize;
+        
+        const offsetX = (canvasSize - bgImage.naturalWidth) / 2;
+        const offsetY = (canvasSize - bgImage.naturalHeight) / 2;
+        ctx.drawImage(bgImage, offsetX, offsetY);
+
+        const elementsForView = [
+            ...canvasImages.filter(i => i.viewId === viewId),
+            ...canvasTexts.filter(t => t.viewId === viewId),
+            ...canvasShapes.filter(s => s.viewId === viewId),
+        ].sort((a, b) => a.zIndex - b.zIndex);
+
+        for (const item of elementsForView) {
+            ctx.save();
+            const centerX = item.x / 100 * canvasSize;
+            const centerY = item.y / 100 * canvasSize;
+            ctx.translate(centerX, centerY);
+            ctx.rotate(item.rotation * Math.PI / 180);
+
+            if (item.itemType === 'image') {
+              const imgEl = imageCache.get(item.sourceImageId);
+              if (imgEl) {
+                  const w = 200 * item.scale; 
+                  const h = 200 * item.scale;
+                  ctx.drawImage(imgEl, -w / 2, -h / 2, w, h);
               }
-  
-              localStorage.setItem(cartKey, JSON.stringify(currentCart));
-              window.dispatchEvent(new CustomEvent('cartUpdated'));
-              router.push(`/store/${storeIdFromUrl}/cart`);
-            } catch (e: any) {
-              console.error("Error saving to local cart:", e);
-              let errorDescription = "Could not add item to local cart.";
-              if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
-                errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
-              }
-              toast({ title: "Error", description: errorDescription, variant: "destructive" });
+            } else if (item.itemType === 'text') {
+                const fs = item.fontSize * item.scale;
+                ctx.font = `${item.fontStyle} ${item.fontWeight} ${fs}px ${item.fontFamily}`;
+                ctx.fillStyle = item.color;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                if(item.outlineEnabled && item.outlineWidth > 0){
+                    ctx.strokeStyle = item.outlineColor;
+                    ctx.lineWidth = item.outlineWidth * 2;
+                    ctx.strokeText(item.content, 0, 0);
+                }
+                ctx.fillText(item.content, 0, 0);
+            } else if (item.itemType === 'shape') {
+                 const w = item.width * item.scale;
+                 const h = item.height * item.scale;
+                 ctx.fillStyle = item.color;
+                 ctx.strokeStyle = item.strokeColor;
+                 ctx.lineWidth = item.strokeWidth;
+                 if(item.shapeType === 'rectangle') {
+                     ctx.fillRect(-w/2, -h/2, w, h);
+                     if(item.strokeWidth > 0) ctx.strokeRect(-w/2, -h/2, w, h);
+                 } else if (item.shapeType === 'circle') {
+                     ctx.beginPath();
+                     ctx.arc(0, 0, w/2, 0, 2 * Math.PI);
+                     ctx.fill();
+                     if(item.strokeWidth > 0) ctx.stroke();
+                 }
             }
-          } else {
-              toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
-              console.log("Add to Cart - Design Data:", designData);
-              console.log("Previews:", previewImageUrls);
-          }
-      } catch (err: any) {
-          console.error("Error during 'Add to Cart' process:", err);
-          toast({ title: "Add to Cart Failed", description: err.message, variant: "destructive" });
-      } finally {
-          setIsAddingToCart(false);
+            ctx.restore();
+        }
+        
+        previewImageUrls.push({
+            viewId: view.id,
+            viewName: view.name,
+            url: offscreenCanvas.toDataURL('image/png')
+        });
       }
+
+      const customizedViewsData = (productDetails?.views || [])
+        .map(view => ({
+            viewId: view.id,
+            viewName: view.name,
+            viewImageUrl: view.imageUrl,
+            images: canvasImages.filter(item => item.viewId === view.id),
+            texts: canvasTexts.filter(item => item.viewId === view.id),
+            shapes: canvasShapes.filter(item => item.viewId === view.id),
+        }))
+        .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+      const designData = {
+          productId: productIdFromUrl || productDetails?.id,
+          variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
+          quantity: 1,
+          productName: productDetails?.name || 'Custom Product',
+          customizationDetails: {
+            viewData: customizedViewsData,
+            selectedOptions: selectedVariationOptions,
+            baseProductPrice: productDetails?.basePrice ?? 0,
+            totalCustomizationPrice: totalCustomizationPrice,
+          },
+          userId: user?.uid || null,
+          configUserId: productDetails?.meta?.configUserIdUsed || null,
+        };
+      
+      const isNativeStore = sourceFromUrl === 'customizer-studio';
+
+      if (isEmbedded) {
+        let targetOrigin = '*';
+        if (document.referrer) {
+          try { targetOrigin = new URL(document.referrer).origin; }
+          catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
+        } else {
+          console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
+        }
+        window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
+        toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
+      } else if (isNativeStore && storeIdFromUrl) {
+        const cartKey = `cs_cart_${storeIdFromUrl}`;
+        try {
+          let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+          const newCartItem = {
+            id: editCartItemId || crypto.randomUUID(), 
+            productId: designData.productId,
+            variationId: designData.variationId,
+            quantity: 1,
+            productName: designData.productName,
+            totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
+            previewImageUrls: previewImageUrls, 
+            customizationDetails: designData.customizationDetails,
+          };
+          
+          if (editCartItemId) {
+            currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
+            toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
+          } else {
+            currentCart.push(newCartItem);
+            toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+          }
+
+          localStorage.setItem(cartKey, JSON.stringify(currentCart));
+          window.dispatchEvent(new CustomEvent('cartUpdated'));
+          router.push(`/store/${storeIdFromUrl}/cart`);
+        } catch (e: any) {
+          console.error("Error saving to local cart:", e);
+          let errorDescription = "Could not add item to local cart.";
+          if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
+            errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
+          }
+          toast({ title: "Error", description: errorDescription, variant: "destructive" });
+        }
+      } else {
+          toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
+          console.log("Add to Cart - Design Data:", designData);
+          console.log("Previews:", previewImageUrls);
+      }
+    } catch (err: any) {
+        console.error("Error during 'Add to Cart' process:", err);
+        toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
+    } finally {
+        setIsAddingToCart(false);
+    }
   };
-  
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -1048,5 +1040,7 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
 
     
