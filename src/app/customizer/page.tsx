@@ -180,7 +180,6 @@ function CustomizerLayoutAndLogic() {
   }, [searchParams, productIdFromUrl]);
   const wpApiBaseUrlFromUrl = useMemo(() => searchParams.get('wpApiBaseUrl'), [searchParams]);
   const configUserIdFromUrl = useMemo(() => searchParams.get('configUserId'), [searchParams]);
-  const storeIdFromUrl = useMemo(() => searchParams.get('storeId'), [searchParams]);
   const basePriceFromUrl = useMemo(() => searchParams.get('basePrice'), [searchParams]);
 
   const { user, isLoading: authLoading } = useAuth();
@@ -577,13 +576,13 @@ function CustomizerLayoutAndLogic() {
 
         const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : prevProductDetails.basePrice;
 
+        const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
+        if (!activeViewStillExists) {
+            setActiveViewId(finalViews[0]?.id || null);
+        }
+
         // Only update state if something has actually changed
         if (JSON.stringify(prevProductDetails.views) !== JSON.stringify(finalViews) || prevProductDetails.basePrice !== newBasePrice) {
-            // If the views have changed, also reset the active view ID to the first new view
-            const newActiveViewId = finalViews[0]?.id || null;
-            if(activeViewId !== newActiveViewId) {
-                setActiveViewId(newActiveViewId);
-            }
             return { ...prevProductDetails, views: finalViews, basePrice: newBasePrice };
         }
 
