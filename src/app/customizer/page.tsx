@@ -437,6 +437,7 @@ function CustomizerLayoutAndLogic() {
     }
     
     setProductDetails(productWithViews);
+    setActiveViewId(finalDefaultViews[0]?.id || null);
 
     if (source === 'woocommerce' && fetchedVariations) {
         setProductVariations(fetchedVariations);
@@ -481,7 +482,6 @@ function CustomizerLayoutAndLogic() {
     }
     
     setIsLoading(false);
-    setActiveViewId(finalDefaultViews[0]?.id || null);
   }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot, basePriceFromUrl]);
 
 
