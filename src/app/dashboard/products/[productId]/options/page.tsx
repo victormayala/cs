@@ -1096,14 +1096,16 @@ function ProductOptionsPage() {
                               {editorViews.length < MAX_PRODUCT_VIEWS && (<Button onClick={handleAddNewViewInEditor} variant="outline" className="w-full"><PlusCircle className="mr-2 h-4 w-4"/>Add New View</Button>)}
                               <div className="grid grid-cols-1 gap-4">
                                   {editorViews.map((view, index) => (
-                                    <button
-                                      type="button"
+                                    <div
                                       key={`${view.id}-${index}`}
                                       onClick={() => setActiveViewIdInEditor(view.id)}
-                                      className={cn("p-3 border rounded-md w-full text-left", activeViewIdInEditor === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/50')}
+                                      className={cn("p-3 border rounded-md w-full text-left cursor-pointer", activeViewIdInEditor === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/50')}
+                                      role="button"
+                                      tabIndex={0}
+                                      onKeyDown={(e) => e.key === 'Enter' && setActiveViewIdInEditor(view.id)}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium">View {index + 1}</Label>
+                                            <Label htmlFor={`viewName-${view.id}`} className="text-sm font-medium cursor-pointer">View {index + 1}</Label>
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); setViewIdToDelete(view.id); setIsDeleteViewDialogOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
                                         <Input id={`viewName-${view.id}`} value={view.name} onChange={(e) => handleEditorViewDetailChange(view.id, 'name', e.target.value)} onClick={e => e.stopPropagation()} className="mt-1 h-8"/>
@@ -1143,7 +1145,7 @@ function ProductOptionsPage() {
                                                 )}
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
                                   ))}
                               </div>
                             </TabsContent>
@@ -1200,4 +1202,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
