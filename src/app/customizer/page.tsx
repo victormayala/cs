@@ -376,18 +376,20 @@ function CustomizerLayoutAndLogic() {
     
     let finalDefaultViews = firestoreOptions?.defaultViews || [];
     if (finalDefaultViews.length === 0) {
-        let defaultImageUrl: string;
-        if (source === 'shopify' && userIdForFirestoreOptions) {
-            const credDoc = await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions));
-            const creds = credDoc.data();
-            if (creds?.shop && creds.accessToken) {
-                const { product } = await fetchShopifyProductById(creds.shop, creds.accessToken, baseProductDetails.id);
-                defaultImageUrl = product?.featuredImage?.url || defaultFallbackProduct.views[0].imageUrl;
-            } else {
-                defaultImageUrl = defaultFallbackProduct.views[0].imageUrl;
-            }
-        } else {
-            defaultImageUrl = defaultFallbackProduct.views[0].imageUrl;
+        let defaultImageUrl: string = 'https://placehold.co/700x700.png'; // Default placeholder
+        try {
+          if (source === 'shopify' && userIdForFirestoreOptions) {
+              const credDoc = await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions));
+              if (credDoc.exists()) {
+                const creds = credDoc.data();
+                if (creds?.shop && creds.accessToken) {
+                    const { product } = await fetchShopifyProductById(creds.shop, creds.accessToken, baseProductDetails.id);
+                    defaultImageUrl = product?.featuredImage?.url || defaultImageUrl;
+                }
+              }
+          }
+        } catch (e) {
+            console.warn("Could not fetch featured Shopify image for default view.", e);
         }
         
         finalDefaultViews = [{
@@ -446,7 +448,11 @@ function CustomizerLayoutAndLogic() {
     }
     
     setProductDetails(productWithViews);
-    setActiveViewId(finalDefaultViews[0]?.id || null);
+    // Explicitly set the active view after loading everything
+    if (finalDefaultViews.length > 0) {
+      setActiveViewId(finalDefaultViews[0].id);
+    }
+
 
     if (source === 'woocommerce' && fetchedVariations) {
         setProductVariations(fetchedVariations);
@@ -704,12 +710,10 @@ function CustomizerLayoutAndLogic() {
 
     const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
     
-    // This is a sequential loop that waits for each screenshot.
     for (const view of viewsToPreview) {
-      // Set the active view ID to render the correct background
       setActiveViewId(view.id);
       
-      // Wait for React to re-render. requestAnimationFrame and a small timeout are a pragmatic way to do this.
+      // Wait for the next paint cycle to ensure the view is rendered
       await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 50)));
 
       const canvasElement = designCanvasWrapperRef.current;
