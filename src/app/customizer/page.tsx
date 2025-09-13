@@ -36,7 +36,6 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
-import { toPng } from 'html-to-image';
 
 
 import UploadArea from '@/components/customizer/UploadArea';
@@ -680,36 +679,6 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-  // Fetches an image via the server-side proxy
-  const fetchAsDataURL = async (url: string): Promise<string> => {
-    try {
-        const response = await fetch('/api/proxy-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        if (!response.ok) {
-            throw new Error(`Proxy fetch failed with status ${response.status}`);
-        }
-        const { dataUrl } = await response.json();
-        return dataUrl;
-    } catch (error) {
-        console.error(`Failed to proxy image ${url}:`, error);
-        throw error;
-    }
-  };
-  
-  // Loads a single image and returns a promise that resolves when it's loaded
-  const loadImage = (src: string): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
-        const img = new window.Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => resolve(img);
-        img.onerror = (err) => reject(new Error(`Failed to load background for view from URL: ${src} ${JSON.stringify(err)}`));
-        img.src = src;
-    });
-  };
-
   const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
@@ -736,56 +705,45 @@ function CustomizerLayoutAndLogic() {
     const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
 
     try {
-      for (const view of viewsToProcess) {
-          const viewImageUrl = view.imageUrl;
-          const overlaysForView = canvasImages.filter(img => img.viewId === view.id);
+        for (const view of viewsToProcess) {
+            const overlays = [
+                ...canvasImages.filter(i => i.viewId === view.id),
+                ...canvasTexts.filter(t => t.viewId === view.id),
+                ...canvasShapes.filter(s => s.viewId === view.id)
+            ].sort((a, b) => a.zIndex - b.zIndex);
 
-          const hiddenPreviewContainer = document.createElement('div');
-          hiddenPreviewContainer.style.position = 'fixed';
-          hiddenPreviewContainer.style.left = '-9999px';
-          hiddenPreviewContainer.style.top = '-9999px';
-          hiddenPreviewContainer.style.width = '600px';
-          hiddenPreviewContainer.style.height = '600px';
-          document.body.appendChild(hiddenPreviewContainer);
-          
-          try {
-            const backgroundDataUrl = await fetchAsDataURL(viewImageUrl);
-            const loadedBgImage = await loadImage(backgroundDataUrl);
+            const payload = {
+                baseImageDataUri: view.imageUrl,
+                baseImageWidthPx: 600, // Standard preview size
+                baseImageHeightPx: 600,
+                overlays: overlays.map(item => ({
+                    imageDataUri: (item as CanvasImage).dataUrl, // This needs to be smarter for text/shapes
+                    x: item.x / 100 * 600,
+                    y: item.y / 100 * 600,
+                    width: (item as CanvasImage).scale * 100, // Approximation
+                    height: (item as CanvasImage).scale * 100,
+                    rotation: item.rotation,
+                    zIndex: item.zIndex
+                })),
+            };
 
-            const overlayPromises = overlaysForView.map(overlay => loadImage(overlay.dataUrl));
-            const loadedOverlays = await Promise.all(overlayPromises);
-          
-            const bgImage = document.createElement('img');
-            bgImage.src = loadedBgImage.src;
-            bgImage.style.position = 'absolute';
-            bgImage.style.width = '100%';
-            bgImage.style.height = '100%';
-            bgImage.style.objectFit = 'contain';
-            hiddenPreviewContainer.appendChild(bgImage);
-
-            overlaysForView.forEach((overlay, index) => {
-                const overlayImg = document.createElement('img');
-                overlayImg.src = loadedOverlays[index].src;
-                overlayImg.style.position = 'absolute';
-                overlayImg.style.top = `${overlay.y}%`;
-                overlayImg.style.left = `${overlay.x}%`;
-                overlayImg.style.width = `${100 * overlay.scale}px`;
-                overlayImg.style.height = `${100 * overlay.scale}px`;
-                overlayImg.style.transform = `translate(-50%, -50%) rotate(${overlay.rotation}deg)`;
-                overlayImg.style.zIndex = `${overlay.zIndex}`;
-                hiddenPreviewContainer.appendChild(overlayImg);
+            const response = await fetch('/api/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
-            const dataUrl = await toPng(hiddenPreviewContainer, { cacheBust: true, pixelRatio: 1 });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Preview generation failed for view "${view.name}"`);
+            }
+            const result = await response.json();
             finalThumbnails.push({
                 viewId: view.id,
                 viewName: view.name,
-                url: dataUrl
+                url: result.compositeImageUrl
             });
-          } finally {
-            document.body.removeChild(hiddenPreviewContainer);
-          }
-      }
+        }
     } catch (err: any) {
         console.error("Error generating thumbnails:", err);
         toast({

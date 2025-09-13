@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ImageTransformSchema = z.object({
-  imageDataUri: z.string().url().describe(
+  imageDataUri: z.string().describe(
     "Data URI of the image to overlay. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
   // Replacing percentage-based coordinates with exact pixel coordinates
@@ -27,7 +27,7 @@ const ImageTransformSchema = z.object({
 export type ImageTransform = z.infer<typeof ImageTransformSchema>;
 
 const CompositeImagesInputSchema = z.object({
-  baseImageDataUri: z.string().url().describe(
+  baseImageDataUri: z.string().describe(
     "Data URI of the base product image. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
   baseImageWidthPx: z.number().describe('Width of the base image/design canvas in pixels.'),
