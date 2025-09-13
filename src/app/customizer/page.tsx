@@ -773,12 +773,12 @@ function CustomizerLayoutAndLogic() {
         const overlaysForView = allImageItemsOnCanvas
           .filter(item => item.viewId === view.id)
           .map(item => ({
-              dataUrl: item.dataUrl,
-              type: item.type || 'image/png',
-              x: item.x,
-              y: item.y,
-              width: ('width' in item ? item.width : 150) * item.scale,
-              height: ('height' in item ? item.height : 150) * item.scale,
+              imageDataUri: item.dataUrl,
+              mimeType: item.type || 'image/png',
+              x: (item.x / 100) * 600,
+              y: (item.y / 100) * 600,
+              width: 'width' in item ? item.width * item.scale : 150 * item.scale,
+              height: 'height' in item ? item.height * item.scale : 150 * item.scale,
               rotation: item.rotation || 0,
               zIndex: item.zIndex || 0,
           }));
@@ -787,16 +787,7 @@ function CustomizerLayoutAndLogic() {
             baseImageUrl: view.imageUrl, 
             baseImageWidthPx: 600,
             baseImageHeightPx: 600,
-            overlays: overlaysForView.map(o => ({
-                imageDataUri: o.dataUrl,
-                mimeType: o.type,
-                x: (o.x / 100) * 600,
-                y: (o.y / 100) * 600,
-                width: o.width,
-                height: o.height,
-                rotation: o.rotation,
-                zIndex: o.zIndex,
-            })),
+            overlays: overlaysForView,
         };
 
         const response = await fetch('/api/preview', {
