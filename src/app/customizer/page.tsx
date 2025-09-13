@@ -676,150 +676,191 @@ function CustomizerLayoutAndLogic() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   const handleAddToCart = async () => {
-    if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
-      toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
-      return;
-    }
-  
-    const customizedViewIds = new Set<string>();
-    canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-  
-    if (customizedViewIds.size === 0) {
-      toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
-      return;
-    }
-    if (!isEmbedded && !user) {
-      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-      return;
-    }
-    setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
-  
-    const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-    const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-  
-    try {
-      for (const view of viewsToProcess) {
-        // Prepare overlays for the current view
-        const overlaysForView = [
-          ...canvasImages.filter(i => i.viewId === view.id),
-          ...canvasTexts.filter(t => t.viewId === view.id),
-          ...canvasShapes.filter(s => s.viewId === view.id)
-        ];
-  
-        // Construct the payload for the /api/preview endpoint
-        const payload = {
-            baseImageUrl: view.imageUrl, // Pass URL directly
-            baseImageWidthPx: 600, // Or your desired preview width
-            baseImageHeightPx: 600, // Or your desired preview height
-            overlays: overlaysForView.map(item => ({ ...item })), // Pass full item data
-        };
-  
-        const response = await fetch('/api/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-  
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Failed to generate preview for view "${view.name}": ${errorData.details || response.statusText}`);
-        }
-  
-        const result = await response.json();
-        finalThumbnails.push({
-            viewId: view.id, viewName: view.name, url: result.compositeImageUrl
-        });
+      if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
+          toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
+          return;
       }
-    } catch (err: any) {
-      console.error("Error generating thumbnails:", err);
-      toast({
-        title: "Preview Generation Failed",
-        description: `${err.message}`,
-        variant: "destructive"
-      });
-      setIsAddingToCart(false);
-      return;
-    }
-  
-    const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
-    
-    // Create a lightweight version of the design data for storage
-    const createLightweightViewData = () => {
-      const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
-          return items.map(item => {
-              if (item.itemType === 'image') {
-                  const { dataUrl, ...rest } = item as CanvasImage;
-                  return { ...rest, itemType: 'image' };
-              }
-              return item;
+
+      const customizedViewIds = new Set<string>();
+      canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+      canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+      canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+
+      if (customizedViewIds.size === 0) {
+          toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
+          return;
+      }
+      if (!isEmbedded && !user) {
+          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+          return;
+      }
+      setIsAddingToCart(true);
+      toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
+
+      const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+      const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
+
+      try {
+          // Temporarily create hidden elements for rendering
+          const renderContainer = document.createElement('div');
+          renderContainer.style.position = 'fixed';
+          renderContainer.style.top = '-9999px';
+          renderContainer.style.left = '-9999px';
+          document.body.appendChild(renderContainer);
+
+          const textAndShapeOverlays = await Promise.all(
+              [...canvasTexts, ...canvasShapes]
+                  .filter(item => customizedViewIds.has(item.viewId))
+                  .map(async item => {
+                      let node;
+                      if (item.itemType === 'text') {
+                          node = document.createElement('div');
+                          node.textContent = item.content;
+                          Object.assign(node.style, {
+                              fontFamily: item.fontFamily,
+                              fontSize: `${item.fontSize}px`,
+                              fontWeight: item.fontWeight,
+                              fontStyle: item.fontStyle,
+                              color: item.color,
+                              whiteSpace: 'pre',
+                          });
+                      } else { // shape
+                          const svgNS = "http://www.w3.org/2000/svg";
+                          const svg = document.createElementNS(svgNS, 'svg');
+                          svg.setAttribute('width', `${item.width}`);
+                          svg.setAttribute('height', `${item.height}`);
+                          let shapeElement;
+                          if (item.shapeType === 'rectangle') {
+                              shapeElement = document.createElementNS(svgNS, 'rect');
+                              shapeElement.setAttribute('width', '100%');
+                              shapeElement.setAttribute('height', '100%');
+                          } else { // circle
+                              shapeElement = document.createElementNS(svgNS, 'circle');
+                              shapeElement.setAttribute('cx', `${item.width / 2}`);
+                              shapeElement.setAttribute('cy', `${item.height / 2}`);
+                              shapeElement.setAttribute('r', `${Math.min(item.width, item.height) / 2}`);
+                          }
+                          shapeElement.setAttribute('fill', item.color);
+                          shapeElement.setAttribute('stroke', item.strokeColor);
+                          shapeElement.setAttribute('stroke-width', `${item.strokeWidth}`);
+                          svg.appendChild(shapeElement);
+                          node = svg;
+                      }
+                      renderContainer.appendChild(node);
+                      const dataUrl = await htmlToImage.toPng(node);
+                      renderContainer.removeChild(node);
+                      return { ...item, dataUrl, itemType: 'image' };
+                  })
+          );
+          
+          document.body.removeChild(renderContainer);
+
+          for (const view of viewsToProcess) {
+              const overlaysForView = [
+                  ...canvasImages.filter(i => i.viewId === view.id),
+                  ...textAndShapeOverlays.filter(i => i.viewId === view.id),
+              ].map(item => ({
+                  imageDataUri: item.dataUrl,
+                  mimeType: 'image/png', // All rendered items are PNGs
+                  x: (item.x / 100) * 600,
+                  y: (item.y / 100) * 600,
+                  width: item.itemType === 'image' ? item.scale * 100 : (item as CanvasShape).width * item.scale, // Approximate
+                  height: item.itemType === 'image' ? item.scale * 100 : (item as CanvasShape).height * item.scale, // Approximate
+                  rotation: item.rotation,
+                  zIndex: item.zIndex
+              }));
+
+              const payload: CompositeImagesInput = {
+                  baseImageDataUri: view.imageUrl,
+                  baseImageMimeType: 'image/png', // Assuming base images are png or letting server handle
+                  baseImageWidthPx: 600,
+                  baseImageHeightPx: 600,
+                  overlays: overlaysForView,
+              };
+
+              // Note: Using a direct flow call instead of fetch for simplicity here
+              const result = await compositeImages(payload);
+              finalThumbnails.push({
+                  viewId: view.id, viewName: view.name, url: result.compositeImageUrl
+              });
+          }
+      } catch (err: any) {
+          console.error("Error generating thumbnails:", err);
+          toast({
+              title: "Preview Generation Failed",
+              description: `${err.message}`,
+              variant: "destructive"
           });
+          setIsAddingToCart(false);
+          return;
+      }
+      
+      const createLightweightViewData = () => {
+          const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
+              return items.map(item => {
+                  if ('dataUrl' in item) {
+                      const { dataUrl, ...rest } = item as CanvasImage;
+                      return rest;
+                  }
+                  return item;
+              });
+          };
+
+          return productDetails.views
+              .filter(view => customizedViewIds.has(view.id))
+              .map(view => ({
+                  viewId: view.id,
+                  items: stripDataUrls([
+                      ...canvasImages.filter(item => item.viewId === view.id),
+                      ...canvasTexts.filter(item => item.viewId === view.id),
+                      ...canvasShapes.filter(item => item.viewId === view.id)
+                  ]),
+              }));
       };
 
-      return productDetails.views
-        .filter(view => customizedViewIds.has(view.id))
-        .map(view => {
-          return {
-            viewId: view.id,
-            items: stripDataUrls([
-                ...canvasImages.filter(item => item.viewId === view.id),
-                ...canvasTexts.filter(item => item.viewId === view.id),
-                ...canvasShapes.filter(item => item.viewId === view.id)
-            ]),
-          };
-        });
-    };
-
-    const newCartItem = {
-      id: editCartItemId || crypto.randomUUID(),
-      productId: productDetails.id,
-      productName: productDetails.name,
-      quantity: 1,
-      totalCustomizationPrice: totalCustomizationPrice,
-      previewImageUrls: finalThumbnails,
-      customizationDetails: { 
-        viewData: createLightweightViewData(),
-        selectedOptions: selectedVariationOptions,
-      }
-    };
-  
-    try {
-      let cartData = [];
-      const storedCart = localStorage.getItem(cartKey);
-      if (storedCart) {
-          try {
-              cartData = JSON.parse(storedCart);
-              if (!Array.isArray(cartData)) cartData = [];
-          } catch {
-              cartData = [];
+      const newCartItem = {
+          id: editCartItemId || crypto.randomUUID(),
+          productId: productDetails.id,
+          productName: productDetails.name,
+          quantity: 1,
+          totalCustomizationPrice: totalCustomizationPrice,
+          previewImageUrls: finalThumbnails,
+          customizationDetails: { 
+              viewData: createLightweightViewData(),
+              selectedOptions: selectedVariationOptions,
           }
-      }
+      };
 
-      const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
-      if (existingItemIndex > -1) {
-        cartData[existingItemIndex] = newCartItem;
-      } else {
-        cartData.push(newCartItem);
+      try {
+          const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+          let cartData = [];
+          const storedCart = localStorage.getItem(cartKey);
+          if (storedCart) {
+              try { cartData = JSON.parse(storedCart); if (!Array.isArray(cartData)) cartData = []; } catch { cartData = []; }
+          }
+          const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
+          if (existingItemIndex > -1) {
+              cartData[existingItemIndex] = newCartItem;
+          } else {
+              cartData.push(newCartItem);
+          }
+          localStorage.setItem(cartKey, JSON.stringify(cartData));
+          toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
+          if(storeIdFromUrl) {
+              router.push(`/store/${storeIdFromUrl}/cart`);
+          }
+      } catch (error: any) {
+          console.error("Error saving to localStorage:", error);
+          let errorMessage = "Could not save item to cart.";
+          if (error.name === 'QuotaExceededError') {
+              errorMessage = "Storage limit exceeded. Your design might be too complex for local storage. Please try simplifying it.";
+          }
+          toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      } finally {
+          setIsAddingToCart(false);
       }
-      localStorage.setItem(cartKey, JSON.stringify(cartData));
-      toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
-      
-      if(storeIdFromUrl) {
-          router.push(`/store/${storeIdFromUrl}/cart`);
-      }
-    } catch (error: any) {
-      console.error("Error saving to localStorage:", error);
-      let errorMessage = "Could not save item to cart.";
-      if (error.name === 'QuotaExceededError') {
-        errorMessage = "Storage limit exceeded. Your design might be too complex for local storage. Please try simplifying it.";
-      }
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsAddingToCart(false);
-    }
   };
+
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -971,5 +1012,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-    
