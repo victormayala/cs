@@ -79,3 +79,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to generate preview.', details: error.message }, { status: 500 });
   }
 }
+
+    

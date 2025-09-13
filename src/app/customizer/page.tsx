@@ -187,7 +187,7 @@ function CustomizerLayoutAndLogic() {
 
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { canvasImages, canvasTexts, canvasShapes, restoreFromSnapshot } = useUploads();
+  const { canvasImages, canvasTexts, canvasShapes, restoreFromSnapshot, getStageRef } = useUploads();
 
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   
@@ -679,9 +679,9 @@ function CustomizerLayoutAndLogic() {
     }
 
     const customizedViewIds = new Set<string>();
-    canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+    [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
+      if (item.viewId) customizedViewIds.add(item.viewId);
+    });
 
     if (customizedViewIds.size === 0) {
       toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
@@ -693,106 +693,142 @@ function CustomizerLayoutAndLogic() {
     }
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
-
-    const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-    const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-
+    
+    // This is the part that needs to be perfectly correct
     try {
-      const renderContainer = document.createElement('div');
-      renderContainer.style.position = 'fixed';
-      renderContainer.style.top = '-9999px';
-      renderContainer.style.left = '-9999px';
-      document.body.appendChild(renderContainer);
+        const stage = getStageRef()?.current;
+        if (!stage) {
+            throw new Error("Canvas is not ready. Please try again.");
+        }
 
-      const generatedItemOverlays = await Promise.all(
-        [...canvasTexts, ...canvasShapes]
-          .filter(item => customizedViewIds.has(item.viewId!))
-          .map(async item => {
-            let node;
-            if (item.itemType === 'text') {
-              node = document.createElement('div');
-              node.textContent = item.content;
-              Object.assign(node.style, {
-                fontFamily: item.fontFamily, fontSize: `${item.fontSize}px`, fontWeight: item.fontWeight,
-                fontStyle: item.fontStyle, color: item.color, whiteSpace: 'pre', display: 'inline-block',
-              });
-              node.setAttribute('data-id', `render-node-${item.id}`);
-            } else { // Shape
-              const svgNS = "http://www.w3.org/2000/svg";
-              const svg = document.createElementNS(svgNS, 'svg');
-              const maxSide = Math.max(item.width, item.height) + (item.strokeWidth * 2);
-              svg.setAttribute('width', `${maxSide}`); svg.setAttribute('height', `${maxSide}`);
-              svg.setAttribute('viewBox', `0 0 ${maxSide} ${maxSide}`);
-              let shapeElement;
-              if (item.shapeType === 'rectangle') {
-                shapeElement = document.createElementNS(svgNS, 'rect');
-                shapeElement.setAttribute('x', `${(maxSide - item.width) / 2}`); shapeElement.setAttribute('y', `${(maxSide - item.height) / 2}`);
-                shapeElement.setAttribute('width', `${item.width}`); shapeElement.setAttribute('height', `${item.height}`);
-              } else { // Circle
-                shapeElement = document.createElementNS(svgNS, 'ellipse');
-                shapeElement.setAttribute('cx', `${maxSide / 2}`); shapeElement.setAttribute('cy', `${maxSide / 2}`);
-                shapeElement.setAttribute('rx', `${item.width / 2}`); shapeElement.setAttribute('ry', `${item.height / 2}`);
-              }
-              shapeElement.setAttribute('fill', item.color); shapeElement.setAttribute('stroke', item.strokeColor);
-              shapeElement.setAttribute('stroke-width', `${item.strokeWidth}`);
-              svg.appendChild(shapeElement);
-              svg.setAttribute('data-id', `render-node-${item.id}`);
-              node = svg;
+        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+        const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
+
+        for (const view of viewsToProcess) {
+            // Logic to temporarily show only the items for the current view on the stage
+            // This is complex and requires careful state management or a temporary stage.
+            // A simpler approach for now is to rely on client-side rendering with html-to-image
+            // and ensure the data structure is correct.
+
+            // The root of the problem is in the payload creation. Let's fix it here.
+            const allItemsForView = [
+                ...canvasImages, ...canvasTexts, ...canvasShapes
+            ].filter(item => item.viewId === view.id);
+
+            // This is the critical change: Create a unified structure that the API can handle.
+            // The API is now simpler and expects image data for everything.
+            const renderedOverlays = await Promise.all(
+              allItemsForView.map(async (item) => {
+                let dataUrl: string;
+                let mimeType: string = 'image/png';
+                
+                if (item.itemType === 'image') {
+                    dataUrl = (item as CanvasImage).dataUrl;
+                    mimeType = (item as CanvasImage).type;
+                } else {
+                    // Use htmlToImage for text and shapes
+                    const node = document.getElementById(`canvas-${item.itemType}-${item.id}`);
+                    if (!node) throw new Error(`Could not find element for ${item.itemType} ${item.id}`);
+                    dataUrl = await htmlToImage.toPng(node);
+                }
+
+                return {
+                    imageDataUri: dataUrl,
+                    mimeType,
+                    x: (item.x / 100) * 600,
+                    y: (item.y / 100) * 600,
+                    width: 'width' in item ? (item as any).width * item.scale : 150 * item.scale,
+                    height: 'height' in item ? (item as any).height * item.scale : 150 * item.scale,
+                    rotation: item.rotation || 0,
+                    zIndex: item.zIndex || 0,
+                };
+              })
+            );
+
+            const payload = {
+                baseImageUrl: view.imageUrl,
+                baseImageWidthPx: 600,
+                baseImageHeightPx: 600,
+                overlays: renderedOverlays,
+            };
+            
+            const response = await fetch('/api/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorResult = await response.json();
+                throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
             }
-            renderContainer.appendChild(node);
-            const renderedNode = document.querySelector(`[data-id="render-node-${item.id}"]`) as HTMLElement;
-            if (!renderedNode) throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
-            const dataUrl = await htmlToImage.toPng(renderedNode);
-            renderContainer.removeChild(renderedNode);
-            return { ...item, dataUrl, itemType: 'image' } as CanvasImage;
-          })
-      );
-      document.body.removeChild(renderContainer);
+            
+            const result = await response.json();
+            
+            const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
+            const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
+            const downloadURL = await getDownloadURL(uploadStringResult.ref);
 
-      const allImageItemsOnCanvas: CanvasImage[] = [...canvasImages, ...generatedItemOverlays];
-
-      for (const view of viewsToProcess) {
-        const overlaysForView = allImageItemsOnCanvas
-          .filter(item => item.viewId === view.id)
-          .map(item => ({
-              imageDataUri: item.dataUrl, // Ensure this is correctly assigned
-              mimeType: item.type || 'image/png',
-              x: (item.x / 100) * 600,
-              y: (item.y / 100) * 600,
-              width: 'width' in item ? item.width * item.scale : 150 * item.scale,
-              height: 'height' in item ? item.height * item.scale : 150 * item.scale,
-              rotation: item.rotation || 0,
-              zIndex: item.zIndex || 0,
-          }));
-
-        const payload = {
-            baseImageUrl: view.imageUrl,
-            baseImageWidthPx: 600,
-            baseImageHeightPx: 600,
-            overlays: overlaysForView,
-        };
-
-        const response = await fetch('/api/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-            const errorResult = await response.json();
-            throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
+            finalThumbnails.push({
+              viewId: view.id, viewName: view.name, url: downloadURL
+            });
         }
         
-        const result = await response.json();
-        
-        const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
-        const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
-        const downloadURL = await getDownloadURL(uploadStringResult.ref);
+        // The rest of the logic for saving to cart
+        const createLightweightViewData = () => {
+          const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
+            return items.map(item => {
+              if ('dataUrl' in item) {
+                const { dataUrl, ...rest } = item as CanvasImage;
+                return { ...rest, sourceImageId: item.sourceImageId };
+              }
+              return item;
+            });
+          };
 
-        finalThumbnails.push({
-          viewId: view.id, viewName: view.name, url: downloadURL
-        });
-      }
+          return productDetails.views
+            .filter(view => customizedViewIds.has(view.id))
+            .map(view => ({
+              viewId: view.id,
+              items: stripDataUrls([
+                ...canvasImages.filter(item => item.viewId === view.id),
+                ...canvasTexts.filter(item => item.viewId === view.id),
+                ...canvasShapes.filter(item => item.viewId === view.id)
+              ]),
+            }));
+        };
+
+        const newCartItem = {
+          id: editCartItemId || crypto.randomUUID(),
+          productId: productDetails.id,
+          productName: productDetails.name,
+          quantity: 1,
+          totalCustomizationPrice: totalCustomizationPrice,
+          previewImageUrls: finalThumbnails,
+          customizationDetails: {
+            viewData: createLightweightViewData(),
+            selectedOptions: selectedVariationOptions,
+          }
+        };
+
+        const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+        let cartData = [];
+        const storedCart = localStorage.getItem(cartKey);
+        if (storedCart) {
+          try { cartData = JSON.parse(storedCart); if (!Array.isArray(cartData)) cartData = []; } catch { cartData = []; }
+        }
+        const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
+        if (existingItemIndex > -1) {
+          cartData[existingItemIndex] = newCartItem;
+        } else {
+          cartData.push(newCartItem);
+        }
+        localStorage.setItem(cartKey, JSON.stringify(cartData));
+        toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
+        if (storeIdFromUrl) {
+          router.push(`/store/${storeIdFromUrl}/cart`);
+        }
+
     } catch (err: any) {
       console.error("Error generating thumbnails:", err);
       toast({
@@ -800,71 +836,6 @@ function CustomizerLayoutAndLogic() {
         description: err.message,
         variant: "destructive"
       });
-      setIsAddingToCart(false);
-      return;
-    }
-
-    const createLightweightViewData = () => {
-      const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
-        return items.map(item => {
-          if ('dataUrl' in item) {
-            const { dataUrl, ...rest } = item as CanvasImage;
-            return { ...rest, sourceImageId: item.sourceImageId };
-          }
-          return item;
-        });
-      };
-
-      return productDetails.views
-        .filter(view => customizedViewIds.has(view.id))
-        .map(view => ({
-          viewId: view.id,
-          items: stripDataUrls([
-            ...canvasImages.filter(item => item.viewId === view.id),
-            ...canvasTexts.filter(item => item.viewId === view.id),
-            ...canvasShapes.filter(item => item.viewId === view.id)
-          ]),
-        }));
-    };
-
-    const newCartItem = {
-      id: editCartItemId || crypto.randomUUID(),
-      productId: productDetails.id,
-      productName: productDetails.name,
-      quantity: 1,
-      totalCustomizationPrice: totalCustomizationPrice,
-      previewImageUrls: finalThumbnails,
-      customizationDetails: {
-        viewData: createLightweightViewData(),
-        selectedOptions: selectedVariationOptions,
-      }
-    };
-
-    try {
-      const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
-      let cartData = [];
-      const storedCart = localStorage.getItem(cartKey);
-      if (storedCart) {
-        try { cartData = JSON.parse(storedCart); if (!Array.isArray(cartData)) cartData = []; } catch { cartData = []; }
-      }
-      const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
-      if (existingItemIndex > -1) {
-        cartData[existingItemIndex] = newCartItem;
-      } else {
-        cartData.push(newCartItem);
-      }
-      localStorage.setItem(cartKey, JSON.stringify(cartData));
-      toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
-      if (storeIdFromUrl) {
-        router.push(`/store/${storeIdFromUrl}/cart`);
-      }
-    } catch (error: any) {
-      console.error("Error saving to localStorage:", error);
-      let errorMessage = "Could not save item to cart.";
-      if (error.name === 'QuotaExceededError') {
-        errorMessage = "Your design is too large to be saved in the cart. Please try removing some elements.";
-      }
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setIsAddingToCart(false);
     }
@@ -1021,7 +992,5 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-    
 
     

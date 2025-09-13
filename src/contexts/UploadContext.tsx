@@ -3,6 +3,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { googleFonts } from '@/lib/google-fonts';
+import type Konva from 'konva';
 
 // Represents a file uploaded by the user
 export interface UploadedImage {
@@ -165,6 +166,9 @@ interface UploadContextType {
   startInteractiveOperation: () => void;
   endInteractiveOperation: () => void;
   restoreFromSnapshot: (snapshot: Partial<CanvasStateSnapshot>) => void;
+
+  // New function to provide access to the Konva stage for exporting
+  getStageRef: () => React.RefObject<Konva.Stage> | null;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -184,6 +188,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const [redoStack, setRedoStack] = useState<CanvasStateSnapshot[]>([]);
 
   const isInteractiveOperationInProgressRef = useRef(false);
+  const stageRef = useRef<Konva.Stage>(null); // Ref for the Konva stage
+
+  const getStageRef = useCallback(() => stageRef, []);
 
   const createSnapshot = useCallback((): CanvasStateSnapshot => ({
     images: canvasImages,
@@ -688,7 +695,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         canvasShapes, addCanvasShape, removeCanvasShape, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         bringShapeLayerForward, sendShapeLayerBackward, duplicateCanvasShape, toggleLockCanvasShape,
         undo, redo, canUndo, canRedo,
-        startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot
+        startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot, getStageRef
       }}
     >
       {children}
@@ -703,3 +710,5 @@ export function useUploads() {
   }
   return context;
 }
+
+    
