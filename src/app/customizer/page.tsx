@@ -51,10 +51,6 @@ import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape, ImageTransform } from '@/contexts/UploadContext';
 
-// Import AI flows needed for preview generation
-import { compositeImagesFast, type CompositeImagesInput } from '@/ai/flows/composite-images-fast';
-
-
 interface BoundaryBox {
   id: string;
   name: string;
@@ -770,33 +766,51 @@ function CustomizerLayoutAndLogic() {
           })
       );
       document.body.removeChild(renderContainer);
-
-      const allImageItemsOnCanvas = [
-        ...canvasImages,
-        ...generatedItemOverlays
-      ];
+      
+      const allImageItemsOnCanvas = [...canvasImages, ...generatedItemOverlays];
 
       for (const view of viewsToProcess) {
         const overlaysForView = allImageItemsOnCanvas
           .filter(item => item.viewId === view.id)
           .map(item => ({
-              imageDataUri: item.dataUrl,
-              x: (item.x / 100) * 600,
-              y: (item.y / 100) * 600,
+              dataUrl: item.dataUrl,
+              type: item.type || 'image/png',
+              x: item.x,
+              y: item.y,
               width: ('width' in item ? item.width : 150) * item.scale,
               height: ('height' in item ? item.height : 150) * item.scale,
               rotation: item.rotation || 0,
               zIndex: item.zIndex || 0,
           }));
-        
-        const payload: CompositeImagesInput = {
+
+        const payload = {
             baseImageUrl: view.imageUrl, 
             baseImageWidthPx: 600,
             baseImageHeightPx: 600,
-            overlays: overlaysForView,
+            overlays: overlaysForView.map(o => ({
+                imageDataUri: o.dataUrl,
+                mimeType: o.type,
+                x: (o.x / 100) * 600,
+                y: (o.y / 100) * 600,
+                width: o.width,
+                height: o.height,
+                rotation: o.rotation,
+                zIndex: o.zIndex,
+            })),
         };
 
-        const result = await compositeImagesFast(payload);
+        const response = await fetch('/api/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorResult = await response.json();
+            throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
+        }
+        
+        const result = await response.json();
         
         const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
         const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
