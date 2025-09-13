@@ -690,12 +690,12 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
     
-    // This is a robust way to fetch an image and convert it to a data URL, bypassing many CORS issues.
     const fetchAsDataURL = async (url: string, cache: Map<string, string>): Promise<string> => {
         if (cache.has(url)) {
             return cache.get(url)!;
         }
         try {
+            // Use the server-side proxy for all external images
             const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
             if (!response.ok) {
               const errorData = await response.json();
@@ -710,7 +710,7 @@ function CustomizerLayoutAndLogic() {
             }
         } catch (e: any) {
             console.error(`Could not load and process image via proxy: ${url}. Error: ${e.message}`, e);
-            throw e; // Re-throw to be caught by the main try-catch
+            throw e; 
         }
     };
     
@@ -740,31 +740,39 @@ function CustomizerLayoutAndLogic() {
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
 
-            try {
-                const backgroundDataUrl = await fetchAsDataURL(view.imageUrl, imageCache);
-                const bgImage = document.createElement('img');
-                bgImage.src = backgroundDataUrl;
+            // This Promise now handles image loading reliably.
+            await new Promise<void>((resolve) => {
+              const bgImage = document.createElement('img');
+              bgImage.crossOrigin = "anonymous";
+              bgImage.onload = () => {
                 bgImage.style.position = 'absolute';
                 bgImage.style.width = '100%';
                 bgImage.style.height = '100%';
                 bgImage.style.objectFit = 'contain';
                 previewContainer.appendChild(bgImage);
-            } catch (bgError) {
-                console.error(`Failed to load background for view: ${view.name}`, bgError);
-                // The process will continue with a white background for this preview.
-            }
+                resolve();
+              };
+              bgImage.onerror = () => {
+                console.error(`Failed to load background for view: ${view.name}`);
+                // Resolve anyway to continue with a white background, preventing a crash.
+                resolve();
+              };
+              bgImage.src = view.imageUrl;
+            });
+
+            // Pre-fetch all overlay images for this view to populate the cache
+            const overlayDataUrls = canvasImages.filter(i => i.viewId === viewId).map(i => i.dataUrl);
+            await Promise.all(
+              overlayDataUrls.map(url => fetchAsDataURL(url, imageCache).catch(e => {
+                console.warn(`Could not preload overlay image for preview: ${url}. It will be skipped.`, e);
+              }))
+            );
             
             const overlayItems = [
                 ...canvasImages.filter(i => i.viewId === viewId),
                 ...canvasTexts.filter(t => t.viewId === viewId),
                 ...canvasShapes.filter(s => s.viewId === viewId),
             ].sort((a, b) => a.zIndex - b.zIndex);
-
-            // Pre-load all overlay images for this view
-            const overlayImageUrls = new Set(canvasImages.filter(i => i.viewId === viewId).map(i => i.dataUrl));
-            await Promise.all(Array.from(overlayImageUrls).map(url => fetchAsDataURL(url, imageCache).catch(e => {
-              console.warn(`Could not preload overlay image: ${url}. It might be skipped in the preview.`, e);
-            })));
 
 
             for (const item of overlayItems) {
@@ -775,6 +783,7 @@ function CustomizerLayoutAndLogic() {
                 el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
                 
                 if (item.itemType === 'image') {
+                    // Use the pre-fetched data URL from the cache
                     const imgDataUrl = imageCache.get(item.dataUrl);
                     if (imgDataUrl) {
                         const imgEl = document.createElement('img');
