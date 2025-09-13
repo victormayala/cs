@@ -10,7 +10,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(imageUrl);
+    // Set a timeout for the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds
+
+    const response = await fetch(imageUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch image. Status: ${response.status}`);

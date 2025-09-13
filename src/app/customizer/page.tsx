@@ -690,34 +690,33 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
     
-    // Create a cache to store loaded image data URLs
+    // This is a robust way to fetch an image and convert it to a data URL, bypassing many CORS issues.
+    const fetchAsDataURL = async (url: string, cache: Map<string, string>): Promise<string> => {
+        if (cache.has(url)) {
+            return cache.get(url)!;
+        }
+        try {
+            const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || `Proxy failed for ${url} with status ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.dataUrl) {
+                cache.set(url, data.dataUrl);
+                return data.dataUrl;
+            } else {
+                throw new Error(`Proxy did not return a dataUrl for: ${url}`);
+            }
+        } catch (e: any) {
+            console.error(`Could not load and process image via proxy: ${url}. Error: ${e.message}`, e);
+            throw e; // Re-throw to be caught by the main try-catch
+        }
+    };
+    
     const imageCache = new Map<string, string>();
-    const imageUrlsToLoad = new Set<string>();
-
-    // Gather all unique image URLs from customizations
-    canvasImages.forEach(img => imageUrlsToLoad.add(img.dataUrl));
     
     try {
-        await Promise.all(
-          Array.from(imageUrlsToLoad).map(async (url) => {
-            if (url && !imageCache.has(url)) {
-              try {
-                const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-                if (!response.ok) throw new Error(`Proxy failed for ${url}`);
-                const data = await response.json();
-                if (data.dataUrl) {
-                    imageCache.set(url, data.dataUrl);
-                } else {
-                    throw new Error(`Proxy did not return a dataUrl for: ${url}`);
-                }
-              } catch (e) {
-                console.warn(`Could not preload overlay image: ${url}. It might be skipped in previews.`, e);
-              }
-            }
-          })
-        );
-        
-        // Find which views have customizations
         const customizedViewIds = new Set<string>();
         [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
             if (item.viewId) customizedViewIds.add(item.viewId);
@@ -729,7 +728,6 @@ function CustomizerLayoutAndLogic() {
 
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
         
-        // Generate a preview for each customized view
         for (const viewId of Array.from(customizedViewIds)) {
             const view = productDetails?.views.find(v => v.id === viewId);
             if (!view) continue;
@@ -741,32 +739,35 @@ function CustomizerLayoutAndLogic() {
             previewContainer.style.height = '600px';
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
-            
-            await new Promise<void>((resolve) => {
+
+            try {
+                const backgroundDataUrl = await fetchAsDataURL(view.imageUrl, imageCache);
                 const bgImage = document.createElement('img');
-                bgImage.crossOrigin = "anonymous";
-                bgImage.src = view.imageUrl;
-                bgImage.onload = () => {
-                    bgImage.style.position = 'absolute';
-                    bgImage.style.width = '100%';
-                    bgImage.style.height = '100%';
-                    bgImage.style.objectFit = 'contain';
-                    previewContainer.appendChild(bgImage);
-                    resolve();
-                };
-                bgImage.onerror = () => {
-                    console.error(`Failed to load background for view: ${view.name}`);
-                    resolve(); // Resolve anyway to not block the process
-                };
-            });
+                bgImage.src = backgroundDataUrl;
+                bgImage.style.position = 'absolute';
+                bgImage.style.width = '100%';
+                bgImage.style.height = '100%';
+                bgImage.style.objectFit = 'contain';
+                previewContainer.appendChild(bgImage);
+            } catch (bgError) {
+                console.error(`Failed to load background for view: ${view.name}`, bgError);
+                // The process will continue with a white background for this preview.
+            }
             
-            const elementsForView = [
+            const overlayItems = [
                 ...canvasImages.filter(i => i.viewId === viewId),
                 ...canvasTexts.filter(t => t.viewId === viewId),
                 ...canvasShapes.filter(s => s.viewId === viewId),
             ].sort((a, b) => a.zIndex - b.zIndex);
 
-            for (const item of elementsForView) {
+            // Pre-load all overlay images for this view
+            const overlayImageUrls = new Set(canvasImages.filter(i => i.viewId === viewId).map(i => i.dataUrl));
+            await Promise.all(Array.from(overlayImageUrls).map(url => fetchAsDataURL(url, imageCache).catch(e => {
+              console.warn(`Could not preload overlay image: ${url}. It might be skipped in the preview.`, e);
+            })));
+
+
+            for (const item of overlayItems) {
                 const el = document.createElement('div');
                 el.style.position = 'absolute';
                 el.style.left = `${item.x}%`;
@@ -778,7 +779,6 @@ function CustomizerLayoutAndLogic() {
                     if (imgDataUrl) {
                         const imgEl = document.createElement('img');
                         imgEl.src = imgDataUrl;
-                        imgEl.crossOrigin = "anonymous";
                         imgEl.style.width = `${200 * item.scale}px`;
                         imgEl.style.height = `${200 * item.scale}px`;
                         imgEl.style.objectFit = 'contain';
@@ -822,7 +822,7 @@ function CustomizerLayoutAndLogic() {
                 previewContainer.appendChild(el);
             }
             
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay for rendering
 
             const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
             previewImageUrls.push({
@@ -1069,5 +1069,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-    
