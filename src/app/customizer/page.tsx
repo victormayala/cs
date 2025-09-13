@@ -777,14 +777,14 @@ function CustomizerLayoutAndLogic() {
           ...canvasImages.filter(i => i.viewId === view.id),
           ...generatedItemOverlays.filter(i => i.viewId === view.id),
         ].map(item => ({
-          imageDataUri: item.dataUrl,
-          mimeType: item.type || 'image/png',
-          x: (item.x / 100) * 600,
-          y: (item.y / 100) * 600,
-          width: item.itemType === 'image' && 'width' in item ? item.width * item.scale : 150 * item.scale,
-          height: item.itemType === 'image' && 'height' in item ? item.height * item.scale : 150 * item.scale,
-          rotation: item.rotation || 0,
-          zIndex: item.zIndex || 0,
+            imageDataUri: (item as CanvasImage).dataUrl, // Ensure dataUrl is accessed correctly
+            mimeType: item.type || 'image/png',
+            x: (item.x / 100) * 600,
+            y: (item.y / 100) * 600,
+            width: item.itemType === 'image' && 'width' in item ? item.width * item.scale : 150 * item.scale,
+            height: item.itemType === 'image' && 'height' in item ? item.height * item.scale : 150 * item.scale,
+            rotation: item.rotation || 0,
+            zIndex: item.zIndex || 0,
         }));
         
         // The API now expects a URL for the base image
