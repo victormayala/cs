@@ -61,7 +61,7 @@ export function InteractiveCanvasText({
       transform: `translate(-50%, -50%) rotate(${textItem.rotation}deg)`,
       transition: isBeingDragged ? 'none' : 'transform 0.1s ease-out, border 0.1s ease-out, font-size 0.1s ease-out, color 0.1s ease-out',
       userSelect: 'none' as const, 
-      whiteSpace: 'pre-wrap', 
+      whiteSpace: 'pre', // Use pre to respect whitespace for multiline text
       textShadow: textShadowValue,
     };
     
@@ -83,7 +83,6 @@ export function InteractiveCanvasText({
 
   return (
     <div
-      data-id={`canvas-text-${textItem.id}`}
       className={`absolute group
                   ${textItem.isLocked ? 'cursor-not-allowed' : 'cursor-grab'}
                   ${isSelected && !textItem.isLocked ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
@@ -112,7 +111,7 @@ export function InteractiveCanvasText({
         }
       }}
     >
-      {textItem.content}
+      <div data-id={`canvas-text-${textItem.id}`}>{textItem.content}</div>
       {showHandles && (
         <>
           

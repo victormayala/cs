@@ -49,10 +49,10 @@ import FreeDesignsPanel from '@/components/customizer/FreeDesignsPanel';
 import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
-import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
+import type { CanvasImage, CanvasText, CanvasShape, ImageTransform } from '@/contexts/UploadContext';
 
 // Import AI flows needed for preview generation
-import { compositeImages, type CompositeImagesInput, type ImageTransform } from '@/ai/flows/composite-images';
+import { compositeImages, type CompositeImagesInput } from '@/ai/flows/composite-images';
 
 
 interface BoundaryBox {
@@ -716,38 +716,14 @@ function CustomizerLayoutAndLogic() {
             ...canvasImages.filter(i => i.viewId === view.id),
             ...canvasTexts.filter(t => t.viewId === view.id),
             ...canvasShapes.filter(s => s.viewId === view.id)
-        ].sort((a, b) => a.zIndex - b.zIndex);
+        ].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
         const payload = {
             baseImageDataUri,
             baseImageMimeType,
             baseImageWidthPx: 600,
             baseImageHeightPx: 600,
-            overlays: await Promise.all(overlaysForView.map(async (item): Promise<ImageTransform> => {
-                let imageDataUri: string;
-                let mimeType: string = 'image/png';
-                if (item.itemType === 'image') {
-                    imageDataUri = (item as CanvasImage).dataUrl;
-                    mimeType = (item as CanvasImage).type || 'image/png';
-                } else {
-                    const selector = `[data-id="canvas-${item.itemType}-${item.id}"]`;
-                    const node = document.querySelector<HTMLElement>(selector);
-                    if (!node) throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
-                    imageDataUri = await htmlToImage.toPng(node);
-                    mimeType = 'image/png';
-                }
-
-                return {
-                    imageDataUri,
-                    mimeType,
-                    x: (item.x / 100) * 600,
-                    y: (item.y / 100) * 600,
-                    width: item.itemType === 'shape' ? (item as CanvasShape).width * item.scale : 100 * item.scale, // Approximation
-                    height: item.itemType === 'shape' ? (item as CanvasShape).height * item.scale : 100 * item.scale, // Approximation
-                    rotation: item.rotation,
-                    zIndex: item.zIndex,
-                };
-            }))
+            overlays: overlaysForView.map((item) => ({...item})) // Pass full item data to API
         };
         
         const response = await fetch('/api/preview', {
@@ -785,7 +761,7 @@ function CustomizerLayoutAndLogic() {
           return items.map(item => {
               if (item.itemType === 'image') {
                   const { dataUrl, ...rest } = item as CanvasImage;
-                  return rest;
+                  return { ...rest, itemType: 'image' };
               }
               return item;
           });
@@ -796,9 +772,11 @@ function CustomizerLayoutAndLogic() {
         .map(view => {
           return {
             viewId: view.id,
-            images: stripDataUrls(canvasImages.filter(item => item.viewId === view.id)),
-            texts: canvasTexts.filter(item => item.viewId === view.id),
-            shapes: canvasShapes.filter(item => item.viewId === view.id),
+            items: stripDataUrls([
+                ...canvasImages.filter(item => item.viewId === view.id),
+                ...canvasTexts.filter(item => item.viewId === view.id),
+                ...canvasShapes.filter(item => item.viewId === view.id)
+            ]),
           };
         });
     };
@@ -992,3 +970,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+

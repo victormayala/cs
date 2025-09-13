@@ -13,7 +13,7 @@ interface InteractiveCanvasShapeProps {
   isSelected: boolean;
   isBeingDragged: boolean; 
   onShapeSelect: (shapeId: string) => void;
-  onShapeSelectAndDragStart: (e: ReactMouseEvent<SVGElement> | ReactTouchEvent<SVGElement>, shape: CanvasShape) => void;
+  onShapeSelectAndDragStart: (e: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, shape: CanvasShape) => void;
   onRotateHandleMouseDown: (e: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, shape: CanvasShape) => void;
   onResizeHandleMouseDown: (e: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, shape: CanvasShape) => void;
   onRemoveHandleClick: (e: ReactMouseEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>, shapeId: string) => void;
@@ -71,31 +71,29 @@ export function InteractiveCanvasShape({
 
   return (
     <div
-      id={`canvas-shape-container-${shape.id}`}
       className={`absolute group
                   ${isSelected && !shape.isLocked ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
                   ${!shape.isLocked ? 'hover:ring-1 hover:ring-primary/50' : ''}
                   `}
       style={wrapperStyle}
-      
+      onClick={(e) => {
+          e.stopPropagation();
+          if (!shape.isLocked) onShapeSelect(shape.id);
+        }}
+      onMouseDown={(e) => {
+        if (!shape.isLocked) onShapeSelectAndDragStart(e, shape);
+        else e.stopPropagation();
+      }}
+      onTouchStart={(e) => {
+        if (!shape.isLocked) onShapeSelectAndDragStart(e, shape);
+        else e.stopPropagation();
+      }}
     >
       <svg
         data-id={`canvas-shape-${shape.id}`}
         viewBox={`0 0 ${shape.width} ${shape.height}`} 
         preserveAspectRatio="none" 
         style={svgStyle}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!shape.isLocked) onShapeSelect(shape.id);
-        }}
-        onMouseDown={(e) => {
-          if (!shape.isLocked) onShapeSelectAndDragStart(e, shape);
-          else e.stopPropagation();
-        }}
-        onTouchStart={(e) => {
-          if (!shape.isLocked) onShapeSelectAndDragStart(e, shape);
-          else e.stopPropagation();
-        }}
       >
         {renderShape()}
       </svg>

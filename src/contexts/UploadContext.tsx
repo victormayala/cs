@@ -26,7 +26,7 @@ export interface CanvasImage {
   y: number; // percentage for top
   zIndex: number;
   isLocked: boolean;
-  itemType?: 'image';
+  itemType: 'image';
   movedFromDefault?: boolean;
 }
 
@@ -41,7 +41,7 @@ export interface CanvasText {
   scale: number; // General scale, also affects visual font size
   zIndex: number;
   isLocked: boolean;
-  itemType?: 'text'; // To help differentiate in combined lists
+  itemType: 'text'; // To help differentiate in combined lists
 
   // Font Settings
   fontFamily: string;
@@ -88,7 +88,7 @@ export interface CanvasShape {
   strokeWidth: number;
   zIndex: number;
   isLocked: boolean;
-  itemType?: 'shape';
+  itemType: 'shape';
   movedFromDefault?: boolean;
 }
 
@@ -104,6 +104,18 @@ export interface CanvasStateSnapshot {
 
 // Helper type for combined operations
 type CanvasItem = (CanvasImage & { itemType: 'image' }) | (CanvasText & { itemType: 'text' }) | (CanvasShape & { itemType: 'shape' });
+
+export interface ImageTransform {
+  imageDataUri: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  zIndex: number;
+}
+
 
 const HISTORY_LIMIT = 30;
 
