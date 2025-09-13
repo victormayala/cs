@@ -33,7 +33,7 @@ export async function generateTextImage(input: GenerateTextImageInput): Promise<
   return generateTextImageFlow(input);
 }
 
-const model = 'googleai/gemini-2.0-flash-exp';
+const model = 'googleai/gemini-2.5-flash-image-preview';
 
 const generateTextImageFlow = ai.defineFlow(
   {
@@ -58,12 +58,6 @@ const generateTextImageFlow = ai.defineFlow(
         Return only the image and a short, one-sentence alt text describing the image (e.g., "The text 'Hello World' in red Arial font.").`,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
-          safetySettings: [ 
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          ],
         },
       });
 

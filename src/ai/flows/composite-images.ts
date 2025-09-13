@@ -48,7 +48,7 @@ export async function compositeImages(input: CompositeImagesInput): Promise<Comp
   return compositeImagesFlow(input);
 }
 
-const model = 'googleai/gemini-2.0-flash-exp';
+const model = 'googleai/gemini-2.5-flash-image-preview';
 
 const compositeImagesFlow = ai.defineFlow(
   {
@@ -94,12 +94,6 @@ const compositeImagesFlow = ai.defineFlow(
         prompt: promptParts,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          ],
         },
       });
       

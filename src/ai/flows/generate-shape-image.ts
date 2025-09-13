@@ -34,7 +34,7 @@ export async function generateShapeImage(input: GenerateShapeImageInput): Promis
   return generateShapeImageFlow(input);
 }
 
-const model = 'googleai/gemini-2.0-flash-exp';
+const model = 'googleai/gemini-2.5-flash-image-preview';
 
 const generateShapeImageFlow = ai.defineFlow(
   {
@@ -59,12 +59,6 @@ const generateShapeImageFlow = ai.defineFlow(
         Return only the image and a short, one-sentence alt text describing the image (e.g., "A red circle with a black outline.").`,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
-           safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          ],
         },
       });
 

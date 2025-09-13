@@ -31,7 +31,7 @@ export async function generateDesignFromPrompt(input: GenerateDesignFromPromptIn
   return generateDesignFromPromptFlow(input);
 }
 
-const model = 'googleai/gemini-2.0-flash-exp';
+const model = 'googleai/gemini-2.5-flash-image-preview';
 
 const generateDesignFromPromptFlow = ai.defineFlow(
   {
@@ -55,12 +55,6 @@ const generateDesignFromPromptFlow = ai.defineFlow(
         Return ONLY the image and the textual description. Do not add any other conversational text or markdown.`,
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          ],
         },
       });
 
