@@ -712,8 +712,8 @@ function CustomizerLayoutAndLogic() {
         [...canvasTexts, ...canvasShapes]
           .filter(item => customizedViewIds.has(item.viewId!))
           .map(async item => {
-            let node;
             const dataId = `render-node-${item.id}`;
+            let node;
             if (item.itemType === 'text') {
               node = document.createElement('div');
               node.textContent = item.content;
@@ -726,22 +726,29 @@ function CustomizerLayoutAndLogic() {
                 whiteSpace: 'pre',
                 display: 'inline-block',
               });
-            } else {
+            } else { // Shape
               const svgNS = "http://www.w3.org/2000/svg";
               const svg = document.createElementNS(svgNS, 'svg');
-              svg.setAttribute('width', `${item.width}`);
-              svg.setAttribute('height', `${item.height}`);
+              const maxSide = Math.max(item.width, item.height) + (item.strokeWidth * 2);
+              svg.setAttribute('width', `${maxSide}`);
+              svg.setAttribute('height', `${maxSide}`);
+              svg.setAttribute('viewBox', `0 0 ${maxSide} ${maxSide}`);
+              
               let shapeElement;
               if (item.shapeType === 'rectangle') {
                 shapeElement = document.createElementNS(svgNS, 'rect');
-                shapeElement.setAttribute('width', '100%');
-                shapeElement.setAttribute('height', '100%');
-              } else {
+                shapeElement.setAttribute('x', `${(maxSide - item.width) / 2}`);
+                shapeElement.setAttribute('y', `${(maxSide - item.height) / 2}`);
+                shapeElement.setAttribute('width', `${item.width}`);
+                shapeElement.setAttribute('height', `${item.height}`);
+              } else { // Circle
                 shapeElement = document.createElementNS(svgNS, 'circle');
-                shapeElement.setAttribute('cx', `${item.width / 2}`);
-                shapeElement.setAttribute('cy', `${item.height / 2}`);
-                shapeElement.setAttribute('r', `${Math.min(item.width, item.height) / 2}`);
+                shapeElement.setAttribute('cx', `${maxSide / 2}`);
+                shapeElement.setAttribute('cy', `${maxSide / 2}`);
+                shapeElement.setAttribute('rx', `${item.width / 2}`);
+                shapeElement.setAttribute('ry', `${item.height / 2}`);
               }
+              
               shapeElement.setAttribute('fill', item.color);
               shapeElement.setAttribute('stroke', item.strokeColor);
               shapeElement.setAttribute('stroke-width', `${item.strokeWidth}`);
@@ -763,7 +770,6 @@ function CustomizerLayoutAndLogic() {
       document.body.removeChild(renderContainer);
 
       for (const view of viewsToProcess) {
-        // Proxy the base image to avoid CORS issues in the AI flow.
         const proxyResponse = await fetch('/api/proxy-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -772,7 +778,7 @@ function CustomizerLayoutAndLogic() {
         if (!proxyResponse.ok) {
             throw new Error(`Failed to proxy base image for view "${view.name}". Status: ${proxyResponse.status}`);
         }
-        const { dataUrl: baseImageDataUri } = await proxyResponse.json();
+        const { dataUrl: baseImageDataUri, mimeType: baseImageMimeType } = await proxyResponse.json();
 
         const overlaysForView = [
           ...canvasImages.filter(i => i.viewId === view.id),
@@ -790,7 +796,7 @@ function CustomizerLayoutAndLogic() {
         
         const payload: CompositeImagesInput = {
           baseImageDataUri: baseImageDataUri,
-          baseImageMimeType: 'image/png',
+          baseImageMimeType: baseImageMimeType || 'image/png',
           baseImageWidthPx: 600,
           baseImageHeightPx: 600,
           overlays: overlaysForView,
@@ -798,9 +804,9 @@ function CustomizerLayoutAndLogic() {
 
         const result = await compositeImages(payload);
         
-        // Upload the final composite to Firebase Storage
         const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
-        const downloadURL = await uploadString(storageRef, result.compositeImageUrl, 'data_url').then(snapshot => getDownloadURL(snapshot.ref));
+        const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
+        const downloadURL = await getDownloadURL(uploadStringResult.ref);
 
         finalThumbnails.push({
           viewId: view.id, viewName: view.name, url: downloadURL
@@ -822,7 +828,7 @@ function CustomizerLayoutAndLogic() {
         return items.map(item => {
           if ('dataUrl' in item) {
             const { dataUrl, ...rest } = item as CanvasImage;
-            return rest;
+            return { ...rest, sourceImageId: item.sourceImageId };
           }
           return item;
         });
@@ -846,9 +852,9 @@ function CustomizerLayoutAndLogic() {
       productName: productDetails.name,
       quantity: 1,
       totalCustomizationPrice: totalCustomizationPrice,
-      previewImageUrls: finalThumbnails, // Now contains Firebase Storage URLs
+      previewImageUrls: finalThumbnails,
       customizationDetails: {
-        viewData: createLightweightViewData(), // Lightweight blueprint
+        viewData: createLightweightViewData(),
         selectedOptions: selectedVariationOptions,
       }
     };
