@@ -773,7 +773,7 @@ function CustomizerLayoutAndLogic() {
         const overlaysForView = allImageItemsOnCanvas
           .filter(item => item.viewId === view.id)
           .map(item => ({
-              imageDataUri: item.dataUrl,
+              imageDataUri: item.dataUrl, // Correctly mapping dataUrl to imageDataUri
               mimeType: item.type || 'image/png',
               x: (item.x / 100) * 600,
               y: (item.y / 100) * 600,
@@ -1039,3 +1039,5 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
