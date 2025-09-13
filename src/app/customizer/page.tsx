@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -694,36 +693,11 @@ function CustomizerLayoutAndLogic() {
       setIsAddingToCart(true);
       toast({ title: "Preparing Your Design...", description: "Generating previews. This may take a moment." });
       
-      // Robust Image Loading Utility
-      const loadImage = (url: string): Promise<HTMLImageElement> => {
-          return new Promise(async (resolve, reject) => {
-              try {
-                  const response = await fetch(`/api/proxy-image`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: url })
-                  });
-
-                  if (!response.ok) {
-                      throw new Error(`Proxy fetch failed with status ${response.status}`);
-                  }
-                  const { dataUrl } = await response.json();
-                  const img = new Image();
-                  img.onload = () => resolve(img);
-                  img.onerror = (err) => {
-                      console.error(`Error: Failed to load background for view from URL: ${url}`, err);
-                      reject(new Error(`Failed to load background for view from URL: ${url}`));
-                  };
-                  img.src = dataUrl;
-              } catch (error) {
-                  console.error(`Error: Failed to fetch or process image from URL: ${url}`, error);
-                  reject(error);
-              }
-          });
-      };
+      const originalActiveViewId = activeViewId;
+      const previewImageUrls = [];
 
       try {
-          const customizedViewsData = productDetails.views
+          const customizedViews = productDetails.views
               .map(view => ({
                   viewId: view.id,
                   viewName: view.name,
@@ -734,63 +708,25 @@ function CustomizerLayoutAndLogic() {
               }))
               .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
 
-          const previewImageUrls = [];
+          for (const view of customizedViews) {
+              // Programmatically switch to the view we want to capture
+              setActiveViewId(view.viewId);
 
-          for (const view of customizedViewsData) {
-              const previewContainer = document.createElement('div');
-              previewContainer.style.width = '500px';
-              previewContainer.style.height = '500px';
-              previewContainer.style.position = 'absolute';
-              previewContainer.style.left = '-9999px'; // Position off-screen
-              document.body.appendChild(previewContainer);
+              // Crucial: Wait for React to re-render and the browser to paint the new view
+              await new Promise(resolve => setTimeout(resolve, 100));
 
-              // 1. Load all images required for this view (background and overlays)
-              const bgImagePromise = loadImage(view.viewImageUrl);
-              const overlayImagePromises = view.images.map(img => loadImage(img.dataUrl));
-              const [loadedBgImage, ...loadedOverlayImages] = await Promise.all([bgImagePromise, ...overlayImagePromises]);
-
-              // 2. Build the HTML structure synchronously after all images are ready
-              const bgImageEl = document.createElement('img');
-              bgImageEl.src = loadedBgImage.src;
-              bgImageEl.style.width = '100%';
-              bgImageEl.style.height = '100%';
-              bgImageEl.style.objectFit = 'contain';
-              bgImageEl.style.position = 'absolute';
-              previewContainer.appendChild(bgImageEl);
-
-              const overlayElements = [...view.images, ...view.texts, ...view.shapes].sort((a, b) => a.zIndex - b.zIndex);
-              
-              overlayElements.forEach((item, index) => {
-                  if (item.itemType === 'image') {
-                      const overlayImgEl = document.createElement('img');
-                      // Find the corresponding loaded image from the promise results
-                      const originalItem = view.images.find(i => i.id === item.id);
-                      if (!originalItem) return;
-                      
-                      const loadedImgIndex = view.images.findIndex(i => i.id === item.id);
-                      const loadedImg = loadedOverlayImages[loadedImgIndex];
-                      
-                      if(loadedImg) {
-                          overlayImgEl.src = loadedImg.src;
-                          overlayImgEl.style.position = 'absolute';
-                          overlayImgEl.style.top = `${item.y}%`;
-                          overlayImgEl.style.left = `${item.x}%`;
-                          overlayImgEl.style.width = `${200 * item.scale}px`; // Simplified, needs refinement
-                          overlayImgEl.style.height = 'auto';
-                          overlayImgEl.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
-                          previewContainer.appendChild(overlayImgEl);
+              if (designCanvasWrapperRef.current) {
+                  const dataUrl = await toPng(designCanvasWrapperRef.current, { 
+                      cacheBust: true, 
+                      pixelRatio: 1, // Use 1 for performance, increase for higher res if needed
+                      // Filter out interactive handles from the screenshot
+                      filter: (node) => {
+                          if (node.classList?.contains('interactive-handle')) return false;
+                          return true;
                       }
-                  }
-                  // TODO: Add logic for text and shapes if needed
-              });
-
-              // 3. Allow browser to render, then capture
-              await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay slightly
-              const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1 });
-              
-              previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
-              
-              document.body.removeChild(previewContainer);
+                  });
+                  previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+              }
           }
           
           // Store in local storage or post message
@@ -822,6 +758,10 @@ function CustomizerLayoutAndLogic() {
           console.error("Error during 'Add to Cart' process:", err);
           toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
       } finally {
+          // Restore the original view
+          if (originalActiveViewId) {
+            setActiveViewId(originalActiveViewId);
+          }
           setIsAddingToCart(false);
       }
   };
