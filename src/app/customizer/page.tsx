@@ -690,34 +690,46 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
     
-    // This is the robust image fetcher using the server-side proxy
-    const fetchAsDataURL = async (url: string, cache: Map<string, string>): Promise<string> => {
-        if (cache.has(url)) {
-            return cache.get(url)!;
-        }
-        if (url.startsWith('data:')) {
-            return url;
-        }
+    // Robustly fetch an image as a data URL using the proxy
+    const fetchAsDataURL = (url: string): Promise<string> => {
+      return new Promise(async (resolve, reject) => {
         try {
-            const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || `Proxy failed for ${url} with status ${response.status}`);
-            }
-            const data = await response.json();
-            if (data.dataUrl) {
-                cache.set(url, data.dataUrl);
-                return data.dataUrl;
-            } else {
-                throw new Error(`Proxy did not return a dataUrl for: ${url}`);
-            }
+          if (url.startsWith('data:')) {
+            resolve(url);
+            return;
+          }
+          const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Proxy failed with status ${response.status}`);
+          }
+          const data = await response.json();
+          if (data.dataUrl) {
+            resolve(data.dataUrl);
+          } else {
+            throw new Error(`Proxy did not return a dataUrl for: ${url}`);
+          }
         } catch (e: any) {
-            console.error(`Could not load and process image via proxy: ${url}. Error: ${e.message}`, e);
-            throw e; 
+          console.error(`Could not load and process image via proxy: ${url}. Error: ${e.message}`, e);
+          reject(e);
         }
+      });
     };
-    
-    const imageCache = new Map<string, string>();
+
+    // A promise-based wrapper to ensure an Image object is fully loaded
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = (err) => {
+          console.error("Failed to load image for preview generation:", url, err);
+          // Don't reject, resolve so process continues with a potentially blank bg
+          resolve(img); 
+        };
+        img.src = url;
+      });
+    };
     
     try {
         const customizedViewIds = new Set<string>();
@@ -737,105 +749,103 @@ function CustomizerLayoutAndLogic() {
 
             const previewContainer = document.createElement('div');
             previewContainer.style.position = 'absolute';
-            previewContainer.style.left = '-9999px';
+            previewContainer.style.left = '-9999px'; // Hide it off-screen
             previewContainer.style.width = '600px'; 
             previewContainer.style.height = '600px';
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
 
             try {
-                const backgroundDataUrl = await fetchAsDataURL(view.imageUrl, imageCache);
-                const bgImage = document.createElement('img');
-                bgImage.src = backgroundDataUrl;
+                // 1. Fetch background image data using the proxy
+                const bgDataUrl = await fetchAsDataURL(view.imageUrl);
+                // 2. Wait for the browser to decode it
+                const bgImage = await loadImage(bgDataUrl);
                 bgImage.style.position = 'absolute';
                 bgImage.style.width = '100%';
                 bgImage.style.height = '100%';
                 bgImage.style.objectFit = 'contain';
                 previewContainer.appendChild(bgImage);
-            } catch (bgError) {
-                console.error(`Failed to load background for view: ${view.name}`, bgError);
-                // The container will just have a white background, but the process continues.
-            }
-            
-            const overlayItems = [
-                ...canvasImages.filter(i => i.viewId === viewId),
-                ...canvasTexts.filter(t => t.viewId === viewId),
-                ...canvasShapes.filter(s => s.viewId === viewId),
-            ].sort((a, b) => a.zIndex - b.zIndex);
 
-            // Pre-fetch all overlay images for this view to populate the cache
-            const overlayImageUrls = canvasImages.filter(i => i.viewId === viewId).map(i => i.dataUrl);
-            await Promise.all(
-              overlayImageUrls.map(url => fetchAsDataURL(url, imageCache).catch(e => {
-                console.warn(`Could not preload overlay image for preview: ${url}. It will be skipped.`, e);
-              }))
-            );
-
-            for (const item of overlayItems) {
-                const el = document.createElement('div');
-                el.style.position = 'absolute';
-                el.style.left = `${item.x}%`;
-                el.style.top = `${item.y}%`;
-                el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+                // Now handle overlays
+                const overlayItems = [
+                    ...canvasImages.filter(i => i.viewId === viewId),
+                    ...canvasTexts.filter(t => t.viewId === viewId),
+                    ...canvasShapes.filter(s => s.viewId === viewId),
+                ].sort((a, b) => a.zIndex - b.zIndex);
                 
-                if (item.itemType === 'image') {
-                    const imgDataUrl = imageCache.get(item.dataUrl);
-                    if (imgDataUrl) {
-                        const imgEl = document.createElement('img');
-                        imgEl.src = imgDataUrl;
+                // Fetch and load all overlay images in parallel
+                const overlayImagePromises = canvasImages
+                  .filter(i => i.viewId === viewId)
+                  .map(imgItem => fetchAsDataURL(imgItem.dataUrl).then(dataUrl => loadImage(dataUrl)));
+
+                const loadedOverlayImages = await Promise.all(overlayImagePromises);
+                
+                let imageCounter = 0;
+                for (const item of overlayItems) {
+                    const el = document.createElement('div');
+                    el.style.position = 'absolute';
+                    el.style.left = `${item.x}%`;
+                    el.style.top = `${item.y}%`;
+                    el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+                    
+                    if (item.itemType === 'image') {
+                        const imgEl = loadedOverlayImages[imageCounter++];
                         imgEl.style.width = `${200 * item.scale}px`;
                         imgEl.style.height = `${200 * item.scale}px`;
                         imgEl.style.objectFit = 'contain';
                         el.appendChild(imgEl);
-                    }
-                } else if (item.itemType === 'text') {
-                    el.style.fontFamily = item.fontFamily;
-                    el.style.fontSize = `${item.fontSize * item.scale}px`;
-                    el.style.color = item.color;
-                    el.style.fontWeight = item.fontWeight;
-                    el.style.fontStyle = item.fontStyle;
-                    el.style.whiteSpace = 'pre-wrap';
-                    el.innerText = item.content;
-                    if (item.outlineEnabled && item.outlineWidth > 0) {
-                        el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
-                    }
-                } else if (item.itemType === 'shape') {
-                     const svgNS = "http://www.w3.org/2000/svg";
-                     const svg = document.createElementNS(svgNS, "svg");
-                     svg.style.width = `${item.width * item.scale}px`;
-                     svg.style.height = `${item.height * item.scale}px`;
-                     svg.setAttribute("viewBox", `0 0 ${item.width} ${item.height}`);
+                    } else if (item.itemType === 'text') {
+                        el.style.fontFamily = item.fontFamily;
+                        el.style.fontSize = `${item.fontSize * item.scale}px`;
+                        el.style.color = item.color;
+                        el.style.fontWeight = item.fontWeight;
+                        el.style.fontStyle = item.fontStyle;
+                        el.style.whiteSpace = 'pre-wrap';
+                        el.innerText = item.content;
+                        if (item.outlineEnabled && item.outlineWidth > 0) {
+                            el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
+                        }
+                    } else if (item.itemType === 'shape') {
+                        const svgNS = "http://www.w3.org/2000/svg";
+                        const svg = document.createElementNS(svgNS, "svg");
+                        svg.style.width = `${item.width * item.scale}px`;
+                        svg.style.height = `${item.height * item.scale}px`;
+                        svg.setAttribute("viewBox", `0 0 ${item.width} ${item.height}`);
 
-                     let shapeEl;
-                     if(item.shapeType === 'rectangle') {
-                         shapeEl = document.createElementNS(svgNS, "rect");
-                         shapeEl.setAttribute('width', '100%');
-                         shapeEl.setAttribute('height', '100%');
-                     } else { // circle
-                         shapeEl = document.createElementNS(svgNS, "circle");
-                         shapeEl.setAttribute('cx', `${item.width/2}`);
-                         shapeEl.setAttribute('cy', `${item.height/2}`);
-                         shapeEl.setAttribute('r', `${item.width/2}`);
-                     }
-                     shapeEl.setAttribute('fill', item.color);
-                     shapeEl.setAttribute('stroke', item.strokeColor);
-                     shapeEl.setAttribute('stroke-width', String(item.strokeWidth));
-                     svg.appendChild(shapeEl);
-                     el.appendChild(svg);
+                        let shapeEl;
+                        if(item.shapeType === 'rectangle') {
+                            shapeEl = document.createElementNS(svgNS, "rect");
+                            shapeEl.setAttribute('width', '100%');
+                            shapeEl.setAttribute('height', '100%');
+                        } else { // circle
+                            shapeEl = document.createElementNS(svgNS, "circle");
+                            shapeEl.setAttribute('cx', `${item.width/2}`);
+                            shapeEl.setAttribute('cy', `${item.height/2}`);
+                            shapeEl.setAttribute('r', `${item.width/2}`);
+                        }
+                        shapeEl.setAttribute('fill', item.color);
+                        shapeEl.setAttribute('stroke', item.strokeColor);
+                        shapeEl.setAttribute('stroke-width', String(item.strokeWidth));
+                        svg.appendChild(shapeEl);
+                        el.appendChild(svg);
+                    }
+                    previewContainer.appendChild(el);
                 }
-                previewContainer.appendChild(el);
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
 
-            const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
-            previewImageUrls.push({
-                viewId: view.id,
-                viewName: view.name,
-                url: dataUrl
-            });
-            
-            document.body.removeChild(previewContainer);
+                // Give the browser a moment to paint the newly added elements
+                await new Promise(resolve => setTimeout(resolve, 50)); 
+                
+                const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
+                previewImageUrls.push({
+                    viewId: view.id,
+                    viewName: view.name,
+                    url: dataUrl
+                });
+
+            } finally {
+                // Always clean up the hidden container
+                document.body.removeChild(previewContainer);
+            }
         }
 
       const customizedViewsData = (productDetails?.views || [])
@@ -1073,3 +1083,6 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+
+    
