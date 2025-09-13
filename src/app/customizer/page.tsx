@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -677,152 +678,152 @@ function CustomizerLayoutAndLogic() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   const handleAddToCart = async () => {
-    if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
-      toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
-      return;
-    }
-    if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
-      toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
-      return;
-    }
-    if (!isEmbedded && !user && hasCanvasElements) {
-      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-      return;
-    }
-  
-    setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating previews. This may take a moment." });
-  
-    const loadImage = (url: string): Promise<HTMLImageElement> => {
-      return new Promise(async (resolve, reject) => {
-        try {
-          const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-          if (!response.ok) throw new Error(`Proxy fetch failed with status ${response.status}`);
-          const { dataUrl } = await response.json();
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = (err) => {
-              console.error('Error: Failed to load proxied image data into Image object.', err);
-              reject(new Error('Failed to load proxied image data.'));
-          };
-          img.src = dataUrl;
-        } catch (error) {
-          console.error(`Error: Failed to fetch or process image from URL: ${url}`, error);
-          reject(error);
-        }
-      });
-    };
-  
-    try {
-      const customizedViewsData = productDetails.views
-        .map(view => ({
-          viewId: view.id,
-          viewName: view.name,
-          viewImageUrl: view.imageUrl,
-          images: canvasImages.filter(item => item.viewId === view.id),
-          texts: canvasTexts.filter(item => item.viewId === view.id),
-          shapes: canvasShapes.filter(item => item.viewId === view.id),
-        }))
-        .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
-  
-      const previewImageUrls = [];
-  
-      for (const view of customizedViewsData) {
-        const previewContainer = document.createElement('div');
-        previewContainer.style.width = '500px';
-        previewContainer.style.height = '500px';
-        previewContainer.style.position = 'absolute';
-        previewContainer.style.left = '-9999px';
-        document.body.appendChild(previewContainer);
-  
-        const allImageLoadPromises: Promise<HTMLImageElement>[] = [];
-  
-        // 1. Load Background Image via proxy
-        const bgImagePromise = loadImage(view.viewImageUrl);
-        allImageLoadPromises.push(bgImagePromise);
-  
-        // 2. Load all overlay images via proxy
-        view.images.forEach(img => {
-          allImageLoadPromises.push(loadImage(img.dataUrl));
-        });
-  
-        // 3. Wait for all images to be loaded
-        const [loadedBgImage, ...loadedOverlayImages] = await Promise.all(allImageLoadPromises);
-  
-        // 4. Construct the container
-        const bgImageEl = document.createElement('img');
-        bgImageEl.src = loadedBgImage.src;
-        bgImageEl.style.width = '100%';
-        bgImageEl.style.height = '100%';
-        bgImageEl.style.objectFit = 'contain';
-        bgImageEl.style.position = 'absolute';
-        previewContainer.appendChild(bgImageEl);
-  
-        const overlayElements = [...view.images, ...view.texts, ...view.shapes].sort((a, b) => a.zIndex - b.zIndex);
-  
-        overlayElements.forEach((item, index) => {
-          if (item.itemType === 'image') {
-            const overlayImgEl = document.createElement('img');
-            // Find the corresponding loaded image from the promise results
-            const originalItem = view.images.find(i => i.id === item.id);
-            const loadedImg = loadedOverlayImages.find(lo => lo.src.startsWith(originalItem?.dataUrl.substring(0, 50) || '')); // Heuristic match
-            if(loadedImg) {
-              overlayImgEl.src = loadedImg.src;
-            } else {
-              // This is a fallback - it might be a data URL already
-              overlayImgEl.src = item.dataUrl;
-            }
-            overlayImgEl.style.position = 'absolute';
-            overlayImgEl.style.top = `${item.y}%`;
-            overlayImgEl.style.left = `${item.x}%`;
-            overlayImgEl.style.width = `${item.scale * 100}px`; // Simplified
-            overlayImgEl.style.height = 'auto';
-            overlayImgEl.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
-            previewContainer.appendChild(overlayImgEl);
-          }
-          // Add similar logic for text and shapes if needed, converting their styles to DOM element styles
-        });
-  
-        // 5. Allow browser to render, then capture
-        await new Promise(resolve => setTimeout(resolve, 50)); 
-        const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1 });
-        
-        previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
-        
-        document.body.removeChild(previewContainer);
+      if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
+          toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
+          return;
       }
-      
-      // Store in local storage or post message
-       const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
-       const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
-       const newCartItem = {
-           id: editCartItemId || crypto.randomUUID(),
-           productId: productDetails.id,
-           variationId: null, // Add logic to determine variation if applicable
-           quantity: 1,
-           productName: productDetails.name,
-           totalCustomizationPrice: totalCustomizationPrice,
-           previewImageUrls: previewImageUrls,
-           customizationDetails: { /* simplified snapshot */ }
-       };
+      if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
+          toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
+          return;
+      }
+      if (!isEmbedded && !user && hasCanvasElements) {
+          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+          return;
+      }
 
-       const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
-       if (existingItemIndex > -1) {
-           cartData[existingItemIndex] = newCartItem;
-       } else {
-           cartData.push(newCartItem);
-       }
-       
-       localStorage.setItem(cartKey, JSON.stringify(cartData));
-       toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
-       router.push(`/store/${storeIdFromUrl}/cart`);
-  
-    } catch (err: any) {
-      console.error("Error during 'Add to Cart' process:", err);
-      toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
-    } finally {
-      setIsAddingToCart(false);
-    }
+      setIsAddingToCart(true);
+      toast({ title: "Preparing Your Design...", description: "Generating previews. This may take a moment." });
+      
+      // Robust Image Loading Utility
+      const loadImage = (url: string): Promise<HTMLImageElement> => {
+          return new Promise(async (resolve, reject) => {
+              try {
+                  const response = await fetch(`/api/proxy-image`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url: url })
+                  });
+
+                  if (!response.ok) {
+                      throw new Error(`Proxy fetch failed with status ${response.status}`);
+                  }
+                  const { dataUrl } = await response.json();
+                  const img = new Image();
+                  img.onload = () => resolve(img);
+                  img.onerror = (err) => {
+                      console.error(`Error: Failed to load background for view from URL: ${url}`, err);
+                      reject(new Error(`Failed to load background for view from URL: ${url}`));
+                  };
+                  img.src = dataUrl;
+              } catch (error) {
+                  console.error(`Error: Failed to fetch or process image from URL: ${url}`, error);
+                  reject(error);
+              }
+          });
+      };
+
+      try {
+          const customizedViewsData = productDetails.views
+              .map(view => ({
+                  viewId: view.id,
+                  viewName: view.name,
+                  viewImageUrl: view.imageUrl,
+                  images: canvasImages.filter(item => item.viewId === view.id),
+                  texts: canvasTexts.filter(item => item.viewId === view.id),
+                  shapes: canvasShapes.filter(item => item.viewId === view.id),
+              }))
+              .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+          const previewImageUrls = [];
+
+          for (const view of customizedViewsData) {
+              const previewContainer = document.createElement('div');
+              previewContainer.style.width = '500px';
+              previewContainer.style.height = '500px';
+              previewContainer.style.position = 'absolute';
+              previewContainer.style.left = '-9999px'; // Position off-screen
+              document.body.appendChild(previewContainer);
+
+              // 1. Load all images required for this view (background and overlays)
+              const bgImagePromise = loadImage(view.viewImageUrl);
+              const overlayImagePromises = view.images.map(img => loadImage(img.dataUrl));
+              const [loadedBgImage, ...loadedOverlayImages] = await Promise.all([bgImagePromise, ...overlayImagePromises]);
+
+              // 2. Build the HTML structure synchronously after all images are ready
+              const bgImageEl = document.createElement('img');
+              bgImageEl.src = loadedBgImage.src;
+              bgImageEl.style.width = '100%';
+              bgImageEl.style.height = '100%';
+              bgImageEl.style.objectFit = 'contain';
+              bgImageEl.style.position = 'absolute';
+              previewContainer.appendChild(bgImageEl);
+
+              const overlayElements = [...view.images, ...view.texts, ...view.shapes].sort((a, b) => a.zIndex - b.zIndex);
+              
+              overlayElements.forEach((item, index) => {
+                  if (item.itemType === 'image') {
+                      const overlayImgEl = document.createElement('img');
+                      // Find the corresponding loaded image from the promise results
+                      const originalItem = view.images.find(i => i.id === item.id);
+                      if (!originalItem) return;
+                      
+                      const loadedImgIndex = view.images.findIndex(i => i.id === item.id);
+                      const loadedImg = loadedOverlayImages[loadedImgIndex];
+                      
+                      if(loadedImg) {
+                          overlayImgEl.src = loadedImg.src;
+                          overlayImgEl.style.position = 'absolute';
+                          overlayImgEl.style.top = `${item.y}%`;
+                          overlayImgEl.style.left = `${item.x}%`;
+                          overlayImgEl.style.width = `${200 * item.scale}px`; // Simplified, needs refinement
+                          overlayImgEl.style.height = 'auto';
+                          overlayImgEl.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+                          previewContainer.appendChild(overlayImgEl);
+                      }
+                  }
+                  // TODO: Add logic for text and shapes if needed
+              });
+
+              // 3. Allow browser to render, then capture
+              await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay slightly
+              const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1 });
+              
+              previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+              
+              document.body.removeChild(previewContainer);
+          }
+          
+          // Store in local storage or post message
+          const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+          const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
+          const newCartItem = {
+              id: editCartItemId || crypto.randomUUID(),
+              productId: productDetails.id,
+              variationId: null, // Add logic to determine variation if applicable
+              quantity: 1,
+              productName: productDetails.name,
+              totalCustomizationPrice: totalCustomizationPrice,
+              previewImageUrls: previewImageUrls,
+              customizationDetails: { /* simplified snapshot */ }
+          };
+
+          const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
+          if (existingItemIndex > -1) {
+              cartData[existingItemIndex] = newCartItem;
+          } else {
+              cartData.push(newCartItem);
+          }
+          
+          localStorage.setItem(cartKey, JSON.stringify(cartData));
+          toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
+          router.push(`/store/${storeIdFromUrl}/cart`);
+
+      } catch (err: any) {
+          console.error("Error during 'Add to Cart' process:", err);
+          toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
+      } finally {
+          setIsAddingToCart(false);
+      }
   };
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
