@@ -3,7 +3,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
+import dynamic from 'next/dynamic';
 import Konva from 'konva';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText } from "@/contexts/UploadContext";
@@ -22,6 +22,13 @@ import LayersPanel from '@/components/customizer/LayersPanel';
 import UploadArea from '@/components/customizer/UploadArea';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+
+const Stage = dynamic(() => import('react-konva').then((mod) => mod.Stage), { ssr: false });
+const Layer = dynamic(() => import('react-konva').then((mod) => mod.Layer), { ssr: false });
+const KonvaImage = dynamic(() => import('react-konva').then((mod) => mod.Image), { ssr: false });
+const KonvaText = dynamic(() => import('react-konva').then((mod) => mod.Text), { ssr: false });
+const Transformer = dynamic(() => import('react-konva').then((mod) => mod.Transformer), { ssr: false });
+
 
 const useImage = (url: string | undefined): [HTMLImageElement | undefined, string] => {
     const [img, setImg] = useState<HTMLImageElement>();
@@ -198,7 +205,7 @@ function CustomizerV2Layout() {
     }
   }
   
-  const CanvasKonvaImage = ({ image }: { image: CanvasImage }) => {
+  const CanvasImageComponent = ({ image }: { image: CanvasImage }) => {
     const [img] = useImage(image.dataUrl);
     return (
       <KonvaImage
@@ -278,7 +285,7 @@ function CustomizerV2Layout() {
                     />
                 )}
                  {canvasImages.filter(i => i.viewId === activeViewId).map(image => (
-                    <CanvasKonvaImage key={image.id} image={image} />
+                    <CanvasImageComponent key={image.id} image={image} />
                 ))}
                 {canvasTexts.filter(t => t.viewId === activeViewId).map(text => (
                     <KonvaText 
@@ -384,3 +391,5 @@ export default function CustomizerV2Page() {
     </UploadProvider>
   );
 }
+
+    
