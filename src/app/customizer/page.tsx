@@ -693,8 +693,28 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews. This may take a moment." });
   
+    const loadImage = (url: string): Promise<HTMLImageElement> => {
+      return new Promise(async (resolve, reject) => {
+        try {
+          const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+          if (!response.ok) throw new Error(`Proxy fetch failed with status ${response.status}`);
+          const { dataUrl } = await response.json();
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = (err) => {
+              console.error('Error: Failed to load proxied image data into Image object.', err);
+              reject(new Error('Failed to load proxied image data.'));
+          };
+          img.src = dataUrl;
+        } catch (error) {
+          console.error(`Error: Failed to fetch or process image from URL: ${url}`, error);
+          reject(error);
+        }
+      });
+    };
+  
     try {
-      const customizedViewsData = (productDetails.views || [])
+      const customizedViewsData = productDetails.views
         .map(view => ({
           viewId: view.id,
           viewName: view.name,
@@ -705,67 +725,97 @@ function CustomizerLayoutAndLogic() {
         }))
         .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
   
-      const loadImage = (url: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = (err) => {
-          console.error(`Error: Failed to load background for view from URL: ${url}`, err);
-          // Don't reject, just resolve with a placeholder or the same broken image to let toPng handle it
-          // This prevents Promise.all from failing entirely.
-          resolve(img); 
-        };
-        img.src = url;
-      });
+      const previewImageUrls = [];
   
-      const previewImageUrls = await Promise.all(customizedViewsData.map(async (view) => {
+      for (const view of customizedViewsData) {
         const previewContainer = document.createElement('div');
         previewContainer.style.width = '500px';
         previewContainer.style.height = '500px';
         previewContainer.style.position = 'absolute';
-        previewContainer.style.left = '-9999px'; // Position off-screen
-        previewContainer.style.backgroundColor = 'white';
+        previewContainer.style.left = '-9999px';
         document.body.appendChild(previewContainer);
   
         const allImageLoadPromises: Promise<HTMLImageElement>[] = [];
   
-        // 1. Load Background Image
-        const loadedBgImage = await loadImage(view.viewImageUrl);
+        // 1. Load Background Image via proxy
+        const bgImagePromise = loadImage(view.viewImageUrl);
+        allImageLoadPromises.push(bgImagePromise);
   
-        // 2. Load all overlay images
-        const overlayElements = [...view.images, ...view.texts, ...view.shapes];
-        view.images.forEach(img => allImageLoadPromises.push(loadImage(img.dataUrl)));
-  
-        await Promise.all(allImageLoadPromises);
-  
-        // 3. Construct the container *after* all images are loaded
-        const bgImage = document.createElement('img');
-        bgImage.src = loadedBgImage.src; // Use the src from the preloaded image
-        bgImage.style.width = '100%';
-        bgImage.style.height = '100%';
-        bgImage.style.objectFit = 'contain';
-        bgImage.style.position = 'absolute';
-        previewContainer.appendChild(bgImage);
-  
-        overlayElements.sort((a, b) => a.zIndex - b.zIndex).forEach(item => {
-          // This logic can be simplified as we're not re-creating the elements, just capturing the final canvas.
+        // 2. Load all overlay images via proxy
+        view.images.forEach(img => {
+          allImageLoadPromises.push(loadImage(img.dataUrl));
         });
+  
+        // 3. Wait for all images to be loaded
+        const [loadedBgImage, ...loadedOverlayImages] = await Promise.all(allImageLoadPromises);
+  
+        // 4. Construct the container
+        const bgImageEl = document.createElement('img');
+        bgImageEl.src = loadedBgImage.src;
+        bgImageEl.style.width = '100%';
+        bgImageEl.style.height = '100%';
+        bgImageEl.style.objectFit = 'contain';
+        bgImageEl.style.position = 'absolute';
+        previewContainer.appendChild(bgImageEl);
+  
+        const overlayElements = [...view.images, ...view.texts, ...view.shapes].sort((a, b) => a.zIndex - b.zIndex);
+  
+        overlayElements.forEach((item, index) => {
+          if (item.itemType === 'image') {
+            const overlayImgEl = document.createElement('img');
+            // Find the corresponding loaded image from the promise results
+            const originalItem = view.images.find(i => i.id === item.id);
+            const loadedImg = loadedOverlayImages.find(lo => lo.src.startsWith(originalItem?.dataUrl.substring(0, 50) || '')); // Heuristic match
+            if(loadedImg) {
+              overlayImgEl.src = loadedImg.src;
+            } else {
+              // This is a fallback - it might be a data URL already
+              overlayImgEl.src = item.dataUrl;
+            }
+            overlayImgEl.style.position = 'absolute';
+            overlayImgEl.style.top = `${item.y}%`;
+            overlayImgEl.style.left = `${item.x}%`;
+            overlayImgEl.style.width = `${item.scale * 100}px`; // Simplified
+            overlayImgEl.style.height = 'auto';
+            overlayImgEl.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+            previewContainer.appendChild(overlayImgEl);
+          }
+          // Add similar logic for text and shapes if needed, converting their styles to DOM element styles
+        });
+  
+        // 5. Allow browser to render, then capture
+        await new Promise(resolve => setTimeout(resolve, 50)); 
+        const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1 });
         
-        // This logic is flawed, the main canvas screenshot is better. Let's revert to a simplified version of that.
-        // For now, let's keep the structure but simplify the rendering part to highlight the core issue.
-        const mainCanvasScreenshot = await toPng(designCanvasWrapperRef.current!, { cacheBust: true, pixelRatio: 1 });
-  
-        // Clean up the temporary container
+        previewImageUrls.push({ viewId: view.viewId, viewName: view.viewName, url: dataUrl });
+        
         document.body.removeChild(previewContainer);
-  
-        return {
-          viewId: view.viewId,
-          viewName: view.viewName,
-          url: mainCanvasScreenshot, // This is incorrect, but demonstrates the flow.
-        };
-      }));
-  
-      // ... rest of the handleAddToCart logic
+      }
+      
+      // Store in local storage or post message
+       const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+       const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
+       const newCartItem = {
+           id: editCartItemId || crypto.randomUUID(),
+           productId: productDetails.id,
+           variationId: null, // Add logic to determine variation if applicable
+           quantity: 1,
+           productName: productDetails.name,
+           totalCustomizationPrice: totalCustomizationPrice,
+           previewImageUrls: previewImageUrls,
+           customizationDetails: { /* simplified snapshot */ }
+       };
+
+       const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
+       if (existingItemIndex > -1) {
+           cartData[existingItemIndex] = newCartItem;
+       } else {
+           cartData.push(newCartItem);
+       }
+       
+       localStorage.setItem(cartKey, JSON.stringify(cartData));
+       toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
+       router.push(`/store/${storeIdFromUrl}/cart`);
   
     } catch (err: any) {
       console.error("Error during 'Add to Cart' process:", err);
@@ -925,6 +975,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-
-    
