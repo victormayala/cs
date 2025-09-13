@@ -692,11 +692,10 @@ function CustomizerLayoutAndLogic() {
     }
 
     setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating a preview of your custom product. This can take a moment." });
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
     
     try {
-        const previewImageUrl = await toPng(designCanvasWrapperRef.current, { cacheBust: true, pixelRatio: 1 });
-
+        const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
         const customizedViewsData = (productDetails?.views || [])
             .map(view => ({
                 viewId: view.id,
@@ -707,6 +706,28 @@ function CustomizerLayoutAndLogic() {
                 shapes: canvasShapes.filter(item => item.viewId === view.id),
             }))
             .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+        for (const view of customizedViewsData) {
+            // Temporarily update the main canvas to render this view
+            setActiveViewId(view.viewId);
+            // We need to give React a moment to re-render with the new activeViewId
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+
+            if (designCanvasWrapperRef.current) {
+                const dataUrl = await toPng(designCanvasWrapperRef.current, { cacheBust: true, pixelRatio: 1 });
+                previewImageUrls.push({
+                    viewId: view.viewId,
+                    viewName: view.viewName,
+                    url: dataUrl
+                });
+            }
+        }
+        
+        // Restore the original view
+        const originalViewId = productDetails?.views.find(v => v.id === activeViewId)?.id || productDetails?.views[0]?.id || null;
+        if (originalViewId) {
+            setActiveViewId(originalViewId);
+        }
 
         const designData = {
             productId: productIdFromUrl || productDetails?.id,
@@ -733,7 +754,7 @@ function CustomizerLayoutAndLogic() {
             } else {
                 console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
             }
-            window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
+            window.parent.postMessage({ customizerStudioDesignData: designData, previewImageUrls: previewImageUrls }, targetOrigin);
             toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
         } else if (isNativeStore && storeIdFromUrl) {
             const cartKey = `cs_cart_${storeIdFromUrl}`;
@@ -746,7 +767,7 @@ function CustomizerLayoutAndLogic() {
                     quantity: 1,
                     productName: designData.productName,
                     totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-                    previewImageUrls: [{ viewId: activeViewId || 'default', viewName: activeViewData?.name || 'Preview', url: previewImageUrl }],
+                    previewImageUrls: previewImageUrls,
                     customizationDetails: designData.customizationDetails,
                 };
                 
@@ -772,7 +793,7 @@ function CustomizerLayoutAndLogic() {
         } else {
             toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
             console.log("Add to Cart - Design Data:", designData);
-            console.log("Preview Image:", previewImageUrl);
+            console.log("Preview Images:", previewImageUrls);
         }
     } catch (err: any) {
         console.error("Error during 'Add to Cart' process:", err);
