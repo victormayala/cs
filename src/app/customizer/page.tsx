@@ -148,11 +148,11 @@ async function loadProductOptionsFromFirestore(
     }
     return { options: undefined }; 
   } catch (error: any) {
-    let detailedError = `Failed to load options from cloud: ${error.message}`;
+    let detailedError = `Failed to load options from cloud: ${'error.message'}`;
     if (error.code === 'permission-denied' || error.message?.includes('Missing or insufficient permissions')) {
         detailedError += " This is likely a Firestore security rule issue. Ensure public read access is configured for userProductOptions/{configUserId}/products/{productId} if using configUserId, or that the current user has permission.";
     }
-    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${userIdForOptions}, product ${firestoreDocId}:`, detailedError, error);
+    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${userIdForOptions}, product ${firestoreDocId}:`, error);
     return { error: detailedError };
   }
 }
@@ -677,209 +677,252 @@ function CustomizerLayoutAndLogic() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   const handleAddToCart = async () => {
-      if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
-      if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
-          toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
-          return;
-      }
-      if (!isEmbedded && !user && hasCanvasElements) {
-          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-          return;
-      }
+    if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
+    if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
+        toast({ title: "Empty Design", description: "Please add some design elements to the canvas before adding to cart.", variant: "default" });
+        return;
+    }
+    if (!isEmbedded && !user && hasCanvasElements) {
+        toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+        return;
+    }
 
-      setIsAddingToCart(true);
-      toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
+    setIsAddingToCart(true);
+    toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
 
-      try {
-          const customizedViewIds = new Set<string>();
-          [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
-              if (item.viewId) customizedViewIds.add(item.viewId);
-          });
+    // New Robust Image Loading Logic
+    const imageCache = new Map<string, string>();
+    const imageUrlsToLoad = new Set<string>();
+    canvasImages.forEach(img => imageUrlsToLoad.add(img.dataUrl));
+    productDetails?.views.forEach(view => imageUrlsToLoad.add(view.imageUrl));
 
-          if (customizedViewIds.size === 0) {
-              throw new Error("No customizations found on any view.");
-          }
-
-          const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-          
-          for (const viewId of Array.from(customizedViewIds)) {
-              const view = productDetails?.views.find(v => v.id === viewId);
-              if (!view) continue;
-
-              const previewContainer = document.createElement('div');
-              previewContainer.style.position = 'absolute';
-              previewContainer.style.left = '-9999px';
-              previewContainer.style.width = '600px';
-              previewContainer.style.height = '600px';
-              previewContainer.style.backgroundColor = 'white';
-              document.body.appendChild(previewContainer);
-
-              const bgImage = document.createElement('img');
-              bgImage.crossOrigin = "anonymous";
-              
-              await new Promise<void>((resolve) => {
-                  bgImage.onload = () => resolve();
-                  bgImage.onerror = () => {
-                      console.error(`Failed to load background for view: ${view.name}`);
-                      resolve(); // Resolve even on error to not block the process
-                  };
-                  bgImage.src = view.imageUrl;
-              });
-              previewContainer.appendChild(bgImage);
-
-              const elementsForView = [
-                  ...canvasImages.filter(i => i.viewId === viewId),
-                  ...canvasTexts.filter(t => t.viewId === viewId),
-                  ...canvasShapes.filter(s => s.viewId === viewId),
-              ].sort((a, b) => a.zIndex - b.zIndex);
-
-              for (const item of elementsForView) {
-                  const el = document.createElement('div');
-                  el.style.position = 'absolute';
-                  el.style.left = `${item.x}%`;
-                  el.style.top = `${item.y}%`;
-                  el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
-                  
-                  if (item.itemType === 'image') {
-                      const imgEl = document.createElement('img');
-                      imgEl.crossOrigin = "anonymous";
-                      imgEl.src = item.dataUrl;
-                      imgEl.style.width = `${200 * item.scale}px`;
-                      imgEl.style.height = `${200 * item.scale}px`;
-                      imgEl.style.objectFit = 'contain';
-                      el.appendChild(imgEl);
-                  } else if (item.itemType === 'text') {
-                      el.style.fontFamily = item.fontFamily;
-                      el.style.fontSize = `${item.fontSize * item.scale}px`;
-                      el.style.color = item.color;
-                      el.style.fontWeight = item.fontWeight;
-                      el.style.fontStyle = item.fontStyle;
-                      el.style.whiteSpace = 'pre-wrap';
-                      el.innerText = item.content;
-                      if(item.outlineEnabled && item.outlineWidth > 0){
-                         el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
-                      }
-                  } else if (item.itemType === 'shape') {
-                       const svgNS = "http://www.w3.org/2000/svg";
-                       const svg = document.createElementNS(svgNS, "svg");
-                       svg.style.width = `${item.width * item.scale}px`;
-                       svg.style.height = `${item.height * item.scale}px`;
-                       svg.setAttribute("viewBox", `0 0 ${item.width} ${item.height}`);
-
-                       let shapeEl;
-                       if(item.shapeType === 'rectangle') {
-                           shapeEl = document.createElementNS(svgNS, "rect");
-                           shapeEl.setAttribute('width', '100%');
-                           shapeEl.setAttribute('height', '100%');
-                       } else { // circle
-                           shapeEl = document.createElementNS(svgNS, "circle");
-                           shapeEl.setAttribute('cx', `${item.width/2}`);
-                           shapeEl.setAttribute('cy', `${item.height/2}`);
-                           shapeEl.setAttribute('r', `${item.width/2}`);
-                       }
-                       shapeEl.setAttribute('fill', item.color);
-                       shapeEl.setAttribute('stroke', item.strokeColor);
-                       shapeEl.setAttribute('stroke-width', String(item.strokeWidth));
-                       svg.appendChild(shapeEl);
-                       el.appendChild(svg);
-                  }
-                  previewContainer.appendChild(el);
-              }
-              
-              const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
-              previewImageUrls.push({
-                  viewId: view.id,
-                  viewName: view.name,
-                  url: dataUrl
-              });
-              
-              document.body.removeChild(previewContainer);
-          }
-
-        const customizedViewsData = (productDetails?.views || [])
-          .map(view => ({
-              viewId: view.id,
-              viewName: view.name,
-              viewImageUrl: view.imageUrl,
-              images: canvasImages.filter(item => item.viewId === view.id),
-              texts: canvasTexts.filter(item => item.viewId === view.id),
-              shapes: canvasShapes.filter(item => item.viewId === view.id),
-          }))
-          .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
-
-        const designData = {
-            productId: productIdFromUrl || productDetails?.id,
-            variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
-            quantity: 1,
-            productName: productDetails?.name || 'Custom Product',
-            customizationDetails: {
-              viewData: customizedViewsData,
-              selectedOptions: selectedVariationOptions,
-              baseProductPrice: productDetails?.basePrice ?? 0,
-              totalCustomizationPrice: totalCustomizationPrice,
-            },
-            userId: user?.uid || null,
-            configUserId: productDetails?.meta?.configUserIdUsed || null,
-          };
-        
-        const isNativeStore = sourceFromUrl === 'customizer-studio';
-
-        if (isEmbedded) {
-          let targetOrigin = '*';
-          if (document.referrer) {
-            try { targetOrigin = new URL(document.referrer).origin; }
-            catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
-          } else {
-            console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
-          }
-          window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
-          toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
-        } else if (isNativeStore && storeIdFromUrl) {
-          const cartKey = `cs_cart_${storeIdFromUrl}`;
-          try {
-            let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-            const newCartItem = {
-              id: editCartItemId || crypto.randomUUID(), 
-              productId: designData.productId,
-              variationId: designData.variationId,
-              quantity: 1,
-              productName: designData.productName,
-              totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
-              previewImageUrls: previewImageUrls, 
-              customizationDetails: designData.customizationDetails,
-            };
-            
-            if (editCartItemId) {
-              currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
-              toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
-            } else {
-              currentCart.push(newCartItem);
-              toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
-            }
-
-            localStorage.setItem(cartKey, JSON.stringify(currentCart));
-            window.dispatchEvent(new CustomEvent('cartUpdated'));
-            router.push(`/store/${storeIdFromUrl}/cart`);
-          } catch (e: any) {
-            console.error("Error saving to local cart:", e);
-            let errorDescription = "Could not add item to local cart.";
-            if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
-              errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
-            }
-            toast({ title: "Error", description: errorDescription, variant: "destructive" });
-          }
-        } else {
-            toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
-            console.log("Add to Cart - Design Data:", designData);
-            console.log("Previews:", previewImageUrls);
+    const fetchAsDataURL = async (url: string) => {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const blob = await response.blob();
+            return new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        } catch (e) {
+            console.error(`Failed to fetch image as data URL: ${url}`, e);
+            throw e;
         }
-      } catch (err: any) {
-          console.error("Error during 'Add to Cart' process:", err);
-          toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
-      } finally {
-          setIsAddingToCart(false);
-      }
     };
+
+    try {
+        await Promise.all(
+            Array.from(imageUrlsToLoad).map(async (url) => {
+                if (!imageCache.has(url)) {
+                    try {
+                        const dataUrl = await fetchAsDataURL(url);
+                        imageCache.set(url, dataUrl);
+                    } catch (e) {
+                        console.warn(`Could not preload image: ${url}. It might be skipped in previews.`, e);
+                        // Do not re-throw, allow the process to continue.
+                    }
+                }
+            })
+        );
+    } catch (e) {
+        console.error("Error pre-loading design images. Previews may be incomplete.", e);
+    }
+
+    try {
+        const customizedViewIds = new Set<string>();
+        [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
+            if (item.viewId) customizedViewIds.add(item.viewId);
+        });
+
+        if (customizedViewIds.size === 0) {
+            throw new Error("No customizations found on any view.");
+        }
+
+        const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+        
+        for (const viewId of Array.from(customizedViewIds)) {
+            const view = productDetails?.views.find(v => v.id === viewId);
+            if (!view) continue;
+
+            const previewContainer = document.createElement('div');
+            previewContainer.style.position = 'absolute';
+            previewContainer.style.left = '-9999px';
+            previewContainer.style.width = '600px'; 
+            previewContainer.style.height = '600px';
+            previewContainer.style.backgroundColor = 'white'; 
+            document.body.appendChild(previewContainer);
+
+            const bgDataUrl = imageCache.get(view.imageUrl);
+            if (bgDataUrl) {
+                const bgImage = document.createElement('img');
+                bgImage.src = bgDataUrl;
+                bgImage.style.position = 'absolute';
+                bgImage.style.width = '100%';
+                bgImage.style.height = '100%';
+                bgImage.style.objectFit = 'contain';
+                previewContainer.appendChild(bgImage);
+            } else {
+                 console.warn(`Background image for view '${view.name}' could not be loaded for preview.`);
+            }
+
+            const elementsForView = [
+                ...canvasImages.filter(i => i.viewId === viewId),
+                ...canvasTexts.filter(t => t.viewId === viewId),
+                ...canvasShapes.filter(s => s.viewId === viewId),
+            ].sort((a, b) => a.zIndex - b.zIndex);
+
+            for (const item of elementsForView) {
+                const el = document.createElement('div');
+                el.style.position = 'absolute';
+                el.style.left = `${item.x}%`;
+                el.style.top = `${item.y}%`;
+                el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+                
+                if (item.itemType === 'image') {
+                    const imgDataUrl = imageCache.get(item.dataUrl);
+                    if (imgDataUrl) {
+                        const imgEl = document.createElement('img');
+                        imgEl.src = imgDataUrl;
+                        imgEl.style.width = `${200 * item.scale}px`;
+                        imgEl.style.height = `${200 * item.scale}px`;
+                        imgEl.style.objectFit = 'contain';
+                        el.appendChild(imgEl);
+                    }
+                } else if (item.itemType === 'text') {
+                    el.style.fontFamily = item.fontFamily;
+                    el.style.fontSize = `${item.fontSize * item.scale}px`;
+                    el.style.color = item.color;
+                    el.style.fontWeight = item.fontWeight;
+                    el.style.fontStyle = item.fontStyle;
+                    el.style.whiteSpace = 'pre-wrap';
+                    el.innerText = item.content;
+                    if(item.outlineEnabled && item.outlineWidth > 0){
+                       el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
+                    }
+                } else if (item.itemType === 'shape') {
+                     const svgNS = "http://www.w3.org/2000/svg";
+                     const svg = document.createElementNS(svgNS, "svg");
+                     svg.style.width = `${item.width * item.scale}px`;
+                     svg.style.height = `${item.height * item.scale}px`;
+                     svg.setAttribute("viewBox", `0 0 ${item.width} ${item.height}`);
+
+                     let shapeEl;
+                     if(item.shapeType === 'rectangle') {
+                         shapeEl = document.createElementNS(svgNS, "rect");
+                         shapeEl.setAttribute('width', '100%');
+                         shapeEl.setAttribute('height', '100%');
+                     } else { // circle
+                         shapeEl = document.createElementNS(svgNS, "circle");
+                         shapeEl.setAttribute('cx', `${item.width/2}`);
+                         shapeEl.setAttribute('cy', `${item.height/2}`);
+                         shapeEl.setAttribute('r', `${item.width/2}`);
+                     }
+                     shapeEl.setAttribute('fill', item.color);
+                     shapeEl.setAttribute('stroke', item.strokeColor);
+                     shapeEl.setAttribute('stroke-width', String(item.strokeWidth));
+                     svg.appendChild(shapeEl);
+                     el.appendChild(svg);
+                }
+                previewContainer.appendChild(el);
+            }
+            
+            const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
+            previewImageUrls.push({
+                viewId: view.id,
+                viewName: view.name,
+                url: dataUrl
+            });
+            
+            document.body.removeChild(previewContainer);
+        }
+
+      const customizedViewsData = (productDetails?.views || [])
+        .map(view => ({
+            viewId: view.id,
+            viewName: view.name,
+            viewImageUrl: view.imageUrl,
+            images: canvasImages.filter(item => item.viewId === view.id),
+            texts: canvasTexts.filter(item => item.viewId === view.id),
+            shapes: canvasShapes.filter(item => item.viewId === view.id),
+        }))
+        .filter(view => view.images.length > 0 || view.texts.length > 0 || view.shapes.length > 0);
+
+      const designData = {
+          productId: productIdFromUrl || productDetails?.id,
+          variationId: productVariations?.find(v => v.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option))?.id.toString() || null,
+          quantity: 1,
+          productName: productDetails?.name || 'Custom Product',
+          customizationDetails: {
+            viewData: customizedViewsData,
+            selectedOptions: selectedVariationOptions,
+            baseProductPrice: productDetails?.basePrice ?? 0,
+            totalCustomizationPrice: totalCustomizationPrice,
+          },
+          userId: user?.uid || null,
+          configUserId: productDetails?.meta?.configUserIdUsed || null,
+        };
+      
+      const isNativeStore = sourceFromUrl === 'customizer-studio';
+
+      if (isEmbedded) {
+        let targetOrigin = '*';
+        if (document.referrer) {
+          try { targetOrigin = new URL(document.referrer).origin; }
+          catch (e) { console.warn("Could not parse document.referrer for targetOrigin. Defaulting to '*'. Parent site MUST validate event.origin.", e); }
+        } else {
+          console.warn("document.referrer is empty, but app is in an iframe. Defaulting to targetOrigin '*' for postMessage. Parent site MUST validate event.origin.");
+        }
+        window.parent.postMessage({ customizerStudioDesignData: designData }, targetOrigin);
+        toast({ title: "Design Sent!", description: `Your design details have been sent to the parent site.` });
+      } else if (isNativeStore && storeIdFromUrl) {
+        const cartKey = `cs_cart_${storeIdFromUrl}`;
+        try {
+          let currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+          const newCartItem = {
+            id: editCartItemId || crypto.randomUUID(), 
+            productId: designData.productId,
+            variationId: designData.variationId,
+            quantity: 1,
+            productName: designData.productName,
+            totalCustomizationPrice: designData.customizationDetails.totalCustomizationPrice,
+            previewImageUrls: previewImageUrls, 
+            customizationDetails: designData.customizationDetails,
+          };
+          
+          if (editCartItemId) {
+            currentCart = currentCart.map((item: any) => item.id === editCartItemId ? newCartItem : item);
+            toast({ title: "Cart Updated!", description: "Your custom product has been updated in your cart." });
+          } else {
+            currentCart.push(newCartItem);
+            toast({ title: "Added to Cart!", description: "Your custom product has been added to your cart." });
+          }
+
+          localStorage.setItem(cartKey, JSON.stringify(currentCart));
+          window.dispatchEvent(new CustomEvent('cartUpdated'));
+          router.push(`/store/${storeIdFromUrl}/cart`);
+        } catch (e: any) {
+          console.error("Error saving to local cart:", e);
+          let errorDescription = "Could not add item to local cart.";
+          if (e.name === 'QuotaExceededError' || e.message?.includes('exceeded the quota')) {
+            errorDescription = "Could not save to cart because storage is full. Please try removing some items or clearing your browser's local storage for this site.";
+          }
+          toast({ title: "Error", description: errorDescription, variant: "destructive" });
+        }
+      } else {
+          toast({ title: "Add to Cart Clicked (Standalone)", description: "This action would normally send data to a store. Design data logged to console.", variant: "default"});
+          console.log("Add to Cart - Design Data:", designData);
+          console.log("Previews:", previewImageUrls);
+      }
+    } catch (err: any) {
+        console.error("Error during 'Add to Cart' process:", err);
+        toast({ title: "Add to Cart Failed", description: err.message || "An unknown error occurred during preview generation.", variant: "destructive" });
+    } finally {
+        setIsAddingToCart(false);
+    }
+  };
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
@@ -1031,5 +1074,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-    
