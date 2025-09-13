@@ -217,8 +217,7 @@ function CustomizerLayoutAndLogic() {
   const lastLoadedProductIdRef = useRef<string | null | undefined>(undefined);
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
-  const designCanvasWrapperRef = useRef<HTMLDivElement>(null);
-  const [viewThumbnails, setViewThumbnails] = useState<Record<string, string>>({});
+
 
   useEffect(() => {
     const anyElementsExist = canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0;
@@ -254,33 +253,9 @@ function CustomizerLayoutAndLogic() {
     return () => window.removeEventListener('attemptCloseCustomizer', eventListener);
   }, [hasCanvasElements, router, user, isEmbedded]);
 
-  const handleViewChange = useCallback(async (newViewId: string) => {
-    if (activeViewId && activeViewId !== newViewId && designCanvasWrapperRef.current) {
-        const hasCustomizations = 
-            canvasImages.some(item => item.viewId === activeViewId) ||
-            canvasTexts.some(item => item.viewId === activeViewId) ||
-            canvasShapes.some(item => item.viewId === activeViewId);
-        
-        if (hasCustomizations) {
-            try {
-                const dataUrl = await toPng(designCanvasWrapperRef.current, { cacheBust: true, pixelRatio: 1 });
-                setViewThumbnails(prev => ({ ...prev, [activeViewId]: dataUrl }));
-            } catch (err) {
-                console.error("Could not capture canvas for view:", activeViewId, err);
-            }
-        } else {
-            setViewThumbnails(prev => {
-                if (prev[activeViewId]) {
-                    const newThumbs = {...prev};
-                    delete newThumbs[activeViewId];
-                    return newThumbs;
-                }
-                return prev;
-            });
-        }
-    }
+  const handleViewChange = useCallback((newViewId: string) => {
     setActiveViewId(newViewId);
-}, [activeViewId, canvasImages, canvasTexts, canvasShapes]);
+}, []);
 
 
   const toggleGrid = useCallback(() => setShowGrid(prev => !prev), []);
@@ -705,17 +680,47 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
+  // Fetches an image via the server-side proxy
+  const fetchAsDataURL = async (url: string): Promise<string> => {
+    try {
+        const response = await fetch('/api/proxy-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        if (!response.ok) {
+            throw new Error(`Proxy fetch failed with status ${response.status}`);
+        }
+        const { dataUrl } = await response.json();
+        return dataUrl;
+    } catch (error) {
+        console.error(`Failed to proxy image ${url}:`, error);
+        throw error;
+    }
+  };
+  
+  // Loads a single image and returns a promise that resolves when it's loaded
+  const loadImage = (src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = (err) => reject(new Error(`Failed to load background for view from URL: ${src} ${JSON.stringify(err)}`));
+        img.src = src;
+    });
+  };
+
   const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
       return;
     }
-    
+
     const customizedViewIds = new Set<string>();
     canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-    
+
     if (customizedViewIds.size === 0) {
       toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
       return;
@@ -725,37 +730,73 @@ function CustomizerLayoutAndLogic() {
       return;
     }
     setIsAddingToCart(true);
-    toast({ title: "Preparing Your Design...", description: "Generating final preview. This may take a moment." });
+    toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
 
     const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+    const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
 
-    // Capture the current view first, if it has customizations
-    if (activeViewId && customizedViewIds.has(activeViewId) && designCanvasWrapperRef.current) {
-        try {
-            await new Promise(resolve => setTimeout(resolve, 100)); // Ensure render
-            const dataUrl = await toPng(designCanvasWrapperRef.current, { cacheBust: true, pixelRatio: 1 });
-            finalThumbnails.push({ 
-                viewId: activeViewId, 
-                viewName: productDetails.views.find(v => v.id === activeViewId)?.name || 'Current View', 
-                url: dataUrl 
+    try {
+      for (const view of viewsToProcess) {
+          const viewImageUrl = view.imageUrl;
+          const overlaysForView = canvasImages.filter(img => img.viewId === view.id);
+
+          const hiddenPreviewContainer = document.createElement('div');
+          hiddenPreviewContainer.style.position = 'fixed';
+          hiddenPreviewContainer.style.left = '-9999px';
+          hiddenPreviewContainer.style.top = '-9999px';
+          hiddenPreviewContainer.style.width = '600px';
+          hiddenPreviewContainer.style.height = '600px';
+          document.body.appendChild(hiddenPreviewContainer);
+          
+          try {
+            const backgroundDataUrl = await fetchAsDataURL(viewImageUrl);
+            const loadedBgImage = await loadImage(backgroundDataUrl);
+
+            const overlayPromises = overlaysForView.map(overlay => loadImage(overlay.dataUrl));
+            const loadedOverlays = await Promise.all(overlayPromises);
+          
+            const bgImage = document.createElement('img');
+            bgImage.src = loadedBgImage.src;
+            bgImage.style.position = 'absolute';
+            bgImage.style.width = '100%';
+            bgImage.style.height = '100%';
+            bgImage.style.objectFit = 'contain';
+            hiddenPreviewContainer.appendChild(bgImage);
+
+            overlaysForView.forEach((overlay, index) => {
+                const overlayImg = document.createElement('img');
+                overlayImg.src = loadedOverlays[index].src;
+                overlayImg.style.position = 'absolute';
+                overlayImg.style.top = `${overlay.y}%`;
+                overlayImg.style.left = `${overlay.x}%`;
+                overlayImg.style.width = `${100 * overlay.scale}px`;
+                overlayImg.style.height = `${100 * overlay.scale}px`;
+                overlayImg.style.transform = `translate(-50%, -50%) rotate(${overlay.rotation}deg)`;
+                overlayImg.style.zIndex = `${overlay.zIndex}`;
+                hiddenPreviewContainer.appendChild(overlayImg);
             });
-        } catch (err) {
-            console.error("Failed to capture current view:", err);
-            toast({ title: `Preview Failed for Current View`, variant: "destructive" });
-        }
+
+            const dataUrl = await toPng(hiddenPreviewContainer, { cacheBust: true, pixelRatio: 1 });
+            finalThumbnails.push({
+                viewId: view.id,
+                viewName: view.name,
+                url: dataUrl
+            });
+          } finally {
+            document.body.removeChild(hiddenPreviewContainer);
+          }
+      }
+    } catch (err: any) {
+        console.error("Error generating thumbnails:", err);
+        toast({
+            title: "Preview Generation Failed",
+            description: `Could not generate one or more previews: ${err.message}`,
+            variant: "destructive"
+        });
+        setIsAddingToCart(false);
+        return;
     }
 
-    // Add previously captured thumbnails
-    for (const viewId in viewThumbnails) {
-        if (customizedViewIds.has(viewId) && viewId !== activeViewId) {
-             finalThumbnails.push({
-                viewId: viewId,
-                viewName: productDetails.views.find(v => v.id === viewId)?.name || `View ${viewId}`,
-                url: viewThumbnails[viewId]
-            });
-        }
-    }
-      
     const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
     const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
     const newCartItem = {
@@ -779,10 +820,6 @@ function CustomizerLayoutAndLogic() {
     localStorage.setItem(cartKey, JSON.stringify(cartData));
     toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
     
-    // Clear thumbnails for next item
-    setViewThumbnails({});
-
-
     if(storeIdFromUrl) {
         router.push(`/store/${storeIdFromUrl}/cart`);
     } else {
@@ -868,7 +905,7 @@ function CustomizerLayoutAndLogic() {
           <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
             {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
              {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             <div ref={designCanvasWrapperRef} className="w-full flex flex-col flex-1 min-h-0 pb-4">
+             <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
               <DesignCanvas productImageUrl={currentProductImage} productImageAlt={`${currentProductName} - ${currentProductAlt}`} productImageAiHint={currentProductAiHint} productDefinedBoundaryBoxes={currentBoundaryBoxes} activeViewId={activeViewId} showGrid={showGrid} showBoundaryBoxes={showBoundaryBoxes} />
             </div>
           </main>
