@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -743,7 +742,7 @@ function CustomizerLayoutAndLogic() {
                 shapeElement.setAttribute('width', `${item.width}`);
                 shapeElement.setAttribute('height', `${item.height}`);
               } else { // Circle
-                shapeElement = document.createElementNS(svgNS, 'circle');
+                shapeElement = document.createElementNS(svgNS, 'ellipse');
                 shapeElement.setAttribute('cx', `${maxSide / 2}`);
                 shapeElement.setAttribute('cy', `${maxSide / 2}`);
                 shapeElement.setAttribute('rx', `${item.width / 2}`);
@@ -765,7 +764,7 @@ function CustomizerLayoutAndLogic() {
             }
             const dataUrl = await htmlToImage.toPng(renderedNode);
             renderContainer.removeChild(renderedNode);
-            return { ...item, dataUrl, itemType: 'image' }; 
+            return { ...item, dataUrl, itemType: 'image' } as CanvasImage; 
           })
       );
       document.body.removeChild(renderContainer);
@@ -840,7 +839,6 @@ function CustomizerLayoutAndLogic() {
         return items.map(item => {
           if ('dataUrl' in item) {
             const { dataUrl, ...rest } = item as CanvasImage;
-            // The sourceImageId could be a clipart ID, AI gen ID, or uploaded image ID
             return { ...rest, sourceImageId: item.sourceImageId };
           }
           return item;
@@ -1054,3 +1052,5 @@ export default function CustomizerPage() {
   );
 }
 
+
+    
