@@ -56,10 +56,10 @@ const makeBackgroundTransparentFlow = ai.defineFlow(
         config: {
           responseModalities: ['TEXT', 'IMAGE'],
           safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
           ],
         },
       });
@@ -67,9 +67,9 @@ const makeBackgroundTransparentFlow = ai.defineFlow(
       const imageUrl = media?.url;
 
       if (!imageUrl) {
-        const errMessage = `Background transparency processing failed. The model might have refused the prompt or an internal error occurred. Text response: ${text}. Check server logs for details.`;
-        console.error(errMessage, { text });
-        throw new Error(errMessage);
+        const errMessage = `Background transparency processing failed. Model: ${model}. The model might have refused the prompt or an internal error occurred. Text response: ${text}.`;
+        console.error(`${errMessage} Input image data URI (first 100 chars): ${input.imageDataUri.substring(0,100)}. Please check server logs for details.`);
+        throw new Error(`AI Background Removal Failed: The model did not return an image. This could be due to a content policy violation or a temporary issue. Please try a different image.`);
       }
 
       return {
@@ -77,8 +77,8 @@ const makeBackgroundTransparentFlow = ai.defineFlow(
         feedbackText: text || "Background processing attempted."
       };
     } catch (error: any) {
-      console.error(`Error in makeBackgroundTransparentFlow for input image:`, error);
-      throw new Error(`AI Background Transparency Error: ${error.message || 'An unexpected error occurred. Check server logs for more details.'}`);
+      console.error(`Error in makeBackgroundTransparentFlow. Model: ${model}. Error: ${error.message || error}. Input image data URI (first 100 chars): ${input.imageDataUri.substring(0,100)}`, error);
+      throw new Error(`AI Background Transparency Error: ${error.message || 'An unexpected error occurred. Please check server logs for more details.'}`);
     }
   }
 );
