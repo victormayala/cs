@@ -3,23 +3,27 @@
 
 import { useMemo } from 'react';
 import type { CanvasImage } from '@/contexts/UploadContext';
-import { Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import { useRef, useEffect } from 'react';
 import type Konva from 'konva';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Konva components
+const KonvaImage = dynamic(() => import('react-konva').then(mod => mod.Image), { ssr: false });
+const Transformer = dynamic(() => import('react-konva').then(mod => mod.Transformer), { ssr: false });
 
 interface InteractiveCanvasImageProps {
-  image: CanvasImage;
+  imageProps: CanvasImage;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 export function InteractiveCanvasImage({ 
-  image,
+  imageProps,
   isSelected,
   onSelect
 }: InteractiveCanvasImageProps) {
-  const [img] = useImage(image.dataUrl, 'anonymous');
+  const [img] = useImage(imageProps.dataUrl, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -29,32 +33,31 @@ export function InteractiveCanvasImage({
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
-
-  const width = useMemo(() => img?.width ?? 0, [img]);
-  const height = useMemo(() => img?.height ?? 0, [img]);
+  
+  if (!KonvaImage || !Transformer) {
+    return null; // Or a loading indicator
+  }
 
   return (
     <>
       <KonvaImage
         ref={shapeRef}
         image={img}
-        x={image.x}
-        y={image.y}
-        width={width}
-        height={height}
-        scaleX={image.scale}
-        scaleY={image.scale}
-        rotation={image.rotation}
-        draggable={!image.isLocked}
+        x={imageProps.x}
+        y={imageProps.y}
+        width={img?.width}
+        height={img?.height}
+        scaleX={imageProps.scale}
+        scaleY={imageProps.scale}
+        rotation={imageProps.rotation}
+        draggable={!imageProps.isLocked}
         onClick={onSelect}
         onTap={onSelect}
-        // onDragEnd, onTransformEnd would go here to update state in UploadContext
       />
-      {isSelected && !image.isLocked && (
+      {isSelected && !imageProps.isLocked && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {
-            // limit resize
             if (newBox.width < 5 || newBox.height < 5) {
               return oldBox;
             }

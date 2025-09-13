@@ -2,16 +2,18 @@
 "use client";
 
 import Image from 'next/image';
-import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from '@/contexts/UploadContext';
-import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
+import { useUploads } from '@/contexts/UploadContext';
+import type { ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { InteractiveCanvasImage } from './InteractiveCanvasImage';
-import { InteractiveCanvasText } from './InteractiveCanvasText';
-import { InteractiveCanvasShape } from './InteractiveCanvasShape';
-
-// Dynamically import Konva components to ensure they only run on the client
-import { Stage, Layer } from 'react-konva/lib/ReactKonvaCore';
+import dynamic from 'next/dynamic';
 import type Konva from 'konva';
+
+// Dynamically import Konva-dependent components with SSR turned off
+const InteractiveCanvasImage = dynamic(() => import('./InteractiveCanvasImage').then(mod => mod.InteractiveCanvasImage), { ssr: false });
+const InteractiveCanvasText = dynamic(() => import('./InteractiveCanvasText').then(mod => mod.InteractiveCanvasText), { ssr: false });
+const InteractiveCanvasShape = dynamic(() => import('./InteractiveCanvasShape').then(mod => mod.InteractiveCanvasShape), { ssr: false });
+const Stage = dynamic(() => import('react-konva/lib/ReactKonvaCore').then(mod => mod.Stage), { ssr: false });
+const Layer = dynamic(() => import('react-konva/lib/ReactKonvaCore').then(mod => mod.Layer), { ssr: false });
 
 
 interface BoundaryBox {
@@ -30,11 +32,6 @@ const defaultProductBase = {
   aiHint: 't-shirt mockup',
 };
 
-const BASE_IMAGE_DIMENSION = 200;
-const BASE_TEXT_DIMENSION_APPROX_WIDTH = 100; 
-const BASE_TEXT_DIMENSION_APPROX_HEIGHT = 50; 
-const BASE_SHAPE_DIMENSION = 100; 
-
 interface DesignCanvasProps {
   productImageUrl?: string;
   productImageAlt?: string;
@@ -42,7 +39,7 @@ interface DesignCanvasProps {
   productDefinedBoundaryBoxes?: BoundaryBox[];
   activeViewId: string | null;
   showGrid: boolean;
-  showBoundaryBoxes: boolean; // New prop
+  showBoundaryBoxes: boolean;
 }
 
 export default function DesignCanvas({ 
@@ -52,7 +49,7 @@ export default function DesignCanvas({
   productDefinedBoundaryBoxes = [],
   activeViewId,
   showGrid,
-  showBoundaryBoxes // Destructure new prop
+  showBoundaryBoxes
 }: DesignCanvasProps) {
 
   const productToDisplay = {
@@ -64,66 +61,65 @@ export default function DesignCanvas({
   };
   
   const {
-    canvasImages, selectCanvasImage, selectedCanvasImageId, updateCanvasImage, removeCanvasImage,
-    canvasTexts, selectCanvasText, selectedCanvasTextId, updateCanvasText, removeCanvasText,
-    canvasShapes, selectCanvasShape, selectedCanvasShapeId, updateCanvasShape, removeCanvasShape,
-    startInteractiveOperation, endInteractiveOperation,
-    getStageRef, // Get the stage ref from context
+    canvasImages, selectedCanvasImageId, selectCanvasImage,
+    canvasTexts, selectedCanvasTextId, selectCanvasText,
+    canvasShapes, selectedCanvasShapeId, selectCanvasShape,
+    getStageRef,
   } = useUploads();
   
-  const stageRef = getStageRef(); // Use the ref from the context
-
-  const [activeDrag, setActiveDrag] = useState<{
-    type: 'rotate' | 'resize' | 'move';
-    itemId: string;
-    itemType: 'image' | 'text' | 'shape';
-    startX: number;
-    startY: number;
-    initialRotation?: number;
-    initialScale?: number;
-    initialX?: number;
-    initialY?: number;
-    itemCenterX?: number; 
-    itemCenterY?: number;
-    itemInitialWidth: number; // Guaranteed to be > 0
-    itemInitialHeight: number; // Guaranteed to be > 0
-  } | null>(null);
-
+  const stageRef = getStageRef();
   const canvasRef = useRef<HTMLDivElement>(null); 
-  const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
-  const dragUpdateRef = useRef(0);
-
-  // The rest of the component logic remains largely the same...
-  // handleCanvasClick, handle...SelectAndDragStart, handleDragStart, handleDragging, handleDragEnd etc.
-
-  // NOTE: A lot of the logic below this point is identical to the previous version
-  // The key change is wrapping the Konva elements in a <Stage> component.
-
+  
   const visibleImages = canvasImages.filter(img => img.viewId === activeViewId);
   const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeViewId);
   const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeViewId);
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const handleResize = () => {
+    const updateDimensions = () => {
       if (canvasRef.current) {
-        const { width, height } = canvasRef.current.getBoundingClientRect();
-        setCanvasDimensions({ width, height });
+        const { width } = canvasRef.current.getBoundingClientRect();
+        // Since it's a square, height is the same as width
+        setCanvasDimensions({ width, height: width });
       }
     };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    // Set initial size
+    updateDimensions();
+
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    if(canvasRef.current) {
+      resizeObserver.observe(canvasRef.current);
+    }
+    
+    return () => {
+      if(canvasRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        resizeObserver.unobserve(canvasRef.current);
+      }
+    }
   }, []);
 
   const handleCanvasClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName !== 'CANVAS' && !target.closest('.konvajs-content')) {
-        selectCanvasImage(null);
-        selectCanvasText(null);
-        selectCanvasShape(null);
+    // Check if the click is on the stage background itself
+    // @ts-ignore Konva event handling
+    if (e.target === e.target.getStage()) {
+      selectCanvasImage(null);
+      selectCanvasText(null);
+      selectCanvasShape(null);
     }
   };
+  
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+     // deselect when clicked on empty area
+    const emptySpace = e.target === e.target.getStage();
+    if (emptySpace) {
+      selectCanvasImage(null);
+      selectCanvasText(null);
+      selectCanvasShape(null);
+    }
+  }
+
 
   return (
     <div
@@ -131,20 +127,14 @@ export default function DesignCanvas({
     >
       <div className="relative w-full flex-1 flex items-center justify-center product-canvas-wrapper min-h-0">
         <div
+          id="product-image-canvas-area"
           ref={canvasRef} 
-          className="relative bg-muted/10 w-full h-full flex items-center justify-center" 
-          onClick={handleCanvasClick} 
-          onTouchStart={handleCanvasClick as any} 
+          className="relative centered-square-container" 
+          style={{
+            width: 'min(100%, calc(100svh - 10rem))', 
+            aspectRatio: '1 / 1', 
+          }}
         >
-          
-          <div
-            id="product-image-canvas-area"
-            className="relative centered-square-container" 
-            style={{
-              width: 'min(100%, calc(100svh - 10rem))', 
-              aspectRatio: '1 / 1', 
-            }}
-          >
             <Image
               id="design-canvas-background-image"
               src={productToDisplay.imageUrl}
@@ -157,44 +147,46 @@ export default function DesignCanvas({
               priority
             />
 
-            <Stage
-              ref={stageRef}
-              width={canvasDimensions.width}
-              height={canvasDimensions.height}
-              className="absolute top-0 left-0"
-            >
-              <Layer>
-                {/* Boundary Boxes and Grid can be rendered as Konva Rects if needed, or remain as divs */}
-              </Layer>
-              <Layer>
-                {visibleImages.map((img) => (
-                    <InteractiveCanvasImage
-                        key={`${img.id}-${img.zIndex}`}
-                        image={img}
-                        isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-                        onSelect={() => selectCanvasImage(img.id)}
-                    />
-                ))}
-                {visibleTexts.map((text) => (
-                    <InteractiveCanvasText
-                        key={`${text.id}-${text.zIndex}`}
-                        text={text}
-                        isSelected={text.id === selectedCanvasTextId && !text.isLocked}
-                        onSelect={() => selectCanvasText(text.id)}
-                    />
-                ))}
-                {visibleShapes.map((shape) => (
-                    <InteractiveCanvasShape
-                        key={`${shape.id}-${shape.zIndex}`}
-                        shape={shape}
-                        isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-                        onSelect={() => selectCanvasShape(shape.id)}
-                    />
-                ))}
-              </Layer>
-            </Stage>
-          </div> 
-        </div>
+            {/* Konva Stage */}
+            {stageRef && (
+              <Stage
+                ref={stageRef}
+                width={canvasDimensions.width}
+                height={canvasDimensions.height}
+                className="absolute top-0 left-0"
+                onClick={handleStageClick}
+                onTap={handleStageClick}
+              >
+                <Layer>
+                  {/* Render design elements here */}
+                  {visibleImages.map((img) => (
+                      <InteractiveCanvasImage
+                          key={`${img.id}-${img.zIndex}`}
+                          imageProps={img}
+                          isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                          onSelect={() => selectCanvasImage(img.id)}
+                      />
+                  ))}
+                  {visibleTexts.map((text) => (
+                      <InteractiveCanvasText
+                          key={`${text.id}-${text.zIndex}`}
+                          textProps={text}
+                          isSelected={text.id === selectedCanvasTextId && !text.isLocked}
+                          onSelect={() => selectCanvasText(text.id)}
+                      />
+                  ))}
+                  {visibleShapes.map((shape) => (
+                      <InteractiveCanvasShape
+                          key={`${shape.id}-${shape.zIndex}`}
+                          shapeProps={shape}
+                          isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                          onSelect={() => selectCanvasShape(shape.id)}
+                      />
+                  ))}
+                </Layer>
+              </Stage>
+            )}
+        </div> 
       </div>
       <div className="text-center pt-2 pb-1 flex-shrink-0">
         <p className="text-sm text-muted-foreground">

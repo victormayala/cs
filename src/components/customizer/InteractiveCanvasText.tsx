@@ -1,19 +1,23 @@
 
 "use client";
 
-import { Text as KonvaText, Transformer } from 'react-konva';
 import type { CanvasText } from '@/contexts/UploadContext';
 import { useRef, useEffect } from 'react';
 import type Konva from 'konva';
+import dynamic from 'next/dynamic';
+
+const KonvaText = dynamic(() => import('react-konva').then(mod => mod.Text), { ssr: false });
+const Transformer = dynamic(() => import('react-konva').then(mod => mod.Transformer), { ssr: false });
+
 
 interface InteractiveCanvasTextProps {
-  text: CanvasText;
+  textProps: CanvasText;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 export function InteractiveCanvasText({ 
-  text,
+  textProps,
   isSelected,
   onSelect
 }: InteractiveCanvasTextProps) {
@@ -26,26 +30,29 @@ export function InteractiveCanvasText({
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
+  
+  if (!KonvaText || !Transformer) {
+    return null; // Or a loading indicator
+  }
 
   return (
     <>
       <KonvaText
         ref={shapeRef}
-        text={text.content}
-        x={text.x}
-        y={text.y}
-        rotation={text.rotation}
-        scaleX={text.scale}
-        scaleY={text.scale}
-        fontSize={text.fontSize}
-        fontFamily={text.fontFamily}
-        fill={text.color}
-        draggable={!text.isLocked}
+        text={textProps.content}
+        x={textProps.x}
+        y={textProps.y}
+        rotation={textProps.rotation}
+        scaleX={textProps.scale}
+        scaleY={textProps.scale}
+        fontSize={textProps.fontSize}
+        fontFamily={textProps.fontFamily}
+        fill={textProps.color}
+        draggable={!textProps.isLocked}
         onClick={onSelect}
         onTap={onSelect}
-        // onDragEnd, onTransformEnd would go here to update state in UploadContext
       />
-      {isSelected && !text.isLocked && (
+      {isSelected && !textProps.isLocked && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {

@@ -1,20 +1,23 @@
 
 "use client";
 
-import { Rect, Circle, Transformer } from 'react-konva';
 import type { CanvasShape } from '@/contexts/UploadContext';
 import { useRef, useEffect } from 'react';
 import type Konva from 'konva';
+import dynamic from 'next/dynamic';
 
+const Rect = dynamic(() => import('react-konva').then(mod => mod.Rect), { ssr: false });
+const Circle = dynamic(() => import('react-konva').then(mod => mod.Circle), { ssr: false });
+const Transformer = dynamic(() => import('react-konva').then(mod => mod.Transformer), { ssr: false });
 
 interface InteractiveCanvasShapeProps {
-  shape: CanvasShape;
+  shapeProps: CanvasShape;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 export function InteractiveCanvasShape({
-  shape,
+  shapeProps,
   isSelected,
   onSelect
 }: InteractiveCanvasShapeProps) {
@@ -29,35 +32,37 @@ export function InteractiveCanvasShape({
   }, [isSelected]);
   
   const commonProps = {
-    x: shape.x,
-    y: shape.y,
-    rotation: shape.rotation,
-    scaleX: shape.scale,
-    scaleY: shape.scale,
-    fill: shape.color,
-    stroke: shape.strokeColor,
-    strokeWidth: shape.strokeWidth,
-    draggable: !shape.isLocked,
+    x: shapeProps.x,
+    y: shapeProps.y,
+    rotation: shapeProps.rotation,
+    scaleX: shapeProps.scale,
+    scaleY: shapeProps.scale,
+    fill: shapeProps.color,
+    stroke: shapeProps.strokeColor,
+    strokeWidth: shapeProps.strokeWidth,
+    draggable: !shapeProps.isLocked,
     onClick: onSelect,
     onTap: onSelect,
-    // onDragEnd, onTransformEnd would go here to update state in UploadContext
   };
 
   const renderShape = () => {
-    switch (shape.shapeType) {
+    if (!Rect || !Circle) return null;
+    switch (shapeProps.shapeType) {
       case 'rectangle':
-        return <Rect ref={shapeRef as React.Ref<Konva.Rect>} {...commonProps} width={shape.width} height={shape.height} />;
+        return <Rect ref={shapeRef as React.Ref<Konva.Rect>} {...commonProps} width={shapeProps.width} height={shapeProps.height} />;
       case 'circle':
-        return <Circle ref={shapeRef as React.Ref<Konva.Circle>} {...commonProps} radius={shape.width / 2} />;
+        return <Circle ref={shapeRef as React.Ref<Konva.Circle>} {...commonProps} radius={shapeProps.width / 2} />;
       default:
         return null;
     }
   };
+  
+  if (!Transformer) return renderShape();
 
   return (
     <>
       {renderShape()}
-      {isSelected && !shape.isLocked && (
+      {isSelected && !shapeProps.isLocked && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {
