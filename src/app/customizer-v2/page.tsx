@@ -6,18 +6,20 @@ import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } fr
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
 import Konva from 'konva';
 import AppHeader from '@/components/layout/AppHeader';
-import { useUploads } from "@/contexts/UploadContext";
+import { useUploads, type CanvasImage, type CanvasText } from "@/contexts/UploadContext";
 import {
   Loader2,
   ShoppingCart,
   Type,
-  Layers as LayersIcon
+  Layers as LayersIcon,
+  UploadCloud
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import TextToolPanel from '@/components/customizer/TextToolPanel';
 import LayersPanel from '@/components/customizer/LayersPanel';
+import UploadArea from '@/components/customizer/UploadArea';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
@@ -27,23 +29,23 @@ const useImage = (url: string | undefined): [HTMLImageElement | undefined, strin
 
     useEffect(() => {
         if (!url) return;
-        const img = document.createElement('img');
-        img.crossOrigin = 'anonymous'; 
+        const imgEl = new window.Image();
+        imgEl.crossOrigin = 'anonymous'; 
         const onLoad = () => {
             setStatus('loaded');
-            setImg(img);
+            setImg(imgEl);
         };
         const onError = () => {
             setStatus('failed');
             setImg(undefined);
         };
-        img.addEventListener('load', onLoad);
-        img.addEventListener('error', onError);
-        img.src = url;
+        imgEl.addEventListener('load', onLoad);
+        imgEl.addEventListener('error', onError);
+        imgEl.src = url;
 
         return () => {
-            img.removeEventListener('load', onLoad);
-            img.removeEventListener('error', onError);
+            imgEl.removeEventListener('load', onLoad);
+            imgEl.removeEventListener('error', onError);
         };
     }, [url]);
 
@@ -90,16 +92,27 @@ const defaultProduct: ProductForCustomizerV2 = {
 
 const toolItems: CustomizerTool[] = [
     { id: "layers", label: "Layers", icon: LayersIcon },
+    { id: "uploads", label: "Uploads", icon: UploadCloud },
     { id: "text", label: "Text", icon: Type },
 ];
 
+interface SelectableItem {
+  id: string;
+  type: 'image' | 'text';
+}
+
 function CustomizerV2Layout() {
   const { toast } = useToast();
-  const { canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText } = useUploads();
+  const { 
+      canvasImages, canvasTexts,
+      selectCanvasImage, selectCanvasText,
+      updateCanvasImage, updateCanvasText,
+      selectedCanvasImageId, selectedCanvasTextId,
+  } = useUploads();
 
   const [product, setProduct] = useState<ProductForCustomizerV2>(defaultProduct);
   const [activeViewId, setActiveViewId] = useState<string | null>(defaultProduct.views[0]?.id || null);
-  const [activeTool, setActiveTool] = useState<string>('text');
+  const [activeTool, setActiveTool] = useState<string>('uploads');
 
   const [stageSize, setStageSize] = useState({ width: 800, height: 800 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -109,13 +122,17 @@ function CustomizerV2Layout() {
   
   const trRef = useRef<Konva.Transformer>(null);
   const stageRef = useRef<Konva.Stage>(null);
+  const layerRef = useRef<Konva.Layer>(null);
+
+  const [selectedItem, setSelectedItem] = useState<SelectableItem | null>(null);
 
   useEffect(() => {
     const checkSize = () => {
       if (containerRef.current) {
+        const size = Math.min(containerRef.current.offsetWidth, containerRef.current.offsetHeight);
         setStageSize({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight
+          width: size,
+          height: size
         });
       }
     };
@@ -125,18 +142,20 @@ function CustomizerV2Layout() {
   }, []);
 
   useEffect(() => {
-    if (trRef.current && stageRef.current) {
-      const stage = stageRef.current;
-      const selectedNode = stage.findOne('#' + selectedCanvasTextId);
-      if (selectedNode) {
-        trRef.current.nodes([selectedNode]);
-        trRef.current.getLayer()?.batchDraw();
-      } else {
-        trRef.current.nodes([]);
-        trRef.current.getLayer()?.batchDraw();
-      }
+    if (!trRef.current || !layerRef.current) return;
+    
+    let selectedNode: Konva.Node | undefined;
+    if (selectedItem) {
+        selectedNode = layerRef.current.findOne('#' + selectedItem.id);
     }
-  }, [selectedCanvasTextId]);
+    
+    if (selectedNode) {
+      trRef.current.nodes([selectedNode]);
+    } else {
+      trRef.current.nodes([]);
+    }
+    trRef.current.getLayer()?.batchDraw();
+  }, [selectedItem]);
 
 
   const handleViewChange = useCallback((newViewId: string) => {
@@ -148,6 +167,7 @@ function CustomizerV2Layout() {
       productId: product.id,
       activeViewId: activeViewId,
       texts: canvasTexts.filter(t => t.viewId === activeViewId),
+      images: canvasImages.filter(i => i.viewId === activeViewId),
     };
 
     console.log("--- Design Data for Cart ---", designData);
@@ -157,11 +177,70 @@ function CustomizerV2Layout() {
     });
   };
 
+  const deselectAll = () => {
+      selectCanvasImage(null);
+      selectCanvasText(null);
+      setSelectedItem(null);
+  }
+
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.target === e.target.getStage()) {
-      selectCanvasText(null);
+      deselectAll();
     }
   };
+
+  const getToolPanelContent = () => {
+    switch (activeTool) {
+      case "layers": return <LayersPanel activeViewId={activeViewId} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} />;
+      case "text": return <TextToolPanel activeViewId={activeViewId} />;
+      default: return <div className="p-4">Select a tool</div>
+    }
+  }
+  
+  const CanvasKonvaImage = ({ image }: { image: CanvasImage }) => {
+    const [img] = useImage(image.dataUrl);
+    return (
+      <KonvaImage
+        image={img}
+        id={image.id}
+        x={image.x * stageSize.width / 100}
+        y={image.y * stageSize.height / 100}
+        scaleX={image.scale}
+        scaleY={image.scale}
+        rotation={image.rotation}
+        draggable
+        onClick={() => {
+            selectCanvasImage(image.id);
+            selectCanvasText(null);
+            setSelectedItem({id: image.id, type: 'image'});
+        }}
+        onTap={() => {
+            selectCanvasImage(image.id);
+            selectCanvasText(null);
+            setSelectedItem({id: image.id, type: 'image'});
+        }}
+        onDragEnd={(e) => {
+          updateCanvasImage(image.id, { 
+            x: e.target.x() / stageSize.width * 100, 
+            y: e.target.y() / stageSize.height * 100,
+            movedFromDefault: true,
+          });
+        }}
+        onTransformEnd={(e) => {
+           const node = e.target;
+           updateCanvasImage(image.id, {
+            x: node.x() / stageSize.width * 100,
+            y: node.y() / stageSize.height * 100,
+            scale: node.scaleX(), // Assuming uniform scaling
+            rotation: node.rotation(),
+          });
+        }}
+        offsetX={img ? img.width / 2 : 0}
+        offsetY={img ? img.height / 2 : 0}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-svh h-screen w-full bg-muted/20">
@@ -172,12 +251,11 @@ function CustomizerV2Layout() {
         <div className="border-r bg-card shadow-sm flex flex-col flex-shrink-0 w-80">
             <div className="p-4 border-b">
                 <h2 className="font-headline text-lg font-semibold text-foreground">
-                    {activeTool === 'text' ? 'Text Tool' : 'Layers'}
+                    {toolItems.find(t => t.id === activeTool)?.label}
                 </h2>
             </div>
              <div className="flex-1 overflow-y-auto">
-                {activeTool === 'text' && <TextToolPanel activeViewId={activeViewId} />}
-                {activeTool === 'layers' && <LayersPanel activeViewId={activeViewId} />}
+                {getToolPanelContent()}
             </div>
         </div>
 
@@ -191,7 +269,7 @@ function CustomizerV2Layout() {
                 onTap={handleStageClick}
                 className="bg-card"
             >
-              <Layer>
+              <Layer ref={layerRef}>
                 {productImageStatus === 'loaded' && productImage && (
                     <KonvaImage
                         image={productImage}
@@ -199,13 +277,16 @@ function CustomizerV2Layout() {
                         height={stageSize.height}
                     />
                 )}
+                 {canvasImages.filter(i => i.viewId === activeViewId).map(image => (
+                    <CanvasKonvaImage key={image.id} image={image} />
+                ))}
                 {canvasTexts.filter(t => t.viewId === activeViewId).map(text => (
                     <KonvaText 
                         key={text.id}
                         id={text.id}
                         text={text.content}
-                        x={text.x}
-                        y={text.y}
+                        x={text.x * stageSize.width / 100}
+                        y={text.y * stageSize.height / 100}
                         rotation={text.rotation}
                         scaleX={text.scale}
                         scaleY={text.scale}
@@ -213,23 +294,37 @@ function CustomizerV2Layout() {
                         fontFamily={text.fontFamily}
                         fill={text.color}
                         draggable
-                        onClick={() => selectCanvasText(text.id)}
-                        onTap={() => selectCanvasText(text.id)}
+                        onClick={() => {
+                            selectCanvasText(text.id);
+                            selectCanvasImage(null);
+                            setSelectedItem({id: text.id, type: 'text'});
+                        }}
+                        onTap={() => {
+                            selectCanvasText(text.id);
+                            selectCanvasImage(null);
+                            setSelectedItem({id: text.id, type: 'text'});
+                        }}
                         onDragEnd={(e) => {
-                          updateCanvasText(text.id, { x: e.target.x(), y: e.target.y() });
+                          updateCanvasText(text.id, { 
+                            x: e.target.x() / stageSize.width * 100, 
+                            y: e.target.y() / stageSize.height * 100,
+                            movedFromDefault: true,
+                           });
                         }}
                         onTransformEnd={(e) => {
                            const node = e.target;
                            const scaleX = node.scaleX();
-                           const scaleY = node.scaleY();
-                           // We use scaleX as the uniform scale
                            updateCanvasText(text.id, {
-                            x: node.x(),
-                            y: node.y(),
+                            x: node.x() / stageSize.width * 100,
+                            y: node.y() / stageSize.height * 100,
                             scale: scaleX,
                             rotation: node.rotation(),
+                            // Konva updates font size directly on scale, so we back-calculate
+                            fontSize: node.fontSize() / scaleX,
                           });
                         }}
+                        offsetX={0} // Let Konva handle centering based on its logic
+                        offsetY={0}
                     />
                 ))}
                 <Transformer ref={trRef} />
