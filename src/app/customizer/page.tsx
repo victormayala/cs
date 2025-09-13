@@ -676,35 +676,6 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-  const fetchAsDataURL = async (url: string): Promise<string> => {
-    try {
-        // First attempt: direct fetch, relying on cache or correct CORS
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Direct fetch failed with status: ${response.status}`);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    } catch (e) {
-        console.warn(`Direct fetch failed for ${url}, falling back to proxy. Error:`, e);
-        // Fallback: use the server-side proxy
-        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-        if (!proxyResponse.ok) {
-            const errorText = await proxyResponse.text();
-            console.error(`Proxy fetch failed for ${url}. Status: ${proxyResponse.status}. Body: ${errorText}`);
-            throw new Error(`Proxy fetch failed for image: ${url}`);
-        }
-        const data = await proxyResponse.json();
-        if (!data.dataUrl) {
-            throw new Error(`Proxy did not return a dataUrl for: ${url}`);
-        }
-        return data.dataUrl;
-    }
-  };
-    
   const handleAddToCart = async () => {
     if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
     if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
@@ -731,8 +702,14 @@ function CustomizerLayoutAndLogic() {
           Array.from(imageUrlsToLoad).map(async (url) => {
             if (url && !imageCache.has(url)) {
               try {
-                const dataUrl = await fetchAsDataURL(url);
-                imageCache.set(url, dataUrl);
+                const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+                if (!response.ok) throw new Error(`Proxy failed for ${url}`);
+                const data = await response.json();
+                if (data.dataUrl) {
+                    imageCache.set(url, data.dataUrl);
+                } else {
+                    throw new Error(`Proxy did not return a dataUrl for: ${url}`);
+                }
               } catch (e) {
                 console.warn(`Could not preload overlay image: ${url}. It might be skipped in previews.`, e);
               }
@@ -765,29 +742,23 @@ function CustomizerLayoutAndLogic() {
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
             
-            try {
-                const bgDataUrl = await fetchAsDataURL(view.imageUrl);
+            await new Promise<void>((resolve) => {
                 const bgImage = document.createElement('img');
                 bgImage.crossOrigin = "anonymous";
-                bgImage.src = bgDataUrl;
-                
-                await new Promise((resolve, reject) => {
-                    bgImage.onload = resolve;
-                    bgImage.onerror = () => {
-                       console.error(`Failed to load background for view: ${view.name}`);
-                       resolve(null); // Resolve to continue, even on error
-                    };
-                });
-                
-                bgImage.style.position = 'absolute';
-                bgImage.style.width = '100%';
-                bgImage.style.height = '100%';
-                bgImage.style.objectFit = 'contain';
-                previewContainer.appendChild(bgImage);
-
-            } catch (bgError: any) {
-                console.error(bgError.message);
-            }
+                bgImage.src = view.imageUrl;
+                bgImage.onload = () => {
+                    bgImage.style.position = 'absolute';
+                    bgImage.style.width = '100%';
+                    bgImage.style.height = '100%';
+                    bgImage.style.objectFit = 'contain';
+                    previewContainer.appendChild(bgImage);
+                    resolve();
+                };
+                bgImage.onerror = () => {
+                    console.error(`Failed to load background for view: ${view.name}`);
+                    resolve(); // Resolve anyway to not block the process
+                };
+            });
             
             const elementsForView = [
                 ...canvasImages.filter(i => i.viewId === viewId),
