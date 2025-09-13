@@ -728,9 +728,10 @@ function CustomizerLayoutAndLogic() {
                 let mimeType: string = 'image/png';
                 if (item.itemType === 'image') {
                     imageDataUri = (item as CanvasImage).dataUrl;
-                    mimeType = (item as CanvasImage).type;
+                    mimeType = (item as CanvasImage).type || 'image/png';
                 } else {
-                    const node = document.getElementById(`canvas-${item.itemType}-${item.id}`);
+                    const selector = `[data-id="canvas-${item.itemType}-${item.id}"]`;
+                    const node = document.querySelector<HTMLElement>(selector);
                     if (!node) throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
                     imageDataUri = await htmlToImage.toPng(node);
                     mimeType = 'image/png';
@@ -833,7 +834,7 @@ function CustomizerLayoutAndLogic() {
       console.error("Error saving to localStorage:", error);
       let errorMessage = "Could not save item to cart.";
       if (error.name === 'QuotaExceededError') {
-        errorMessage = "Storage limit exceeded. Could not save cart item. The design is too complex to be saved locally.";
+        errorMessage = "Storage limit exceeded. Your design might be too complex for local storage. Please try simplifying it.";
       }
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
@@ -991,4 +992,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-

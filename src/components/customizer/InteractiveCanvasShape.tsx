@@ -71,7 +71,7 @@ export function InteractiveCanvasShape({
 
   return (
     <div
-      id={`canvas-shape-${shape.id}`}
+      id={`canvas-shape-container-${shape.id}`}
       className={`absolute group
                   ${isSelected && !shape.isLocked ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
                   ${!shape.isLocked ? 'hover:ring-1 hover:ring-primary/50' : ''}
@@ -80,6 +80,7 @@ export function InteractiveCanvasShape({
       
     >
       <svg
+        data-id={`canvas-shape-${shape.id}`}
         viewBox={`0 0 ${shape.width} ${shape.height}`} 
         preserveAspectRatio="none" 
         style={svgStyle}

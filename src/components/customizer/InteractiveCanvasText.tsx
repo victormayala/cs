@@ -83,7 +83,7 @@ export function InteractiveCanvasText({
 
   return (
     <div
-      id={`canvas-text-${textItem.id}`}
+      data-id={`canvas-text-${textItem.id}`}
       className={`absolute group
                   ${textItem.isLocked ? 'cursor-not-allowed' : 'cursor-grab'}
                   ${isSelected && !textItem.isLocked ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
