@@ -3,26 +3,53 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText } from 'react-konva';
+import Konva from 'konva';
 import AppHeader from '@/components/layout/AppHeader';
-import DesignCanvas from '@/components/customizer/DesignCanvas';
-import RightPanel from '@/components/customizer/RightPanel';
-import { UploadProvider, useUploads } from "@/contexts/UploadContext";
+import { useUploads } from "@/contexts/UploadContext";
 import {
   Loader2,
   ShoppingCart,
   Type,
+  Layers as LayersIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
-import { cn } from '@/lib/utils';
-
 import TextToolPanel from '@/components/customizer/TextToolPanel';
 import LayersPanel from '@/components/customizer/LayersPanel';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
+const useImage = (url: string | undefined): [HTMLImageElement | undefined, string] => {
+    const [img, setImg] = useState<HTMLImageElement>();
+    const [status, setStatus] = useState('loading');
 
-// Simplified interfaces for the new customizer
+    useEffect(() => {
+        if (!url) return;
+        const img = document.createElement('img');
+        img.crossOrigin = 'anonymous'; 
+        const onLoad = () => {
+            setStatus('loaded');
+            setImg(img);
+        };
+        const onError = () => {
+            setStatus('failed');
+            setImg(undefined);
+        };
+        img.addEventListener('load', onLoad);
+        img.addEventListener('error', onError);
+        img.src = url;
+
+        return () => {
+            img.removeEventListener('load', onLoad);
+            img.removeEventListener('error', onError);
+        };
+    }, [url]);
+
+    return [img, status];
+};
+
 export interface ProductViewV2 {
   id: string;
   name: string;
@@ -37,7 +64,6 @@ export interface ProductForCustomizerV2 {
   views: ProductViewV2[];
 }
 
-// A single, hardcoded product to start with for stability
 const defaultProduct: ProductForCustomizerV2 = {
   id: 'v2-product-default',
   name: 'New Customizer Demo Product',
@@ -63,18 +89,38 @@ const defaultProduct: ProductForCustomizerV2 = {
 };
 
 const toolItems: CustomizerTool[] = [
-    { id: "layers", label: "Layers", icon: LayersPanel },
+    { id: "layers", label: "Layers", icon: LayersIcon },
     { id: "text", label: "Text", icon: Type },
 ];
 
 function CustomizerV2Layout() {
   const { toast } = useToast();
-  const { canvasImages, canvasTexts, canvasShapes } = useUploads();
+  const { canvasTexts, selectedCanvasTextId, selectCanvasText } = useUploads();
 
   const [product, setProduct] = useState<ProductForCustomizerV2>(defaultProduct);
   const [activeViewId, setActiveViewId] = useState<string | null>(defaultProduct.views[0]?.id || null);
   const [activeTool, setActiveTool] = useState<string>('text');
+
+  const [stageSize, setStageSize] = useState({ width: 800, height: 800 });
+  const containerRef = useRef<HTMLDivElement>(null);
   
+  const activeViewData = product.views.find(v => v.id === activeViewId);
+  const [productImage, productImageStatus] = useImage(activeViewData?.imageUrl);
+
+  useEffect(() => {
+    const checkSize = () => {
+      if (containerRef.current) {
+        setStageSize({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight
+        });
+      }
+    };
+    checkSize();
+    window.addEventListener('resize', checkSize);
+    return () => window.removeEventListener('resize', checkSize);
+  }, []);
+
   const handleViewChange = useCallback((newViewId: string) => {
     setActiveViewId(newViewId);
   }, []);
@@ -84,7 +130,6 @@ function CustomizerV2Layout() {
       productId: product.id,
       activeViewId: activeViewId,
       texts: canvasTexts.filter(t => t.viewId === activeViewId),
-      // In the future, we'll add images and shapes here
     };
 
     console.log("--- Design Data for Cart ---", designData);
@@ -94,7 +139,11 @@ function CustomizerV2Layout() {
     });
   };
 
-  const activeViewData = product.views.find(v => v.id === activeViewId);
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (e.target === e.target.getStage()) {
+      selectCanvasText(null);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-svh h-screen w-full bg-muted/20">
@@ -114,16 +163,39 @@ function CustomizerV2Layout() {
             </div>
         </div>
 
-        <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
-          <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
-            <DesignCanvas 
-                productImageUrl={activeViewData?.imageUrl}
-                productImageAlt={activeViewData?.name}
-                productDefinedBoundaryBoxes={activeViewData?.boundaryBoxes}
-                activeViewId={activeViewId}
-                showGrid={true}
-                showBoundaryBoxes={true}
-            />
+        <main ref={containerRef} className="flex-1 p-4 md:p-6 flex flex-col min-h-0 items-center justify-center">
+          <div className="w-full h-full max-w-[800px] max-h-[800px] aspect-square border-dashed border-muted-foreground border-2 rounded-md">
+            <Stage 
+                width={stageSize.width} 
+                height={stageSize.height}
+                onClick={handleStageClick}
+                className="bg-card"
+            >
+              <Layer>
+                {productImageStatus === 'loaded' && productImage && (
+                    <KonvaImage
+                        image={productImage}
+                        width={stageSize.width}
+                        height={stageSize.height}
+                        />
+                )}
+                {canvasTexts.filter(t => t.viewId === activeViewId).map(text => (
+                    <KonvaText 
+                        key={text.id}
+                        id={text.id}
+                        text={text.content}
+                        x={text.x / 100 * stageSize.width}
+                        y={text.y / 100 * stageSize.height}
+                        fontSize={text.fontSize}
+                        fontFamily={text.fontFamily}
+                        fill={text.color}
+                        draggable
+                        onClick={() => selectCanvasText(text.id)}
+                        onTap={() => selectCanvasText(text.id)}
+                    />
+                ))}
+              </Layer>
+            </Stage>
           </div>
         </main>
 
@@ -149,7 +221,6 @@ function CustomizerV2Layout() {
                         ))}
                     </div>
                  </div>
-                 {/* Simplified controls */}
             </div>
         </div>
       </div>
@@ -174,7 +245,7 @@ export default function CustomizerV2Page() {
   return (
     <UploadProvider>
       <Suspense fallback={ <div className="flex h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /></div> }>
-        <CustomizerV2Layout />
+        <CustomizerV2Page />
       </Suspense>
     </UploadProvider>
   );
