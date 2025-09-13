@@ -690,16 +690,12 @@ function CustomizerLayoutAndLogic() {
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
 
-    // New Robust Image Loading Logic
-    const imageCache = new Map<string, string>();
-    const imageUrlsToLoad = new Set<string>();
-    canvasImages.forEach(img => imageUrlsToLoad.add(img.dataUrl));
-    productDetails?.views.forEach(view => imageUrlsToLoad.add(view.imageUrl));
-
     const fetchAsDataURL = async (url: string) => {
         try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const response = await fetch(url, { mode: 'no-cors' });
+            if (!response.ok && response.type !== 'opaque') {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const blob = await response.blob();
             return new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
@@ -712,17 +708,20 @@ function CustomizerLayoutAndLogic() {
             throw e;
         }
     };
+    
+    const imageCache = new Map<string, string>();
+    const imageUrlsToLoad = new Set<string>();
+    [...canvasImages, ...(productDetails?.views || [])].forEach(img => imageUrlsToLoad.add(img.dataUrl || img.imageUrl));
 
     try {
         await Promise.all(
             Array.from(imageUrlsToLoad).map(async (url) => {
-                if (!imageCache.has(url)) {
+                if (url && !imageCache.has(url)) {
                     try {
                         const dataUrl = await fetchAsDataURL(url);
                         imageCache.set(url, dataUrl);
                     } catch (e) {
-                        console.warn(`Could not preload image: ${url}. It might be skipped in previews.`, e);
-                        // Do not re-throw, allow the process to continue.
+                         console.warn(`Could not preload image: ${url}. It might be skipped in previews.`, e);
                     }
                 }
             })
@@ -754,11 +753,12 @@ function CustomizerLayoutAndLogic() {
             previewContainer.style.height = '600px';
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
-
+            
             const bgDataUrl = imageCache.get(view.imageUrl);
             if (bgDataUrl) {
                 const bgImage = document.createElement('img');
                 bgImage.src = bgDataUrl;
+                bgImage.crossOrigin = "anonymous";
                 bgImage.style.position = 'absolute';
                 bgImage.style.width = '100%';
                 bgImage.style.height = '100%';
@@ -786,6 +786,7 @@ function CustomizerLayoutAndLogic() {
                     if (imgDataUrl) {
                         const imgEl = document.createElement('img');
                         imgEl.src = imgDataUrl;
+                        imgEl.crossOrigin = "anonymous";
                         imgEl.style.width = `${200 * item.scale}px`;
                         imgEl.style.height = `${200 * item.scale}px`;
                         imgEl.style.objectFit = 'contain';
@@ -1074,3 +1075,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
