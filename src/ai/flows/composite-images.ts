@@ -15,14 +15,13 @@ const ImageTransformSchema = z.object({
   imageDataUri: z.string().describe(
     "Data URI of the image to overlay. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
-  // Replacing percentage-based coordinates with exact pixel coordinates
+  mimeType: z.string().describe("The MIME type of the overlay image (e.g., 'image/png')."),
   x: z.number().describe('X-coordinate (in pixels from left) for the center of the overlay image.'),
   y: z.number().describe('Y-coordinate (in pixels from top) for the center of the overlay image.'),
   width: z.number().describe('Width of the overlay image in pixels.'),
   height: z.number().describe('Height of the overlay image in pixels.'),
   rotation: z.number().optional().default(0).describe('Rotation angle in degrees (0-360).'),
   zIndex: z.number().optional().default(0).describe('Stacking order (higher is on top).'),
-  // Removing optional scale and original size context as we now provide exact dimensions
 });
 export type ImageTransform = z.infer<typeof ImageTransformSchema>;
 
@@ -30,6 +29,7 @@ const CompositeImagesInputSchema = z.object({
   baseImageDataUri: z.string().describe(
     "Data URI of the base product image. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
+  baseImageMimeType: z.string().describe("The MIME type of the base image (e.g., 'image/jpeg')."),
   baseImageWidthPx: z.number().describe('Width of the base image/design canvas in pixels.'),
   baseImageHeightPx: z.number().describe('Height of the base image/design canvas in pixels.'),
   overlays: z.array(ImageTransformSchema).describe('Array of images to overlay with their transforms.'),
@@ -61,7 +61,7 @@ const compositeImagesFlow = ai.defineFlow(
       const sortedOverlays = [...input.overlays].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
       const promptParts: any[] = [
-        { media: { url: input.baseImageDataUri, mimeType: input.baseImageDataUri.split(';')[0].split(':')[1] } },
+        { media: { url: input.baseImageDataUri, mimeType: input.baseImageMimeType } },
         { text: `
           You are an expert image composition AI.
           The first image provided is the base image. Create a final canvas with the exact dimensions: ${input.baseImageWidthPx}px width, ${input.baseImageHeightPx}px height. The base image should fill this canvas.
@@ -75,8 +75,7 @@ const compositeImagesFlow = ai.defineFlow(
       ];
 
       sortedOverlays.forEach((overlay, index) => {
-        promptParts.push({ media: { url: overlay.imageDataUri, mimeType: overlay.imageDataUri.split(';')[0].split(':')[1] } });
-        // Updated prompt with exact pixel values
+        promptParts.push({ media: { url: overlay.imageDataUri, mimeType: overlay.mimeType } });
         const overlayInstruction = `
           Overlay Image ${index + 1}:
           - Target Width: ${overlay.width.toFixed(0)}px

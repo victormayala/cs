@@ -684,7 +684,7 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-  const handleAddToCart = async () => {
+    const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
       return;
@@ -719,9 +719,12 @@ function CustomizerLayoutAndLogic() {
             
             const overlayPromises = overlaysForView.map(async (item) => {
                 let imageDataUri: string | undefined;
+                let mimeType: string = 'image/png'; // Default to png
 
                 if (item.itemType === 'image') {
-                    imageDataUri = (item as CanvasImage).dataUrl;
+                    const canvasImg = item as CanvasImage;
+                    imageDataUri = canvasImg.dataUrl;
+                    mimeType = canvasImg.type;
                 } else if (item.itemType === 'text') {
                     const textItem = item as CanvasText;
                     const textInput: GenerateTextImageInput = { text: textItem.content, fontFamily: textItem.fontFamily, fontSize: textItem.fontSize, color: textItem.color };
@@ -738,6 +741,7 @@ function CustomizerLayoutAndLogic() {
                     
                     return {
                         imageDataUri,
+                        mimeType,
                         x: item.x / 100 * 600,
                         y: item.y / 100 * 600,
                         width: widthPx,
@@ -749,10 +753,19 @@ function CustomizerLayoutAndLogic() {
                 return null;
             });
 
-            const resolvedOverlays = (await Promise.all(overlayPromises)).filter(Boolean);
+            const resolvedOverlays = (await Promise.all(overlayPromises)).filter((o): o is NonNullable<typeof o> => o !== null);
+
+            // Get mime type for base image
+            let baseImageMimeType = 'image/jpeg';
+            if (view.imageUrl.startsWith('data:')) {
+                baseImageMimeType = view.imageUrl.split(';')[0].split(':')[1];
+            } else if (view.imageUrl.endsWith('.png')) {
+                baseImageMimeType = 'image/png';
+            }
 
             const payload = {
                 baseImageDataUri: view.imageUrl,
+                baseImageMimeType: baseImageMimeType,
                 baseImageWidthPx: 600,
                 baseImageHeightPx: 600,
                 overlays: resolvedOverlays,
@@ -815,7 +828,6 @@ function CustomizerLayoutAndLogic() {
         setIsAddingToCart(false);
     }
   };
-
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
