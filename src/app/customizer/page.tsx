@@ -49,6 +49,10 @@ import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
+// Import AI flows needed for preview generation
+import { generateTextImage, type GenerateTextImageInput } from '@/ai/flows/generate-text-image';
+import { generateShapeImage, type GenerateShapeImageInput } from '@/ai/flows/generate-shape-image';
+
 
 interface BoundaryBox {
   id: string;
@@ -189,6 +193,10 @@ function CustomizerLayoutAndLogic() {
   const { canvasImages, canvasTexts, canvasShapes, restoreFromSnapshot } = useUploads();
 
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
+  
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [onConfirmLeaveAction, setOnConfirmLeaveAction] = useState<(() => void) | null>(null);
+
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,13 +218,14 @@ function CustomizerLayoutAndLogic() {
   const [totalCustomizationPrice, setTotalCustomizationPrice] = useState<number>(0);
 
   const [hasCanvasElements, setHasCanvasElements] = useState(false);
-  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
-  const [onConfirmLeaveAction, setOnConfirmLeaveAction] = useState<(() => void) | null>(null);
 
   const lastLoadedProductIdRef = useRef<string | null | undefined>(undefined);
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
 
+  const handleViewChange = useCallback((newViewId: string) => {
+    setActiveViewId(newViewId);
+  }, []);
 
   useEffect(() => {
     const anyElementsExist = canvasImages.length > 0 || canvasTexts.length > 0 || canvasShapes.length > 0;
@@ -251,10 +260,6 @@ function CustomizerLayoutAndLogic() {
     window.addEventListener('attemptCloseCustomizer', eventListener);
     return () => window.removeEventListener('attemptCloseCustomizer', eventListener);
   }, [hasCanvasElements, router, user, isEmbedded]);
-
-  const handleViewChange = useCallback((newViewId: string) => {
-    setActiveViewId(newViewId);
-}, []);
 
 
   const toggleGrid = useCallback(() => setShowGrid(prev => !prev), []);
@@ -706,27 +711,53 @@ function CustomizerLayoutAndLogic() {
 
     try {
         for (const view of viewsToProcess) {
-            const overlays = [
+            const overlaysForView = [
                 ...canvasImages.filter(i => i.viewId === view.id),
                 ...canvasTexts.filter(t => t.viewId === view.id),
                 ...canvasShapes.filter(s => s.viewId === view.id)
             ].sort((a, b) => a.zIndex - b.zIndex);
+            
+            const overlayPromises = overlaysForView.map(async (item) => {
+                let imageDataUri: string | undefined;
+
+                if (item.itemType === 'image') {
+                    imageDataUri = (item as CanvasImage).dataUrl;
+                } else if (item.itemType === 'text') {
+                    const textItem = item as CanvasText;
+                    const textInput: GenerateTextImageInput = { text: textItem.content, fontFamily: textItem.fontFamily, fontSize: textItem.fontSize, color: textItem.color };
+                    imageDataUri = (await generateTextImage(textInput)).imageDataUri;
+                } else if (item.itemType === 'shape') {
+                    const shapeItem = item as CanvasShape;
+                    const shapeInput: GenerateShapeImageInput = { shapeType: shapeItem.shapeType, color: shapeItem.color, strokeColor: shapeItem.strokeColor, strokeWidth: shapeItem.strokeWidth, aspectRatio: `${shapeItem.width}:${shapeItem.height}` };
+                    imageDataUri = (await generateShapeImage(shapeInput)).imageDataUri;
+                }
+                
+                if (imageDataUri) {
+                    const widthPx = item.itemType === 'shape' ? (item as CanvasShape).width * item.scale : (item.itemType === 'text' ? 100 * item.scale : 100 * item.scale);
+                    const heightPx = item.itemType === 'shape' ? (item as CanvasShape).height * item.scale : (item.itemType === 'text' ? 50 * item.scale : 100 * item.scale);
+                    
+                    return {
+                        imageDataUri,
+                        x: item.x / 100 * 600,
+                        y: item.y / 100 * 600,
+                        width: widthPx,
+                        height: heightPx,
+                        rotation: item.rotation,
+                        zIndex: item.zIndex,
+                    };
+                }
+                return null;
+            });
+
+            const resolvedOverlays = (await Promise.all(overlayPromises)).filter(Boolean);
 
             const payload = {
                 baseImageDataUri: view.imageUrl,
-                baseImageWidthPx: 600, // Standard preview size
+                baseImageWidthPx: 600,
                 baseImageHeightPx: 600,
-                overlays: overlays.map(item => ({
-                    imageDataUri: (item as CanvasImage).dataUrl, // This needs to be smarter for text/shapes
-                    x: item.x / 100 * 600,
-                    y: item.y / 100 * 600,
-                    width: (item as CanvasImage).scale * 100, // Approximation
-                    height: (item as CanvasImage).scale * 100,
-                    rotation: item.rotation,
-                    zIndex: item.zIndex
-                })),
+                overlays: resolvedOverlays,
             };
-
+            
             const response = await fetch('/api/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -735,7 +766,7 @@ function CustomizerLayoutAndLogic() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Preview generation failed for view "${view.name}"`);
+                throw new Error(errorData.details || `Preview generation failed for view "${view.name}"`);
             }
             const result = await response.json();
             finalThumbnails.push({
@@ -760,7 +791,7 @@ function CustomizerLayoutAndLogic() {
     const newCartItem = {
       id: editCartItemId || crypto.randomUUID(),
       productId: productDetails.id,
-      variationId: null,
+      variationId: null, // Placeholder
       quantity: 1,
       productName: productDetails.name,
       totalCustomizationPrice: totalCustomizationPrice,
@@ -784,6 +815,7 @@ function CustomizerLayoutAndLogic() {
         setIsAddingToCart(false);
     }
   };
+
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
