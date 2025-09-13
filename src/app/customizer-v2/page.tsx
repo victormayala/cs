@@ -3,7 +3,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
 import Konva from 'konva';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads } from "@/contexts/UploadContext";
@@ -95,7 +95,7 @@ const toolItems: CustomizerTool[] = [
 
 function CustomizerV2Layout() {
   const { toast } = useToast();
-  const { canvasTexts, selectedCanvasTextId, selectCanvasText } = useUploads();
+  const { canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText } = useUploads();
 
   const [product, setProduct] = useState<ProductForCustomizerV2>(defaultProduct);
   const [activeViewId, setActiveViewId] = useState<string | null>(defaultProduct.views[0]?.id || null);
@@ -106,6 +106,9 @@ function CustomizerV2Layout() {
   
   const activeViewData = product.views.find(v => v.id === activeViewId);
   const [productImage, productImageStatus] = useImage(activeViewData?.imageUrl);
+  
+  const trRef = useRef<Konva.Transformer>(null);
+  const stageRef = useRef<Konva.Stage>(null);
 
   useEffect(() => {
     const checkSize = () => {
@@ -120,6 +123,21 @@ function CustomizerV2Layout() {
     window.addEventListener('resize', checkSize);
     return () => window.removeEventListener('resize', checkSize);
   }, []);
+
+  useEffect(() => {
+    if (trRef.current && stageRef.current) {
+      const stage = stageRef.current;
+      const selectedNode = stage.findOne('#' + selectedCanvasTextId);
+      if (selectedNode) {
+        trRef.current.nodes([selectedNode]);
+        trRef.current.getLayer()?.batchDraw();
+      } else {
+        trRef.current.nodes([]);
+        trRef.current.getLayer()?.batchDraw();
+      }
+    }
+  }, [selectedCanvasTextId]);
+
 
   const handleViewChange = useCallback((newViewId: string) => {
     setActiveViewId(newViewId);
@@ -166,9 +184,11 @@ function CustomizerV2Layout() {
         <main ref={containerRef} className="flex-1 p-4 md:p-6 flex flex-col min-h-0 items-center justify-center">
           <div className="w-full h-full max-w-[800px] max-h-[800px] aspect-square border-dashed border-muted-foreground border-2 rounded-md">
             <Stage 
+                ref={stageRef}
                 width={stageSize.width} 
                 height={stageSize.height}
                 onClick={handleStageClick}
+                onTap={handleStageClick}
                 className="bg-card"
             >
               <Layer>
@@ -177,23 +197,42 @@ function CustomizerV2Layout() {
                         image={productImage}
                         width={stageSize.width}
                         height={stageSize.height}
-                        />
+                    />
                 )}
                 {canvasTexts.filter(t => t.viewId === activeViewId).map(text => (
                     <KonvaText 
                         key={text.id}
                         id={text.id}
                         text={text.content}
-                        x={text.x / 100 * stageSize.width}
-                        y={text.y / 100 * stageSize.height}
+                        x={text.x}
+                        y={text.y}
+                        rotation={text.rotation}
+                        scaleX={text.scale}
+                        scaleY={text.scale}
                         fontSize={text.fontSize}
                         fontFamily={text.fontFamily}
                         fill={text.color}
                         draggable
                         onClick={() => selectCanvasText(text.id)}
                         onTap={() => selectCanvasText(text.id)}
+                        onDragEnd={(e) => {
+                          updateCanvasText(text.id, { x: e.target.x(), y: e.target.y() });
+                        }}
+                        onTransformEnd={(e) => {
+                           const node = e.target;
+                           const scaleX = node.scaleX();
+                           const scaleY = node.scaleY();
+                           // We use scaleX as the uniform scale
+                           updateCanvasText(text.id, {
+                            x: node.x(),
+                            y: node.y(),
+                            scale: scaleX,
+                            rotation: node.rotation(),
+                          });
+                        }}
                     />
                 ))}
+                <Transformer ref={trRef} />
               </Layer>
             </Stage>
           </div>
@@ -245,7 +284,7 @@ export default function CustomizerV2Page() {
   return (
     <UploadProvider>
       <Suspense fallback={ <div className="flex h-screen w-full items-center justify-center bg-background"> <Loader2 className="h-10 w-10 animate-spin text-primary" /></div> }>
-        <CustomizerV2Page />
+        <CustomizerV2Layout />
       </Suspense>
     </UploadProvider>
   );
