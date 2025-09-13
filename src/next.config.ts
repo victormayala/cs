@@ -71,16 +71,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config, { isServer }) => {
-    // This is to solve the "Module not found: Can't resolve 'canvas'" error when using Konva
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'konva': 'konva/cmj/konva.js',
-      };
-    }
-    return config;
-  },
 };
 
 export default nextConfig;
