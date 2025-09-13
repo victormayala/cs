@@ -702,12 +702,14 @@ function CustomizerLayoutAndLogic() {
     const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
 
     try {
+      // Create a hidden container for rendering elements to images
       const renderContainer = document.createElement('div');
       renderContainer.style.position = 'fixed';
       renderContainer.style.top = '-9999px';
       renderContainer.style.left = '-9999px';
       document.body.appendChild(renderContainer);
 
+      // Convert text and shape items to image data URLs
       const generatedItemOverlays = await Promise.all(
         [...canvasTexts, ...canvasShapes]
           .filter(item => customizedViewIds.has(item.viewId!))
@@ -769,17 +771,8 @@ function CustomizerLayoutAndLogic() {
       );
       document.body.removeChild(renderContainer);
 
-      for (const view of viewsToProcess) {
-        const proxyResponse = await fetch('/api/proxy-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: view.imageUrl })
-        });
-        if (!proxyResponse.ok) {
-            throw new Error(`Failed to proxy base image for view "${view.name}". Status: ${proxyResponse.status}`);
-        }
-        const { dataUrl: baseImageDataUri } = await proxyResponse.json();
 
+      for (const view of viewsToProcess) {
         const overlaysForView = [
           ...canvasImages.filter(i => i.viewId === view.id),
           ...generatedItemOverlays.filter(i => i.viewId === view.id),
@@ -794,12 +787,12 @@ function CustomizerLayoutAndLogic() {
           zIndex: item.zIndex || 0,
         }));
         
-        const payload: CompositeImagesInput = {
-          baseImageDataUri: baseImageDataUri,
-          baseImageMimeType: 'image/png', // Assume png after proxy
-          baseImageWidthPx: 600,
-          baseImageHeightPx: 600,
-          overlays: overlaysForView,
+        // The API now expects a URL for the base image
+        const payload = {
+            baseImageUrl: view.imageUrl, // Pass URL directly
+            baseImageWidthPx: 600,
+            baseImageHeightPx: 600,
+            overlays: overlaysForView,
         };
 
         const response = await fetch('/api/preview', {
