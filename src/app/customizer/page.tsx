@@ -676,6 +676,36 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
+  const fetchAsDataURL = async (url: string, isCors: boolean = true): Promise<string> => {
+    // Tries to fetch with CORS, falls back to proxy if it fails.
+    try {
+        const response = await fetch(url, isCors ? { mode: 'cors' } : {});
+        if (!response.ok) {
+            throw new Error(`Direct fetch failed with status: ${response.status}`);
+        }
+        const blob = await response.blob();
+        return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn(`Direct fetch failed for ${url}. Falling back to proxy.`, e);
+        try {
+            const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+            if (!proxyResponse.ok) {
+                 throw new Error(`Proxy fetch failed with status: ${proxyResponse.status}`);
+            }
+            const data = await proxyResponse.json();
+            return data.dataUrl;
+        } catch (proxyError) {
+             console.error(`Proxy fetch also failed for ${url}.`, proxyError);
+             throw new Error(`Could not load image from ${url}`);
+        }
+    }
+  };
+    
   const handleAddToCart = async () => {
     if (productDetails?.allowCustomization === false || isAddingToCart) { return; }
     if (canvasImages.length === 0 && canvasTexts.length === 0 && canvasShapes.length === 0) {
@@ -689,36 +719,21 @@ function CustomizerLayoutAndLogic() {
 
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
-
-    const fetchAsDataURL = async (url: string) => {
-        try {
-            const response = await fetch(url, { mode: 'no-cors' });
-            if (!response.ok && response.type !== 'opaque') {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const blob = await response.blob();
-            return new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        } catch (e) {
-            console.error(`Failed to fetch image as data URL: ${url}`, e);
-            throw e;
-        }
-    };
     
+    // Create a cache to store loaded image data URLs
     const imageCache = new Map<string, string>();
     const imageUrlsToLoad = new Set<string>();
-    [...canvasImages, ...(productDetails?.views || [])].forEach(img => imageUrlsToLoad.add(img.dataUrl || img.imageUrl));
 
+    // Gather all unique image URLs from customizations
+    canvasImages.forEach(img => imageUrlsToLoad.add(img.dataUrl));
+    
     try {
+        // Pre-load all customization images
         await Promise.all(
             Array.from(imageUrlsToLoad).map(async (url) => {
                 if (url && !imageCache.has(url)) {
                     try {
-                        const dataUrl = await fetchAsDataURL(url);
+                        const dataUrl = await fetchAsDataURL(url, false); // User uploads are already data URLs or from same origin, no CORS needed
                         imageCache.set(url, dataUrl);
                     } catch (e) {
                          console.warn(`Could not preload image: ${url}. It might be skipped in previews.`, e);
@@ -726,11 +741,8 @@ function CustomizerLayoutAndLogic() {
                 }
             })
         );
-    } catch (e) {
-        console.error("Error pre-loading design images. Previews may be incomplete.", e);
-    }
-
-    try {
+        
+        // Find which views have customizations
         const customizedViewIds = new Set<string>();
         [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
             if (item.viewId) customizedViewIds.add(item.viewId);
@@ -742,6 +754,7 @@ function CustomizerLayoutAndLogic() {
 
         const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
         
+        // Generate a preview for each customized view
         for (const viewId of Array.from(customizedViewIds)) {
             const view = productDetails?.views.find(v => v.id === viewId);
             if (!view) continue;
@@ -754,20 +767,28 @@ function CustomizerLayoutAndLogic() {
             previewContainer.style.backgroundColor = 'white'; 
             document.body.appendChild(previewContainer);
             
-            const bgDataUrl = imageCache.get(view.imageUrl);
-            if (bgDataUrl) {
+            try {
+                const bgDataUrl = await fetchAsDataURL(view.imageUrl); // Fetch background with CORS handling
                 const bgImage = document.createElement('img');
-                bgImage.src = bgDataUrl;
                 bgImage.crossOrigin = "anonymous";
+                bgImage.src = bgDataUrl;
+                
+                await new Promise((resolve, reject) => {
+                    bgImage.onload = resolve;
+                    bgImage.onerror = () => reject(new Error(`Failed to load background for view: ${view.name}`));
+                });
+
                 bgImage.style.position = 'absolute';
                 bgImage.style.width = '100%';
                 bgImage.style.height = '100%';
                 bgImage.style.objectFit = 'contain';
                 previewContainer.appendChild(bgImage);
-            } else {
-                 console.warn(`Background image for view '${view.name}' could not be loaded for preview.`);
-            }
 
+            } catch (bgError: any) {
+                console.error(bgError.message);
+                // Don't throw, continue with a white background
+            }
+            
             const elementsForView = [
                 ...canvasImages.filter(i => i.viewId === viewId),
                 ...canvasTexts.filter(t => t.viewId === viewId),
@@ -800,8 +821,8 @@ function CustomizerLayoutAndLogic() {
                     el.style.fontStyle = item.fontStyle;
                     el.style.whiteSpace = 'pre-wrap';
                     el.innerText = item.content;
-                    if(item.outlineEnabled && item.outlineWidth > 0){
-                       el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
+                    if (item.outlineEnabled && item.outlineWidth > 0) {
+                        el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
                     }
                 } else if (item.itemType === 'shape') {
                      const svgNS = "http://www.w3.org/2000/svg";
@@ -1075,4 +1096,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
