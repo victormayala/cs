@@ -767,13 +767,13 @@ function CustomizerLayoutAndLogic() {
       );
       document.body.removeChild(renderContainer);
       
-      const allImageItemsOnCanvas = [...canvasImages, ...generatedItemOverlays];
+      const allImageItemsOnCanvas: CanvasImage[] = [...canvasImages, ...generatedItemOverlays];
 
       for (const view of viewsToProcess) {
         const overlaysForView = allImageItemsOnCanvas
           .filter(item => item.viewId === view.id)
           .map(item => ({
-              imageDataUri: item.dataUrl, // Correctly mapping dataUrl to imageDataUri
+              imageDataUri: item.dataUrl,
               mimeType: item.type || 'image/png',
               x: (item.x / 100) * 600,
               y: (item.y / 100) * 600,
@@ -1039,5 +1039,7 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
 
     
