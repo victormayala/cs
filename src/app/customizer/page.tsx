@@ -778,7 +778,7 @@ function CustomizerLayoutAndLogic() {
         if (!proxyResponse.ok) {
             throw new Error(`Failed to proxy base image for view "${view.name}". Status: ${proxyResponse.status}`);
         }
-        const { dataUrl: baseImageDataUri, mimeType: baseImageMimeType } = await proxyResponse.json();
+        const { dataUrl: baseImageDataUri } = await proxyResponse.json();
 
         const overlaysForView = [
           ...canvasImages.filter(i => i.viewId === view.id),
@@ -796,7 +796,7 @@ function CustomizerLayoutAndLogic() {
         
         const payload: CompositeImagesInput = {
           baseImageDataUri: baseImageDataUri,
-          baseImageMimeType: baseImageMimeType || 'image/png',
+          baseImageMimeType: 'image/png', // Assume png after proxy
           baseImageWidthPx: 600,
           baseImageHeightPx: 600,
           overlays: overlaysForView,
@@ -1051,6 +1051,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-
-    
