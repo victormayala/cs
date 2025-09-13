@@ -703,50 +703,67 @@ function CustomizerLayoutAndLogic() {
 
     try {
       for (const view of viewsToProcess) {
-          const overlaysForView = [
-              ...canvasImages.filter(i => i.viewId === view.id),
-              ...canvasTexts.filter(t => t.viewId === view.id),
-              ...canvasShapes.filter(s => s.viewId === view.id)
-          ].sort((a, b) => a.zIndex - b.zIndex);
+        const proxyResponse = await fetch('/api/proxy-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: view.imageUrl }),
+        });
+        if (!proxyResponse.ok) throw new Error(`Failed to proxy image for view ${view.name}`);
+        const { dataUrl: baseImageDataUri } = await proxyResponse.json();
+        const baseImageMimeType = baseImageDataUri.split(';')[0].split(':')[1];
 
-          const resolvedOverlays: ImageTransform[] = await Promise.all(
-            overlaysForView.map(async (item): Promise<ImageTransform | null> => {
-              if (item.itemType === 'image') {
+        const overlaysForView = [
+            ...canvasImages.filter(i => i.viewId === view.id),
+            ...canvasTexts.filter(t => t.viewId === view.id),
+            ...canvasShapes.filter(s => s.viewId === view.id)
+        ].sort((a, b) => a.zIndex - b.zIndex);
+
+        const payload = {
+            baseImageDataUri,
+            baseImageMimeType,
+            baseImageWidthPx: 600,
+            baseImageHeightPx: 600,
+            overlays: await Promise.all(overlaysForView.map(async (item): Promise<ImageTransform> => {
+                let imageDataUri: string;
+                let mimeType: string = 'image/png';
+                if (item.itemType === 'image') {
+                    imageDataUri = (item as CanvasImage).dataUrl;
+                    mimeType = (item as CanvasImage).type;
+                } else {
+                    const node = document.getElementById(`canvas-${item.itemType}-${item.id}`);
+                    if (!node) throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
+                    imageDataUri = await htmlToImage.toPng(node);
+                    mimeType = 'image/png';
+                }
+
                 return {
-                  imageDataUri: (item as CanvasImage).dataUrl,
-                  mimeType: (item as CanvasImage).type,
-                  x: item.x / 100 * 600, // Convert percentage to pixels on a 600px canvas
-                  y: item.y / 100 * 600,
-                  width: 100 * item.scale, // Approximate, may need adjustment
-                  height: 100 * item.scale,
-                  rotation: item.rotation,
-                  zIndex: item.zIndex,
+                    imageDataUri,
+                    mimeType,
+                    x: (item.x / 100) * 600,
+                    y: (item.y / 100) * 600,
+                    width: item.itemType === 'shape' ? (item as CanvasShape).width * item.scale : 100 * item.scale, // Approximation
+                    height: item.itemType === 'shape' ? (item as CanvasShape).height * item.scale : 100 * item.scale, // Approximation
+                    rotation: item.rotation,
+                    zIndex: item.zIndex,
                 };
-              }
-              return null;
-            })
-          ).then(results => results.filter((o): o is ImageTransform => o !== null));
-          
-          const response = await fetch('/api/preview', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  baseImageDataUri: view.imageUrl,
-                  baseImageWidthPx: 600,
-                  baseImageHeightPx: 600,
-                  overlays: resolvedOverlays,
-              } as Omit<CompositeImagesInput, 'baseImageMimeType'>),
-          });
+            }))
+        };
+        
+        const response = await fetch('/api/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
 
-          if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(`Failed to generate preview for view "${view.name}": ${errorData.details || response.statusText}`);
-          }
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to generate preview for view "${view.name}": ${errorData.details || response.statusText}`);
+        }
 
-          const result = await response.json();
-          finalThumbnails.push({
-              viewId: view.id, viewName: view.name, url: result.compositeImageUrl
-          });
+        const result = await response.json();
+        finalThumbnails.push({
+            viewId: view.id, viewName: view.name, url: result.compositeImageUrl
+        });
       }
     } catch (err: any) {
       console.error("Error generating thumbnails:", err);
@@ -763,23 +780,22 @@ function CustomizerLayoutAndLogic() {
     
     // Create a lightweight version of the design data for storage
     const createLightweightViewData = () => {
+      const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
+          return items.map(item => {
+              if (item.itemType === 'image') {
+                  const { dataUrl, ...rest } = item as CanvasImage;
+                  return rest;
+              }
+              return item;
+          });
+      };
+
       return productDetails.views
         .filter(view => customizedViewIds.has(view.id))
         .map(view => {
-          // Function to remove dataUrl from image objects
-          const stripDataUrl = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
-            return items.map(item => {
-              if (item.itemType === 'image') {
-                const { dataUrl, ...rest } = item as CanvasImage;
-                return rest;
-              }
-              return item;
-            });
-          };
-
           return {
             viewId: view.id,
-            images: stripDataUrl(canvasImages.filter(item => item.viewId === view.id)),
+            images: stripDataUrls(canvasImages.filter(item => item.viewId === view.id)),
             texts: canvasTexts.filter(item => item.viewId === view.id),
             shapes: canvasShapes.filter(item => item.viewId === view.id),
           };
@@ -794,7 +810,7 @@ function CustomizerLayoutAndLogic() {
       totalCustomizationPrice: totalCustomizationPrice,
       previewImageUrls: finalThumbnails,
       customizationDetails: { 
-        viewData: createLightweightViewData(), // Use the lightweight data
+        viewData: createLightweightViewData(),
         selectedOptions: selectedVariationOptions,
       }
     };
@@ -975,3 +991,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
