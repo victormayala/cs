@@ -3,22 +3,25 @@
 
 import { NextResponse } from 'next/server';
 import { compositeImages, type CompositeImagesInput } from '@/ai/flows/composite-images';
-import { generateTextImage } from '@/ai/flows/generate-text-image';
-import { generateShapeImage } from '@/ai/flows/generate-shape-image';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
 // Define a more flexible input type for the API route
 interface PreviewApiInput extends Omit<CompositeImagesInput, 'overlays' | 'baseImageDataUri'> {
     baseImageUrl: string; // URL instead of data URI
-    overlays: (Partial<CanvasImage> & Partial<CanvasText> & Partial<CanvasShape> & { itemType: 'image' | 'text' | 'shape' })[];
+    overlays: (CanvasImage | CanvasText | CanvasShape)[];
 }
 
 // Function to fetch an image and convert it to a data URI
 async function imageToDataUri(url: string): Promise<{ dataUrl: string, mimeType: string }> {
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            headers: {
+                // Add a user-agent to mimic a browser and avoid some server blocks
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36'
+            }
+        });
         if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.statusText}`);
+            throw new Error(`Failed to fetch image: ${response.statusText} for URL: ${url}`);
         }
         const blob = await response.blob();
         
@@ -46,51 +49,18 @@ export async function POST(request: Request) {
     // Convert base image URL to data URI
     const { dataUrl: baseImageDataUri, mimeType: baseImageMimeType } = await imageToDataUri(body.baseImageUrl);
     
-    // Process overlays: generate images for text/shapes and prepare transforms
-    const resolvedOverlays = await Promise.all(
-        body.overlays.map(async (item) => {
-            let imageDataUri: string | undefined;
-            let mimeType: string = 'image/png';
-
-            if (item.itemType === 'image' && item.dataUrl) {
-                imageDataUri = item.dataUrl;
-                mimeType = item.type || 'image/png';
-            } else if (item.itemType === 'text') {
-                const textResult = await generateTextImage({
-                    text: item.content!,
-                    fontFamily: item.fontFamily!,
-                    fontSize: item.fontSize!,
-                    color: item.color!,
-                });
-                imageDataUri = textResult.imageDataUri;
-            } else if (item.itemType === 'shape') {
-                const shapeResult = await generateShapeImage({
-                    shapeType: item.shapeType!,
-                    color: item.color,
-                    strokeColor: item.strokeColor,
-                    strokeWidth: item.strokeWidth
-                });
-                imageDataUri = shapeResult.imageDataUri;
-            }
-
-            if (!imageDataUri) {
-                // This should not happen if logic is correct, but as a fallback:
-                console.warn("Could not resolve image data for an overlay item:", item);
-                throw new Error(`Failed to get image data for overlay item of type ${item.itemType}`);
-            }
-
-            return {
-                imageDataUri,
-                mimeType,
-                x: (item.x! / 100) * body.baseImageWidthPx,
-                y: (item.y! / 100) * body.baseImageHeightPx,
-                width: (item.itemType === 'image' || item.itemType === 'text') ? (item.width! * (item.scale || 1)) : (item.width! * (item.scale || 1)),
-                height: (item.itemType === 'image' || item.itemType === 'text') ? (item.height! * (item.scale || 1)) : (item.height! * (item.scale || 1)),
-                rotation: item.rotation || 0,
-                zIndex: item.zIndex || 0,
-            };
-        })
-    );
+    // The client now renders text/shapes into images, so the server just receives image overlays.
+    // The `overlays` in the body now directly conform to what `CompositeImagesInput` expects.
+    const resolvedOverlays = (body.overlays as CanvasImage[]).map(item => ({
+        imageDataUri: item.dataUrl,
+        mimeType: item.type || 'image/png',
+        x: (item.x / 100) * body.baseImageWidthPx,
+        y: (item.y / 100) * body.baseImageHeightPx,
+        width: 'width' in item ? item.width * item.scale : 150 * item.scale,
+        height: 'height' in item ? item.height * item.scale : 150 * item.scale,
+        rotation: item.rotation || 0,
+        zIndex: item.zIndex || 0,
+    }));
     
     const compositeInput: CompositeImagesInput = {
         baseImageDataUri,
@@ -109,5 +79,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to generate preview.', details: error.message }, { status: 500 });
   }
 }
-
-    
