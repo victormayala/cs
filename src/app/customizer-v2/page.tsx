@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import Konva from 'konva';
+import type Konva from 'konva';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText } from "@/contexts/UploadContext";
 import {
@@ -391,5 +390,3 @@ export default function CustomizerV2Page() {
     </UploadProvider>
   );
 }
-
-    

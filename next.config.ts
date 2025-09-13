@@ -1,4 +1,3 @@
-
 import type {NextConfig} from 'next';
 
 // Configuration for Next.js
@@ -70,16 +69,6 @@ const nextConfig: NextConfig = {
         destination: '/api/shopify/callback',
       },
     ];
-  },
-  webpack: (config, { isServer }) => {
-    // This is to solve the "Module not found: Can't resolve 'canvas'" error when using Konva
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'konva': 'konva/cmj/konva.js',
-      };
-    }
-    return config;
   },
 };
 
