@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -681,12 +680,12 @@ function CustomizerLayoutAndLogic() {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
       return;
     }
-
+  
     const customizedViewIds = new Set<string>();
     canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
     canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-
+  
     if (customizedViewIds.size === 0) {
       toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
       return;
@@ -697,46 +696,38 @@ function CustomizerLayoutAndLogic() {
     }
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
-
+  
     const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
     const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-
+  
     try {
       for (const view of viewsToProcess) {
-        const proxyResponse = await fetch('/api/proxy-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: view.imageUrl }),
-        });
-        if (!proxyResponse.ok) throw new Error(`Failed to proxy image for view ${view.name}`);
-        const { dataUrl: baseImageDataUri } = await proxyResponse.json();
-        const baseImageMimeType = baseImageDataUri.split(';')[0].split(':')[1];
-
+        // Prepare overlays for the current view
         const overlaysForView = [
-            ...canvasImages.filter(i => i.viewId === view.id),
-            ...canvasTexts.filter(t => t.viewId === view.id),
-            ...canvasShapes.filter(s => s.viewId === view.id)
-        ].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-
+          ...canvasImages.filter(i => i.viewId === view.id),
+          ...canvasTexts.filter(t => t.viewId === view.id),
+          ...canvasShapes.filter(s => s.viewId === view.id)
+        ];
+  
+        // Construct the payload for the /api/preview endpoint
         const payload = {
-            baseImageDataUri,
-            baseImageMimeType,
-            baseImageWidthPx: 600,
-            baseImageHeightPx: 600,
-            overlays: overlaysForView.map((item) => ({...item})) // Pass full item data to API
+            baseImageUrl: view.imageUrl, // Pass URL directly
+            baseImageWidthPx: 600, // Or your desired preview width
+            baseImageHeightPx: 600, // Or your desired preview height
+            overlays: overlaysForView.map(item => ({ ...item })), // Pass full item data
         };
-        
+  
         const response = await fetch('/api/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-
+  
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(`Failed to generate preview for view "${view.name}": ${errorData.details || response.statusText}`);
         }
-
+  
         const result = await response.json();
         finalThumbnails.push({
             viewId: view.id, viewName: view.name, url: result.compositeImageUrl
@@ -746,7 +737,7 @@ function CustomizerLayoutAndLogic() {
       console.error("Error generating thumbnails:", err);
       toast({
         title: "Preview Generation Failed",
-        description: `Could not generate one or more previews: ${err.message}`,
+        description: `${err.message}`,
         variant: "destructive"
       });
       setIsAddingToCart(false);
@@ -793,9 +784,19 @@ function CustomizerLayoutAndLogic() {
         selectedOptions: selectedVariationOptions,
       }
     };
-
+  
     try {
-      const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
+      let cartData = [];
+      const storedCart = localStorage.getItem(cartKey);
+      if (storedCart) {
+          try {
+              cartData = JSON.parse(storedCart);
+              if (!Array.isArray(cartData)) cartData = [];
+          } catch {
+              cartData = [];
+          }
+      }
+
       const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
       if (existingItemIndex > -1) {
         cartData[existingItemIndex] = newCartItem;
@@ -971,3 +972,4 @@ export default function CustomizerPage() {
   );
 }
 
+    

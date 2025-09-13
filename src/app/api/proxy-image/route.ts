@@ -33,3 +33,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Internal Server Error processing image proxy request.', details: error.message }, { status: 500 });
     }
 }
+
+    

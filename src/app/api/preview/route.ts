@@ -5,11 +5,37 @@ import { NextResponse } from 'next/server';
 import { compositeImages, type CompositeImagesInput } from '@/ai/flows/composite-images';
 import { generateTextImage } from '@/ai/flows/generate-text-image';
 import { generateShapeImage } from '@/ai/flows/generate-shape-image';
-import type { CanvasImage, CanvasText, CanvasShape, ImageTransform } from '@/contexts/UploadContext';
+import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 
 // Define a more flexible input type for the API route
-interface PreviewApiInput extends Omit<CompositeImagesInput, 'overlays'> {
+interface PreviewApiInput extends Omit<CompositeImagesInput, 'overlays' | 'baseImageDataUri'> {
+    baseImageUrl: string; // URL instead of data URI
     overlays: (Partial<CanvasImage> & Partial<CanvasText> & Partial<CanvasShape> & { itemType: 'image' | 'text' | 'shape' })[];
+}
+
+// Function to fetch an image and convert it to a data URI
+async function imageToDataUri(url: string): Promise<{ dataUrl: string, mimeType: string }> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        
+        // Use Buffer for server-side conversion
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        const mimeType = blob.type || 'image/png';
+        return { 
+            dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+            mimeType: mimeType
+        };
+    } catch (error: any) {
+        console.error(`Error converting image URL to data URI: ${url}`, error);
+        // Fallback for failed fetches
+        const fallbackMime = 'image/png';
+        const fallbackData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='; // 1x1 transparent png
+        return { dataUrl: `data:${fallbackMime};base64,${fallbackData}`, mimeType: fallbackMime };
+    }
 }
 
 
@@ -17,9 +43,12 @@ export async function POST(request: Request) {
   try {
     const body: PreviewApiInput = await request.json();
 
+    // Convert base image URL to data URI
+    const { dataUrl: baseImageDataUri, mimeType: baseImageMimeType } = await imageToDataUri(body.baseImageUrl);
+    
     // Process overlays: generate images for text/shapes and prepare transforms
-    const resolvedOverlays: ImageTransform[] = await Promise.all(
-        body.overlays.map(async (item): Promise<ImageTransform> => {
+    const resolvedOverlays = await Promise.all(
+        body.overlays.map(async (item) => {
             let imageDataUri: string | undefined;
             let mimeType: string = 'image/png';
 
@@ -55,8 +84,8 @@ export async function POST(request: Request) {
                 mimeType,
                 x: (item.x! / 100) * body.baseImageWidthPx,
                 y: (item.y! / 100) * body.baseImageHeightPx,
-                width: item.itemType === 'shape' ? (item as CanvasShape).width * item.scale! : 100 * item.scale!, // Approximation
-                height: item.itemType === 'shape' ? (item as CanvasShape).height * item.scale! : 100 * item.scale!, // Approximation
+                width: (item.itemType === 'image' || item.itemType === 'text') ? (item.width! * (item.scale || 1)) : (item.width! * (item.scale || 1)),
+                height: (item.itemType === 'image' || item.itemType === 'text') ? (item.height! * (item.scale || 1)) : (item.height! * (item.scale || 1)),
                 rotation: item.rotation || 0,
                 zIndex: item.zIndex || 0,
             };
@@ -64,8 +93,8 @@ export async function POST(request: Request) {
     );
     
     const compositeInput: CompositeImagesInput = {
-        baseImageDataUri: body.baseImageDataUri,
-        baseImageMimeType: body.baseImageMimeType,
+        baseImageDataUri,
+        baseImageMimeType,
         baseImageWidthPx: body.baseImageWidthPx,
         baseImageHeightPx: body.baseImageHeightPx,
         overlays: resolvedOverlays,
@@ -80,3 +109,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to generate preview.', details: error.message }, { status: 500 });
   }
 }
+
+    
