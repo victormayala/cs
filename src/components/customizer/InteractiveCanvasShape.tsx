@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { CanvasShape } from '@/contexts/UploadContext';
@@ -62,7 +63,7 @@ export function InteractiveCanvasShape({
       case 'rectangle':
         return <rect x="0" y="0" width="100%" height="100%" {...commonProps} />;
       case 'circle':
-        return <circle cx="50%" cy="50%" r="50%" {...commonProps} />;
+        return <ellipse cx="50%" cy="50%" rx="50%" ry="50%" {...commonProps} />;
       
       default:
         return <rect x="0" y="0" width="100%" height="100%" fill="grey" />; 

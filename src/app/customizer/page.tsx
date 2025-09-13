@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -712,7 +713,6 @@ function CustomizerLayoutAndLogic() {
         [...canvasTexts, ...canvasShapes]
           .filter(item => customizedViewIds.has(item.viewId!))
           .map(async item => {
-            const dataId = `render-node-${item.id}`;
             let node;
             if (item.itemType === 'text') {
               node = document.createElement('div');
@@ -726,6 +726,7 @@ function CustomizerLayoutAndLogic() {
                 whiteSpace: 'pre',
                 display: 'inline-block',
               });
+              node.setAttribute('data-id', `render-node-${item.id}`);
             } else { // Shape
               const svgNS = "http://www.w3.org/2000/svg";
               const svg = document.createElementNS(svgNS, 'svg');
@@ -753,12 +754,12 @@ function CustomizerLayoutAndLogic() {
               shapeElement.setAttribute('stroke', item.strokeColor);
               shapeElement.setAttribute('stroke-width', `${item.strokeWidth}`);
               svg.appendChild(shapeElement);
+              svg.setAttribute('data-id', `render-node-${item.id}`);
               node = svg;
             }
-            node.setAttribute('data-id', dataId);
             renderContainer.appendChild(node);
             
-            const renderedNode = document.querySelector(`[data-id="${dataId}"]`) as HTMLElement;
+            const renderedNode = document.querySelector(`[data-id="render-node-${item.id}"]`) as HTMLElement;
             if (!renderedNode) {
               throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
             }
@@ -802,7 +803,18 @@ function CustomizerLayoutAndLogic() {
           overlays: overlaysForView,
         };
 
-        const result = await compositeImages(payload);
+        const response = await fetch('/api/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to generate preview for view "${view.name}": ${errorData.details || errorData.error}`);
+        }
+        
+        const result = await response.json();
         
         const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
         const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
@@ -816,7 +828,7 @@ function CustomizerLayoutAndLogic() {
       console.error("Error generating thumbnails:", err);
       toast({
         title: "Preview Generation Failed",
-        description: `Failed to generate preview for view "${err.viewName || 'unknown'}": ${err.message}`,
+        description: err.message,
         variant: "destructive"
       });
       setIsAddingToCart(false);
@@ -828,6 +840,7 @@ function CustomizerLayoutAndLogic() {
         return items.map(item => {
           if ('dataUrl' in item) {
             const { dataUrl, ...rest } = item as CanvasImage;
+            // The sourceImageId could be a clipart ID, AI gen ID, or uploaded image ID
             return { ...rest, sourceImageId: item.sourceImageId };
           }
           return item;
@@ -881,7 +894,7 @@ function CustomizerLayoutAndLogic() {
       console.error("Error saving to localStorage:", error);
       let errorMessage = "Could not save item to cart.";
       if (error.name === 'QuotaExceededError') {
-        errorMessage = "Storage limit exceeded. This should not happen with the new architecture. Please report this bug.";
+        errorMessage = "Your design is too large to be saved in the cart. Please try removing some elements.";
       }
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
@@ -1040,3 +1053,4 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
