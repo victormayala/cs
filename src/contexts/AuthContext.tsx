@@ -164,36 +164,6 @@ function AuthLogicHandler({
   return null;
 }
 
-// Interceptor for fetch to add user ID header
-const originalFetch = typeof window !== 'undefined' ? window.fetch : () => Promise.reject('fetch is not available in this environment');
-
-if (typeof window !== 'undefined' && !(window as any).__fetch_interceptor_applied__) {
-    (window as any).__fetch_interceptor_applied__ = true;
-    window.fetch = async (...args) => {
-        const [resource, config] = args;
-        const url = (resource instanceof Request) ? resource.url : String(resource);
-
-        // Only add the header to relative URLs (our API) or absolute URLs for our own domain.
-        const isLocalApiCall = url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin));
-        
-        if (isLocalApiCall) {
-            const newHeaders = new Headers(config?.headers);
-            const userId = (window as any).__USER_ID__;
-            if (userId) {
-                newHeaders.set('X-User-ID', userId);
-            }
-            const newConfig = {
-                ...config,
-                headers: newHeaders,
-            };
-            return originalFetch(resource, newConfig);
-        }
-
-        // For all other requests (e.g., to external image servers), pass them through unmodified.
-        return originalFetch(...args);
-    };
-}
-
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
