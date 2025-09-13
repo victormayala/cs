@@ -15,11 +15,11 @@ interface ProductView extends CustomizerProductView {
 interface ViewSwitcherProps {
   productViews: ProductView[];
   activeViewId: string | null;
-  setActiveViewId: (id: string) => void;
+  onViewChange: (id: string) => void; // Changed from setActiveViewId
   selectedTechnique?: CustomizationTechnique | null;
 }
 
-export default function ViewSwitcher({ productViews, activeViewId, setActiveViewId, selectedTechnique }: ViewSwitcherProps) {
+export default function ViewSwitcher({ productViews, activeViewId, onViewChange, selectedTechnique }: ViewSwitcherProps) {
   if (!productViews || productViews.length === 0) {
     return <p className="text-sm text-muted-foreground text-left">No product views to display.</p>;
   }
@@ -42,7 +42,7 @@ export default function ViewSwitcher({ productViews, activeViewId, setActiveView
           return (
             <button
               key={`${view.id}-${index}`}
-              onClick={() => setActiveViewId(view.id)}
+              onClick={() => onViewChange(view.id)} // Use the new handler
               className={cn(
                 "rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center w-[70px]",
                 activeViewId === view.id

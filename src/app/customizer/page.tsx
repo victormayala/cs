@@ -218,7 +218,6 @@ function CustomizerLayoutAndLogic() {
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
   const designCanvasWrapperRef = useRef<HTMLDivElement>(null);
-  const previousActiveViewIdRef = useRef<string | null>(null);
   const [viewThumbnails, setViewThumbnails] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -255,49 +254,33 @@ function CustomizerLayoutAndLogic() {
     return () => window.removeEventListener('attemptCloseCustomizer', eventListener);
   }, [hasCanvasElements, router, user, isEmbedded]);
 
-  // New useEffect for "capture on switch" logic
-  useEffect(() => {
-    const capturePreviousView = async () => {
-      const previousViewId = previousActiveViewIdRef.current;
-      if (
-        previousViewId &&
-        previousViewId !== activeViewId &&
-        designCanvasWrapperRef.current
-      ) {
-        // Check if the previous view had any customizations
-        const hadCustomizations =
-          canvasImages.some((item) => item.viewId === previousViewId) ||
-          canvasTexts.some((item) => item.viewId === previousViewId) ||
-          canvasShapes.some((item) => item.viewId === previousViewId);
-
-        if (hadCustomizations) {
-          try {
-            const dataUrl = await toPng(designCanvasWrapperRef.current, {
-              cacheBust: true,
-              pixelRatio: 1,
-            });
-            setViewThumbnails((prev) => ({ ...prev, [previousViewId]: dataUrl }));
-          } catch (err) {
-            console.error("Could not capture canvas for view:", previousViewId, err);
-          }
+  const handleViewChange = useCallback(async (newViewId: string) => {
+    if (activeViewId && activeViewId !== newViewId && designCanvasWrapperRef.current) {
+        const hasCustomizations = 
+            canvasImages.some(item => item.viewId === activeViewId) ||
+            canvasTexts.some(item => item.viewId === activeViewId) ||
+            canvasShapes.some(item => item.viewId === activeViewId);
+        
+        if (hasCustomizations) {
+            try {
+                const dataUrl = await toPng(designCanvasWrapperRef.current, { cacheBust: true, pixelRatio: 1 });
+                setViewThumbnails(prev => ({ ...prev, [activeViewId]: dataUrl }));
+            } catch (err) {
+                console.error("Could not capture canvas for view:", activeViewId, err);
+            }
         } else {
-            // If no customizations, ensure no stale thumbnail exists
             setViewThumbnails(prev => {
-                if (prev[previousViewId]) {
+                if (prev[activeViewId]) {
                     const newThumbs = {...prev};
-                    delete newThumbs[previousViewId];
+                    delete newThumbs[activeViewId];
                     return newThumbs;
                 }
                 return prev;
             });
         }
-      }
-      // Update the ref to the new current view ID for the next switch
-      previousActiveViewIdRef.current = activeViewId;
-    };
-
-    capturePreviousView();
-  }, [activeViewId, canvasImages, canvasTexts, canvasShapes]);
+    }
+    setActiveViewId(newViewId);
+}, [activeViewId, canvasImages, canvasTexts, canvasShapes]);
 
 
   const toggleGrid = useCallback(() => setShowGrid(prev => !prev), []);
@@ -798,7 +781,6 @@ function CustomizerLayoutAndLogic() {
     
     // Clear thumbnails for next item
     setViewThumbnails({});
-    if(previousActiveViewIdRef.current) previousActiveViewIdRef.current = null;
 
 
     if(storeIdFromUrl) {
@@ -901,7 +883,7 @@ function CustomizerLayoutAndLogic() {
             toggleBoundaryBoxes={toggleBoundaryBoxes} 
             productDetails={productDetails} 
             activeViewId={activeViewId} 
-            setActiveViewId={setActiveViewId} 
+            onViewChange={handleViewChange}
             className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
             configurableAttributes={configurableAttributes}
             selectedVariationOptions={selectedVariationOptions}
@@ -958,6 +940,3 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
-
-
-    

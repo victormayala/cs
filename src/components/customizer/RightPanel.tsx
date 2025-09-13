@@ -22,7 +22,7 @@ interface RightPanelProps {
   toggleBoundaryBoxes: () => void; 
   productDetails: ProductForCustomizer | null;
   activeViewId: string | null;
-  setActiveViewId: (id: string) => void;
+  onViewChange: (id: string) => void; // Changed from setActiveViewId
   className?: string;
   configurableAttributes: ConfigurableAttribute[] | null; 
   selectedVariationOptions: Record<string, string>; 
@@ -39,7 +39,7 @@ const RightPanelComponent = ({
   toggleBoundaryBoxes, 
   productDetails,
   activeViewId,
-  setActiveViewId,
+  onViewChange, // Use the new handler
   className,
   configurableAttributes,
   selectedVariationOptions,
@@ -128,7 +128,7 @@ const RightPanelComponent = ({
             <ViewSwitcher
               productViews={productDetails.views}
               activeViewId={activeViewId}
-              setActiveViewId={setActiveViewId}
+              onViewChange={onViewChange} // Pass the handler
               selectedTechnique={selectedTechnique}
             />
           ) : (
