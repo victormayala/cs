@@ -3,8 +3,6 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
-import DesignCanvas from '@/components/customizer/DesignCanvas';
-import RightPanel from '@/components/customizer/RightPanel';
 import { useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
@@ -36,9 +34,8 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
-import * as htmlToImage from 'html-to-image';
-
-
+import RightPanel from '@/components/customizer/RightPanel';
+import DesignCanvas from '@/components/customizer/DesignCanvas';
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
 import TextToolPanel from '@/components/customizer/TextToolPanel';
@@ -671,7 +668,7 @@ export default function Customizer() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-  const handleAddToCart = async () => {
+ const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
       return;
@@ -703,45 +700,39 @@ export default function Customizer() {
         const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
 
         for (const view of viewsToProcess) {
-            
             const allItemsForView = [
                 ...canvasImages, ...canvasTexts, ...canvasShapes
             ].filter(item => item.viewId === view.id);
 
             const renderedOverlays: ImageTransform[] = await Promise.all(
               allItemsForView.map(async (item): Promise<ImageTransform> => {
-                let dataUrl: string;
-                let mimeType: string = 'image/png';
+                let itemDataUrl: string;
+                let itemMimeType: string = 'image/png';
                 let itemWidth, itemHeight;
                 
-                if (item.itemType === 'image') {
-                    dataUrl = (item as CanvasImage).dataUrl;
-                    mimeType = (item as CanvasImage).type;
-                    itemWidth = (item as CanvasImage).width;
-                    itemHeight = (item as CanvasImage).height;
-                } else if (item.itemType === 'shape') {
+                if (item.itemType === 'image' && 'dataUrl' in item) {
+                    itemDataUrl = item.dataUrl;
+                    itemMimeType = item.type;
+                    itemWidth = 'width' in item ? item.width : 150;
+                    itemHeight = 'height' in item ? item.height : 150;
+                } else if (item.itemType === 'text' || item.itemType === 'shape') {
                     const stage = getStageRef()?.current;
-                    const shapeNode = stage?.findOne(`#${item.id}`);
-                    if (!shapeNode) throw new Error(`Could not find element for ${item.itemType} ${item.id}`);
-                    dataUrl = shapeNode.toDataURL();
-                    itemWidth = shapeNode.width();
-                    itemHeight = shapeNode.height();
-                } else { // text
-                    const stage = getStageRef()?.current;
-                    const textNode = stage?.findOne(`#${item.id}`);
-                    if (!textNode) throw new Error(`Could not find element for ${item.itemType} ${item.id}`);
-                    dataUrl = textNode.toDataURL();
-                    itemWidth = textNode.width();
-                    itemHeight = textNode.height();
+                    const node = stage?.findOne(`#${item.id}`);
+                    if (!node) throw new Error(`Could not find canvas element for item ${item.id}`);
+                    itemDataUrl = node.toDataURL();
+                    itemWidth = node.width();
+                    itemHeight = node.height();
+                } else {
+                    throw new Error(`Unsupported item type for preview: ${item.itemType}`);
                 }
 
                 return {
-                    imageDataUri: dataUrl,
-                    mimeType,
-                    x: item.x, 
-                    y: item.y,
-                    width: itemWidth * item.scale,
-                    height: itemHeight * item.scale,
+                    imageDataUri: itemDataUrl,
+                    mimeType: itemMimeType,
+                    x: (item.x / 100) * 600, // Assuming 600px canvas for consistency
+                    y: (item.y / 100) * 600,
+                    width: 'width' in item ? item.width * item.scale : 150 * item.scale,
+                    height: 'height' in item ? item.height * item.scale : 150 * item.scale,
                     rotation: item.rotation || 0,
                     zIndex: item.zIndex || 0,
                 };

@@ -1,5 +1,4 @@
-
-'use server';
+"use server";
 
 import { NextResponse } from 'next/server';
 import { compositeImages, type CompositeImagesInput } from '@/ai/flows/composite-images';

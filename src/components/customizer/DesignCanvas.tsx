@@ -1,11 +1,13 @@
 "use client";
 
 import Image from 'next/image';
-import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from '@/contexts/UploadContext';
+import { useUploads } from '@/contexts/UploadContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
 import useImage from 'use-image';
 import type Konva from 'konva';
+import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
+
 
 // --- InteractiveCanvasImage ---
 interface InteractiveCanvasImageProps {
@@ -33,8 +35,8 @@ const InteractiveCanvasImage = ({ imageProps, isSelected, onSelect, onTransformE
         ref={shapeRef}
         image={img}
         id={imageProps.id}
-        x={imageProps.x}
-        y={imageProps.y}
+        x={(imageProps.x / 100) * (shapeRef.current?.getStage()?.width() || 0) }
+        y={(imageProps.y / 100) * (shapeRef.current?.getStage()?.height() || 0)}
         width={imageProps.width}
         height={imageProps.height}
         scaleX={imageProps.scale}
@@ -87,8 +89,8 @@ const InteractiveCanvasText = ({ textProps, isSelected, onSelect, onTransformEnd
         ref={shapeRef}
         id={textProps.id}
         text={textProps.content}
-        x={textProps.x}
-        y={textProps.y}
+        x={(textProps.x / 100) * (shapeRef.current?.getStage()?.width() || 0) }
+        y={(textProps.y / 100) * (shapeRef.current?.getStage()?.height() || 0)}
         rotation={textProps.rotation}
         scaleX={textProps.scale}
         scaleY={textProps.scale}
@@ -147,11 +149,16 @@ const InteractiveCanvasShape = ({ shapeProps, isSelected, onSelect, onTransformE
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
+  
+  const stage = shapeRef.current?.getStage();
+  const stageWidth = stage?.width() || 0;
+  const stageHeight = stage?.height() || 0;
+
 
   const commonProps = {
     id: shapeProps.id,
-    x: shapeProps.x,
-    y: shapeProps.y,
+    x: (shapeProps.x / 100) * stageWidth,
+    y: (shapeProps.y / 100) * stageHeight,
     rotation: shapeProps.rotation,
     scaleX: shapeProps.scale,
     scaleY: shapeProps.scale,
@@ -267,8 +274,15 @@ export default function DesignCanvas({
     const node = e.target;
     const scale = node.scaleX(); 
     const rotation = node.rotation();
-    const x = node.x();
-    const y = node.y();
+
+    const stage = node.getStage();
+    if (!stage) return;
+    const stageWidth = stage.width();
+    const stageHeight = stage.height();
+    
+    // Convert absolute pixel coords back to percentages
+    const x = (node.x() / stageWidth) * 100;
+    const y = (node.y() / stageHeight) * 100;
 
     switch (itemType) {
       case 'image': updateCanvasImage(node.id(), { x, y, scale, rotation, movedFromDefault: true }); break;
