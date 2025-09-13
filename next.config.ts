@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 // Configuration for Next.js
@@ -60,6 +61,11 @@ const nextConfig: NextConfig = {
         destination: '/',
         permanent: true,
       },
+      {
+        source: '/customizer-v2',
+        destination: '/customizer',
+        permanent: true,
+      },
     ];
   },
   async rewrites() {
@@ -73,3 +79,5 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+    
