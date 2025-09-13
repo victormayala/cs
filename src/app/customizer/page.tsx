@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -684,178 +685,196 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-    const handleAddToCart = async () => {
-      if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
-          toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
-          return;
-      }
-  
-      const customizedViewIds = new Set<string>();
-      canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-      canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-      canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
-  
-      if (customizedViewIds.size === 0) {
-          toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
-          return;
-      }
-      if (!isEmbedded && !user) {
-          toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-          return;
-      }
-      setIsAddingToCart(true);
-      toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
-  
-      const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-      const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-  
-      try {
-          // Create a hidden container for rendering elements for html-to-image
-          const renderContainer = document.createElement('div');
-          renderContainer.style.position = 'fixed';
-          renderContainer.style.top = '-9999px';
-          renderContainer.style.left = '-9999px';
-          document.body.appendChild(renderContainer);
-  
-          const cleanup = () => document.body.removeChild(renderContainer);
-  
-          for (const view of viewsToProcess) {
-              const overlaysForView = [
-                  ...canvasImages.filter(i => i.viewId === view.id),
-                  ...canvasTexts.filter(t => t.viewId === view.id),
-                  ...canvasShapes.filter(s => s.viewId === view.id)
-              ].sort((a, b) => a.zIndex - b.zIndex);
-  
-              const resolvedOverlays: ImageTransform[] = await Promise.all(
-                  overlaysForView.map(async (item): Promise<ImageTransform | null> => {
-                      let imageDataUri: string | undefined;
-                      let mimeType: string = 'image/png';
-  
-                      if (item.itemType === 'image') {
-                          const canvasImg = item as CanvasImage;
-                          imageDataUri = canvasImg.dataUrl;
-                          mimeType = canvasImg.type;
-                      } else {
-                          const element = document.createElement('div');
-                          if (item.itemType === 'text') {
-                              const textItem = item as CanvasText;
-                              element.style.fontFamily = textItem.fontFamily;
-                              element.style.fontSize = `${textItem.fontSize}px`;
-                              element.style.fontWeight = textItem.fontWeight;
-                              element.style.fontStyle = textItem.fontStyle;
-                              element.style.color = textItem.color;
-                              element.style.whiteSpace = 'pre-wrap';
-                              element.textContent = textItem.content;
-                          } else if (item.itemType === 'shape') {
-                            const shapeItem = item as CanvasShape;
-                            const svgNS = "http://www.w3.org/2000/svg";
-                            const svg = document.createElementNS(svgNS, "svg");
-                            svg.setAttribute("width", `${shapeItem.width}`);
-                            svg.setAttribute("height", `${shapeItem.height}`);
-                            let shapeEl;
-                            if (shapeItem.shapeType === 'rectangle') {
-                                shapeEl = document.createElementNS(svgNS, "rect");
-                                shapeEl.setAttribute("width", "100%");
-                                shapeEl.setAttribute("height", "100%");
-                            } else { // circle
-                                shapeEl = document.createElementNS(svgNS, "circle");
-                                shapeEl.setAttribute("cx", `${shapeItem.width / 2}`);
-                                shapeEl.setAttribute("cy", `${shapeItem.height / 2}`);
-                                shapeEl.setAttribute("r", `${Math.min(shapeItem.width, shapeItem.height) / 2}`);
-                            }
-                            shapeEl.setAttribute("fill", shapeItem.color);
-                            shapeEl.setAttribute("stroke", shapeItem.strokeColor);
-                            shapeEl.setAttribute("stroke-width", `${shapeItem.strokeWidth}`);
-                            svg.appendChild(shapeEl);
-                            element.appendChild(svg);
-                          }
-                          renderContainer.appendChild(element);
-                          imageDataUri = await htmlToImage.toPng(element);
-                          renderContainer.removeChild(element);
-                      }
-  
-                      if (imageDataUri) {
-                          return {
-                              imageDataUri,
-                              mimeType,
-                              x: item.x / 100 * 600, // Assuming 600px canvas
-                              y: item.y / 100 * 600,
-                              width: (item.itemType === 'image' ? 100 : item.width) * item.scale,
-                              height: (item.itemType === 'image' ? 100 : item.height) * item.scale,
-                              rotation: item.rotation,
-                              zIndex: item.zIndex,
-                          };
-                      }
-                      return null;
-                  })
-              ).then(results => results.filter((o): o is ImageTransform => o !== null));
-  
-              // Proxy the base image to avoid CORS issues
-              const proxyRes = await fetch('/api/proxy-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ url: view.imageUrl })
-              });
-              if (!proxyRes.ok) throw new Error(`Failed to proxy image for view ${view.name}`);
-              const { dataUrl: proxiedBaseImageUrl } = await proxyRes.json();
-  
-              const payload: CompositeImagesInput = {
-                  baseImageDataUri: proxiedBaseImageUrl,
-                  baseImageMimeType: 'image/png', // Proxy returns png
-                  baseImageWidthPx: 600,
-                  baseImageHeightPx: 600,
-                  overlays: resolvedOverlays,
+  const handleAddToCart = async () => {
+    if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
+      toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
+      return;
+    }
+
+    const customizedViewIds = new Set<string>();
+    canvasImages.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+    canvasTexts.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+    canvasShapes.forEach(item => { if (item.viewId) customizedViewIds.add(item.viewId); });
+
+    if (customizedViewIds.size === 0) {
+      toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
+      return;
+    }
+    if (!isEmbedded && !user) {
+      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+      return;
+    }
+    setIsAddingToCart(true);
+    toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
+
+    const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+    const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
+
+    try {
+      const renderContainer = document.createElement('div');
+      renderContainer.id = `render-container-${crypto.randomUUID()}`;
+      renderContainer.style.position = 'fixed';
+      renderContainer.style.top = '-9999px';
+      renderContainer.style.left = '-9999px';
+      document.body.appendChild(renderContainer);
+
+      const cleanup = () => document.body.removeChild(renderContainer);
+
+      for (const view of viewsToProcess) {
+        const overlaysForView = [
+          ...canvasImages.filter(i => i.viewId === view.id),
+          ...canvasTexts.filter(t => t.viewId === view.id),
+          ...canvasShapes.filter(s => s.viewId === view.id)
+        ].sort((a, b) => a.zIndex - b.zIndex);
+
+        const resolvedOverlays: ImageTransform[] = await Promise.all(
+          overlaysForView.map(async (item): Promise<ImageTransform | null> => {
+            let imageDataUri: string | undefined;
+            let mimeType: string = 'image/png';
+            let itemWidth: number = 0;
+            let itemHeight: number = 0;
+
+            if (item.itemType === 'image') {
+              const canvasImg = item as CanvasImage;
+              imageDataUri = canvasImg.dataUrl;
+              mimeType = canvasImg.type;
+              itemWidth = 100; // Base dimension placeholder
+              itemHeight = 100;
+            } else {
+              const element = document.createElement('div');
+              if (item.itemType === 'text') {
+                const textItem = item as CanvasText;
+                element.style.fontFamily = textItem.fontFamily;
+                element.style.fontSize = `${textItem.fontSize}px`;
+                element.style.fontWeight = textItem.fontWeight;
+                element.style.fontStyle = textItem.fontStyle;
+                element.style.color = textItem.color;
+                element.style.whiteSpace = 'pre-wrap';
+                element.textContent = textItem.content;
+              } else if (item.itemType === 'shape') {
+                const shapeItem = item as CanvasShape;
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                svg.setAttribute("width", `${shapeItem.width}`);
+                svg.setAttribute("height", `${shapeItem.height}`);
+                let shapeEl;
+                if (shapeItem.shapeType === 'rectangle') {
+                    shapeEl = document.createElementNS(svgNS, "rect");
+                    shapeEl.setAttribute("width", "100%");
+                    shapeEl.setAttribute("height", "100%");
+                } else { // circle
+                    shapeEl = document.createElementNS(svgNS, "circle");
+                    shapeEl.setAttribute("cx", `${shapeItem.width / 2}`);
+                    shapeEl.setAttribute("cy", `${shapeItem.height / 2}`);
+                    shapeEl.setAttribute("r", `${Math.min(shapeItem.width, shapeItem.height) / 2}`);
+                }
+                shapeEl.setAttribute("fill", shapeItem.color);
+                shapeEl.setAttribute("stroke", shapeItem.strokeColor);
+                shapeEl.setAttribute("stroke-width", `${shapeItem.strokeWidth}`);
+                svg.appendChild(shapeEl);
+                element.appendChild(svg);
+              }
+              renderContainer.appendChild(element);
+              imageDataUri = await htmlToImage.toPng(element);
+              itemWidth = element.offsetWidth;
+              itemHeight = element.offsetHeight;
+              renderContainer.removeChild(element);
+            }
+
+            if (imageDataUri) {
+              return {
+                imageDataUri,
+                mimeType,
+                x: item.x / 100 * 600, // Convert percentage to pixels on a 600px canvas
+                y: item.y / 100 * 600,
+                width: itemWidth * item.scale,
+                height: itemHeight * item.scale,
+                rotation: item.rotation,
+                zIndex: item.zIndex,
               };
-              
-              const result = await compositeImages(payload);
-              finalThumbnails.push({
-                  viewId: view.id,
-                  viewName: view.name,
-                  url: result.compositeImageUrl
-              });
-          }
-  
-          cleanup(); // Remove the render container
-      } catch (err: any) {
-          console.error("Error generating thumbnails:", err);
-          toast({
-              title: "Preview Generation Failed",
-              description: `Could not generate one or more previews: ${err.message}`,
-              variant: "destructive"
-          });
-          setIsAddingToCart(false);
-          return;
+            }
+            return null;
+          })
+        ).then(results => results.filter((o): o is ImageTransform => o !== null));
+
+        const proxyRes = await fetch('/api/proxy-image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: view.imageUrl })
+        });
+        if (!proxyRes.ok) throw new Error(`Failed to proxy image for view ${view.name}`);
+        const { dataUrl: proxiedBaseImageUrl } = await proxyRes.json();
+
+        const payload: CompositeImagesInput = {
+          baseImageDataUri: proxiedBaseImageUrl, baseImageMimeType: 'image/png',
+          baseImageWidthPx: 600, baseImageHeightPx: 600, overlays: resolvedOverlays,
+        };
+        
+        const result = await compositeImages(payload);
+        finalThumbnails.push({
+          viewId: view.id, viewName: view.name, url: result.compositeImageUrl
+        });
       }
+      cleanup();
+    } catch (err: any) {
+      console.error("Error generating thumbnails:", err);
+      toast({
+        title: "Preview Generation Failed",
+        description: `Could not generate one or more previews: ${err.message}`,
+        variant: "destructive"
+      });
+      setIsAddingToCart(false);
+      return;
+    }
   
-      const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+    const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+    
+    const viewData = productDetails.views
+        .filter(view => customizedViewIds.has(view.id))
+        .map(view => ({
+            viewId: view.id,
+            images: canvasImages.filter(item => item.viewId === view.id),
+            texts: canvasTexts.filter(item => item.viewId === view.id),
+            shapes: canvasShapes.filter(item => item.viewId === view.id),
+        }));
+
+    const newCartItem = {
+      id: editCartItemId || crypto.randomUUID(),
+      productId: productDetails.id,
+      productName: productDetails.name,
+      quantity: 1,
+      totalCustomizationPrice: totalCustomizationPrice,
+      previewImageUrls: finalThumbnails,
+      customizationDetails: { 
+        viewData: viewData,
+        selectedOptions: selectedVariationOptions,
+      }
+    };
+
+    try {
       const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
-      const newCartItem = {
-        id: editCartItemId || crypto.randomUUID(),
-        productId: productDetails.id,
-        variationId: null, // Placeholder
-        quantity: 1,
-        productName: productDetails.name,
-        totalCustomizationPrice: totalCustomizationPrice,
-        previewImageUrls: finalThumbnails,
-        customizationDetails: { /* simplified snapshot */ }
-      };
-  
       const existingItemIndex = cartData.findIndex((item: any) => item.id === editCartItemId);
       if (existingItemIndex > -1) {
         cartData[existingItemIndex] = newCartItem;
       } else {
         cartData.push(newCartItem);
       }
-      
       localStorage.setItem(cartKey, JSON.stringify(cartData));
       toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
       
       if(storeIdFromUrl) {
           router.push(`/store/${storeIdFromUrl}/cart`);
-      } else {
-          setIsAddingToCart(false);
       }
-    };
+    } catch (error: any) {
+      console.error("Error saving to localStorage:", error);
+      let errorMessage = "Could not save item to cart.";
+      if (error.name === 'QuotaExceededError') {
+        errorMessage = "Storage limit exceeded. Could not save cart item.";
+      }
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
 
   if (isLoading || (authLoading && !user && !wpApiBaseUrlFromUrl && !configUserIdFromUrl)) {
     return (
