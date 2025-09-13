@@ -698,14 +698,12 @@ function CustomizerLayoutAndLogic() {
     const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
 
     try {
-      // Create a hidden container for rendering elements to images
       const renderContainer = document.createElement('div');
       renderContainer.style.position = 'fixed';
       renderContainer.style.top = '-9999px';
       renderContainer.style.left = '-9999px';
       document.body.appendChild(renderContainer);
 
-      // Convert text and shape items to image data URLs
       const generatedItemOverlays = await Promise.all(
         [...canvasTexts, ...canvasShapes]
           .filter(item => customizedViewIds.has(item.viewId!))
@@ -715,65 +713,49 @@ function CustomizerLayoutAndLogic() {
               node = document.createElement('div');
               node.textContent = item.content;
               Object.assign(node.style, {
-                fontFamily: item.fontFamily,
-                fontSize: `${item.fontSize}px`,
-                fontWeight: item.fontWeight,
-                fontStyle: item.fontStyle,
-                color: item.color,
-                whiteSpace: 'pre',
-                display: 'inline-block',
+                fontFamily: item.fontFamily, fontSize: `${item.fontSize}px`, fontWeight: item.fontWeight,
+                fontStyle: item.fontStyle, color: item.color, whiteSpace: 'pre', display: 'inline-block',
               });
               node.setAttribute('data-id', `render-node-${item.id}`);
             } else { // Shape
               const svgNS = "http://www.w3.org/2000/svg";
               const svg = document.createElementNS(svgNS, 'svg');
               const maxSide = Math.max(item.width, item.height) + (item.strokeWidth * 2);
-              svg.setAttribute('width', `${maxSide}`);
-              svg.setAttribute('height', `${maxSide}`);
+              svg.setAttribute('width', `${maxSide}`); svg.setAttribute('height', `${maxSide}`);
               svg.setAttribute('viewBox', `0 0 ${maxSide} ${maxSide}`);
-              
               let shapeElement;
               if (item.shapeType === 'rectangle') {
                 shapeElement = document.createElementNS(svgNS, 'rect');
-                shapeElement.setAttribute('x', `${(maxSide - item.width) / 2}`);
-                shapeElement.setAttribute('y', `${(maxSide - item.height) / 2}`);
-                shapeElement.setAttribute('width', `${item.width}`);
-                shapeElement.setAttribute('height', `${item.height}`);
+                shapeElement.setAttribute('x', `${(maxSide - item.width) / 2}`); shapeElement.setAttribute('y', `${(maxSide - item.height) / 2}`);
+                shapeElement.setAttribute('width', `${item.width}`); shapeElement.setAttribute('height', `${item.height}`);
               } else { // Circle
                 shapeElement = document.createElementNS(svgNS, 'ellipse');
-                shapeElement.setAttribute('cx', `${maxSide / 2}`);
-                shapeElement.setAttribute('cy', `${maxSide / 2}`);
-                shapeElement.setAttribute('rx', `${item.width / 2}`);
-                shapeElement.setAttribute('ry', `${item.height / 2}`);
+                shapeElement.setAttribute('cx', `${maxSide / 2}`); shapeElement.setAttribute('cy', `${maxSide / 2}`);
+                shapeElement.setAttribute('rx', `${item.width / 2}`); shapeElement.setAttribute('ry', `${item.height / 2}`);
               }
-              
-              shapeElement.setAttribute('fill', item.color);
-              shapeElement.setAttribute('stroke', item.strokeColor);
+              shapeElement.setAttribute('fill', item.color); shapeElement.setAttribute('stroke', item.strokeColor);
               shapeElement.setAttribute('stroke-width', `${item.strokeWidth}`);
               svg.appendChild(shapeElement);
               svg.setAttribute('data-id', `render-node-${item.id}`);
               node = svg;
             }
             renderContainer.appendChild(node);
-            
             const renderedNode = document.querySelector(`[data-id="render-node-${item.id}"]`) as HTMLElement;
-            if (!renderedNode) {
-              throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
-            }
+            if (!renderedNode) throw new Error(`Could not find node for ${item.itemType} ${item.id}`);
             const dataUrl = await htmlToImage.toPng(renderedNode);
             renderContainer.removeChild(renderedNode);
-            return { ...item, dataUrl, itemType: 'image' } as CanvasImage; 
+            return { ...item, dataUrl, itemType: 'image' } as CanvasImage;
           })
       );
       document.body.removeChild(renderContainer);
-      
+
       const allImageItemsOnCanvas: CanvasImage[] = [...canvasImages, ...generatedItemOverlays];
 
       for (const view of viewsToProcess) {
         const overlaysForView = allImageItemsOnCanvas
           .filter(item => item.viewId === view.id)
           .map(item => ({
-              imageDataUri: item.dataUrl,
+              imageDataUri: item.dataUrl, // Ensure this is correctly assigned
               mimeType: item.type || 'image/png',
               x: (item.x / 100) * 600,
               y: (item.y / 100) * 600,
@@ -784,7 +766,7 @@ function CustomizerLayoutAndLogic() {
           }));
 
         const payload = {
-            baseImageUrl: view.imageUrl, 
+            baseImageUrl: view.imageUrl,
             baseImageWidthPx: 600,
             baseImageHeightPx: 600,
             overlays: overlaysForView,
