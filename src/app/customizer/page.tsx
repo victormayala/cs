@@ -676,33 +676,32 @@ function CustomizerLayoutAndLogic() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
-  const fetchAsDataURL = async (url: string, isCors: boolean = true): Promise<string> => {
-    // Tries to fetch with CORS, falls back to proxy if it fails.
+  const fetchAsDataURL = async (url: string): Promise<string> => {
     try {
-        const response = await fetch(url, isCors ? { mode: 'cors' } : {});
-        if (!response.ok) {
-            throw new Error(`Direct fetch failed with status: ${response.status}`);
-        }
+        // First attempt: direct fetch, relying on cache or correct CORS
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Direct fetch failed with status: ${response.status}`);
         const blob = await response.blob();
-        return new Promise<string>((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
     } catch (e) {
-        console.warn(`Direct fetch failed for ${url}. Falling back to proxy.`, e);
-        try {
-            const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-            if (!proxyResponse.ok) {
-                 throw new Error(`Proxy fetch failed with status: ${proxyResponse.status}`);
-            }
-            const data = await proxyResponse.json();
-            return data.dataUrl;
-        } catch (proxyError) {
-             console.error(`Proxy fetch also failed for ${url}.`, proxyError);
-             throw new Error(`Could not load image from ${url}`);
+        console.warn(`Direct fetch failed for ${url}, falling back to proxy. Error:`, e);
+        // Fallback: use the server-side proxy
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+        if (!proxyResponse.ok) {
+            const errorText = await proxyResponse.text();
+            console.error(`Proxy fetch failed for ${url}. Status: ${proxyResponse.status}. Body: ${errorText}`);
+            throw new Error(`Proxy fetch failed for image: ${url}`);
         }
+        const data = await proxyResponse.json();
+        if (!data.dataUrl) {
+            throw new Error(`Proxy did not return a dataUrl for: ${url}`);
+        }
+        return data.dataUrl;
     }
   };
     
@@ -728,18 +727,17 @@ function CustomizerLayoutAndLogic() {
     canvasImages.forEach(img => imageUrlsToLoad.add(img.dataUrl));
     
     try {
-        // Pre-load all customization images
         await Promise.all(
-            Array.from(imageUrlsToLoad).map(async (url) => {
-                if (url && !imageCache.has(url)) {
-                    try {
-                        const dataUrl = await fetchAsDataURL(url, false); // User uploads are already data URLs or from same origin, no CORS needed
-                        imageCache.set(url, dataUrl);
-                    } catch (e) {
-                         console.warn(`Could not preload image: ${url}. It might be skipped in previews.`, e);
-                    }
-                }
-            })
+          Array.from(imageUrlsToLoad).map(async (url) => {
+            if (url && !imageCache.has(url)) {
+              try {
+                const dataUrl = await fetchAsDataURL(url);
+                imageCache.set(url, dataUrl);
+              } catch (e) {
+                console.warn(`Could not preload overlay image: ${url}. It might be skipped in previews.`, e);
+              }
+            }
+          })
         );
         
         // Find which views have customizations
@@ -768,16 +766,19 @@ function CustomizerLayoutAndLogic() {
             document.body.appendChild(previewContainer);
             
             try {
-                const bgDataUrl = await fetchAsDataURL(view.imageUrl); // Fetch background with CORS handling
+                const bgDataUrl = await fetchAsDataURL(view.imageUrl);
                 const bgImage = document.createElement('img');
                 bgImage.crossOrigin = "anonymous";
                 bgImage.src = bgDataUrl;
                 
                 await new Promise((resolve, reject) => {
                     bgImage.onload = resolve;
-                    bgImage.onerror = () => reject(new Error(`Failed to load background for view: ${view.name}`));
+                    bgImage.onerror = () => {
+                       console.error(`Failed to load background for view: ${view.name}`);
+                       resolve(null); // Resolve to continue, even on error
+                    };
                 });
-
+                
                 bgImage.style.position = 'absolute';
                 bgImage.style.width = '100%';
                 bgImage.style.height = '100%';
@@ -786,7 +787,6 @@ function CustomizerLayoutAndLogic() {
 
             } catch (bgError: any) {
                 console.error(bgError.message);
-                // Don't throw, continue with a white background
             }
             
             const elementsForView = [
@@ -851,6 +851,8 @@ function CustomizerLayoutAndLogic() {
                 previewContainer.appendChild(el);
             }
             
+            await new Promise(resolve => setTimeout(resolve, 50));
+
             const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
             previewImageUrls.push({
                 viewId: view.id,
@@ -1096,3 +1098,5 @@ export default function CustomizerPage() {
     </UploadProvider>
   );
 }
+
+    
