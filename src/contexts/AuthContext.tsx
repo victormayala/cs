@@ -174,7 +174,7 @@ if (typeof window !== 'undefined' && !(window as any).__fetch_interceptor_applie
         const url = (resource instanceof Request) ? resource.url : String(resource);
 
         // Only add the header to relative URLs (our API) or absolute URLs for our own domain.
-        const isLocalApiCall = url.startsWith('/') || url.startsWith(window.location.origin);
+        const isLocalApiCall = url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin));
         
         if (isLocalApiCall) {
             const newHeaders = new Headers(config?.headers);
@@ -190,7 +190,7 @@ if (typeof window !== 'undefined' && !(window as any).__fetch_interceptor_applie
         }
 
         // For all other requests (e.g., to external image servers), pass them through unmodified.
-        return originalFetch(resource, config);
+        return originalFetch(...args);
     };
 }
 
