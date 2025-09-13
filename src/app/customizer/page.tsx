@@ -691,139 +691,117 @@ function CustomizerLayoutAndLogic() {
     toast({ title: "Preparing Your Design...", description: "Generating previews of your custom product. This can take a moment." });
 
     try {
-      const customizedViewIds = new Set<string>();
-      [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
-        if (item.viewId) customizedViewIds.add(item.viewId);
-      });
-
-      if (customizedViewIds.size === 0) {
-        toast({ title: "No Customizations Found", description: "Add design elements to a view to generate a preview.", variant: "default" });
-        setIsAddingToCart(false);
-        return;
-      }
-      
-      const imageCache = new Map<string, HTMLImageElement>();
-      const imagePromises: Promise<void>[] = [];
-
-      canvasImages.forEach(img => {
-          if (!imageCache.has(img.sourceImageId)) {
-              imagePromises.push(new Promise<void>((resolve, reject) => {
-                  const imageEl = new window.Image();
-                  imageEl.crossOrigin = "anonymous";
-                  imageEl.onload = () => {
-                      imageCache.set(img.sourceImageId, imageEl);
-                      resolve();
-                  };
-                  imageEl.onerror = (e) => {
-                    console.error(`Failed to load design image: ${img.name} from ${img.dataUrl}`, e);
-                    resolve(); 
-                  };
-                  imageEl.src = img.dataUrl;
-              }));
-          }
-      });
-      await Promise.all(imagePromises);
-
-      const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
-
-      for (const viewId of Array.from(customizedViewIds)) {
-        const view = productDetails?.views.find(v => v.id === viewId);
-        if (!view) continue;
-
-        const offscreenCanvas = document.createElement('canvas');
-        const ctx = offscreenCanvas.getContext('2d');
-        if (!ctx) continue;
-        
-        let bgImage: HTMLImageElement | null = null;
-        try {
-            bgImage = await new Promise<HTMLImageElement>((resolve, reject) => {
-                const img = new window.Image();
-                img.crossOrigin = "anonymous";
-                img.onload = () => resolve(img);
-                img.onerror = () => reject(`Failed to load background for view: ${view.name}`);
-                img.src = view.imageUrl;
-            });
-        } catch (bgLoadError) {
-            console.warn(bgLoadError);
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(0, 0, 600, 600);
-            ctx.fillStyle = '#a0a0a0';
-            ctx.textAlign = 'center';
-            ctx.font = '16px Arial';
-            ctx.fillText(`Preview for ${view.name}`, 300, 300);
-        }
-
-        const canvasSize = 600; 
-        offscreenCanvas.width = canvasSize;
-        offscreenCanvas.height = canvasSize;
-        
-        if (bgImage) {
-            const scaleToFit = Math.min(canvasSize / bgImage.naturalWidth, canvasSize / bgImage.naturalHeight);
-            const scaledWidth = bgImage.naturalWidth * scaleToFit;
-            const scaledHeight = bgImage.naturalHeight * scaleToFit;
-            const offsetX = (canvasSize - scaledWidth) / 2;
-            const offsetY = (canvasSize - scaledHeight) / 2;
-            ctx.drawImage(bgImage, offsetX, offsetY, scaledWidth, scaledHeight);
-        }
-        
-
-        const elementsForView = [
-            ...canvasImages.filter(i => i.viewId === viewId),
-            ...canvasTexts.filter(t => t.viewId === viewId),
-            ...canvasShapes.filter(s => s.viewId === viewId),
-        ].sort((a, b) => a.zIndex - b.zIndex);
-
-        for (const item of elementsForView) {
-            ctx.save();
-            const centerX = item.x / 100 * canvasSize;
-            const centerY = item.y / 100 * canvasSize;
-            ctx.translate(centerX, centerY);
-            ctx.rotate(item.rotation * Math.PI / 180);
-
-            if (item.itemType === 'image') {
-              const imgEl = imageCache.get(item.sourceImageId);
-              if (imgEl) {
-                  const w = 200 * item.scale; 
-                  const h = 200 * item.scale;
-                  ctx.drawImage(imgEl, -w / 2, -h / 2, w, h);
-              }
-            } else if (item.itemType === 'text') {
-                const fs = item.fontSize * item.scale;
-                ctx.font = `${item.fontStyle} ${item.fontWeight} ${fs}px ${item.fontFamily}`;
-                ctx.fillStyle = item.color;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                if(item.outlineEnabled && item.outlineWidth > 0){
-                    ctx.strokeStyle = item.outlineColor;
-                    ctx.lineWidth = item.outlineWidth * 2;
-                    ctx.strokeText(item.content, 0, 0);
-                }
-                ctx.fillText(item.content, 0, 0);
-            } else if (item.itemType === 'shape') {
-                 const w = item.width * item.scale;
-                 const h = item.height * item.scale;
-                 ctx.fillStyle = item.color;
-                 ctx.strokeStyle = item.strokeColor;
-                 ctx.lineWidth = item.strokeWidth;
-                 if(item.shapeType === 'rectangle') {
-                     ctx.fillRect(-w/2, -h/2, w, h);
-                     if(item.strokeWidth > 0) ctx.strokeRect(-w/2, -h/2, w, h);
-                 } else if (item.shapeType === 'circle') {
-                     ctx.beginPath();
-                     ctx.arc(0, 0, w/2, 0, 2 * Math.PI);
-                     ctx.fill();
-                     if(item.strokeWidth > 0) ctx.stroke();
-                 }
-            }
-            ctx.restore();
-        }
-        
-        previewImageUrls.push({
-            viewId: view.id,
-            viewName: view.name,
-            url: offscreenCanvas.toDataURL('image/png')
+        const customizedViewIds = new Set<string>();
+        [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
+            if (item.viewId) customizedViewIds.add(item.viewId);
         });
-      }
+
+        if (customizedViewIds.size === 0) {
+            throw new Error("No customizations found on any view.");
+        }
+
+        const previewImageUrls: { viewId: string; viewName: string; url: string; }[] = [];
+        
+        // This is the new, robust preview generation logic
+        for (const viewId of Array.from(customizedViewIds)) {
+            const view = productDetails?.views.find(v => v.id === viewId);
+            if (!view) continue;
+
+            const previewContainer = document.createElement('div');
+            previewContainer.style.position = 'absolute';
+            previewContainer.style.left = '-9999px'; // Position off-screen
+            previewContainer.style.width = '600px';
+            previewContainer.style.height = '600px';
+            previewContainer.style.backgroundColor = 'white'; // Fallback background
+            document.body.appendChild(previewContainer);
+
+            // Create and append the background image
+            const bgImage = document.createElement('img');
+            bgImage.crossOrigin = "anonymous"; // CRITICAL FOR CORS
+            bgImage.src = view.imageUrl;
+            bgImage.style.position = 'absolute';
+            bgImage.style.width = '100%';
+            bgImage.style.height = '100%';
+            bgImage.style.objectFit = 'contain';
+            
+            // Wait for the background image to load
+            await new Promise<void>((resolve, reject) => {
+                bgImage.onload = () => resolve();
+                bgImage.onerror = () => reject(new Error(`Failed to load background for view: ${view.name}`));
+            });
+            previewContainer.appendChild(bgImage);
+
+
+            const elementsForView = [
+                ...canvasImages.filter(i => i.viewId === viewId),
+                ...canvasTexts.filter(t => t.viewId === viewId),
+                ...canvasShapes.filter(s => s.viewId === viewId),
+            ].sort((a, b) => a.zIndex - b.zIndex);
+
+            for (const item of elementsForView) {
+                const el = document.createElement('div');
+                el.style.position = 'absolute';
+                el.style.left = `${item.x}%`;
+                el.style.top = `${item.y}%`;
+                el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg)`;
+                
+                if (item.itemType === 'image') {
+                    const imgEl = document.createElement('img');
+                    imgEl.crossOrigin = "anonymous";
+                    imgEl.src = item.dataUrl;
+                    imgEl.style.width = `${200 * item.scale}px`;
+                    imgEl.style.height = `${200 * item.scale}px`;
+                    imgEl.style.objectFit = 'contain';
+                    el.appendChild(imgEl);
+                } else if (item.itemType === 'text') {
+                    el.style.fontFamily = item.fontFamily;
+                    el.style.fontSize = `${item.fontSize * item.scale}px`;
+                    el.style.color = item.color;
+                    el.style.fontWeight = item.fontWeight;
+                    el.style.fontStyle = item.fontStyle;
+                    el.style.whiteSpace = 'pre-wrap';
+                    el.innerText = item.content;
+                    if(item.outlineEnabled && item.outlineWidth > 0){
+                       el.style.webkitTextStroke = `${item.outlineWidth}px ${item.outlineColor}`;
+                    }
+                } else if (item.itemType === 'shape') {
+                     const svgNS = "http://www.w3.org/2000/svg";
+                     const svg = document.createElementNS(svgNS, "svg");
+                     svg.style.width = `${item.width * item.scale}px`;
+                     svg.style.height = `${item.height * item.scale}px`;
+                     svg.setAttribute("viewBox", `0 0 ${item.width} ${item.height}`);
+
+                     let shapeEl;
+                     if(item.shapeType === 'rectangle') {
+                         shapeEl = document.createElementNS(svgNS, "rect");
+                         shapeEl.setAttribute('width', '100%');
+                         shapeEl.setAttribute('height', '100%');
+                     } else { // circle
+                         shapeEl = document.createElementNS(svgNS, "circle");
+                         shapeEl.setAttribute('cx', `${item.width/2}`);
+                         shapeEl.setAttribute('cy', `${item.height/2}`);
+                         shapeEl.setAttribute('r', `${item.width/2}`);
+                     }
+                     shapeEl.setAttribute('fill', item.color);
+                     shapeEl.setAttribute('stroke', item.strokeColor);
+                     shapeEl.setAttribute('stroke-width', String(item.strokeWidth));
+                     svg.appendChild(shapeEl);
+                     el.appendChild(svg);
+                }
+                previewContainer.appendChild(el);
+            }
+            
+            // Capture the constructed HTML element
+            const dataUrl = await toPng(previewContainer, { cacheBust: true, pixelRatio: 1.5 });
+            previewImageUrls.push({
+                viewId: view.id,
+                viewName: view.name,
+                url: dataUrl
+            });
+            
+            // Cleanup
+            document.body.removeChild(previewContainer);
+        }
 
       const customizedViewsData = (productDetails?.views || [])
         .map(view => ({
