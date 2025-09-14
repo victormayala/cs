@@ -285,263 +285,217 @@ export default function Customizer() {
   }, []);
 
 
-  const loadCustomizerData = useCallback(async (productIdToLoad: string | null, source: 'woocommerce' | 'shopify' | 'customizer-studio', wpApiBaseUrlToUse: string | null, configUserIdToUse: string | null) => {
-    setIsLoading(true);
-    setError(null);
-    setActiveViewId(null);
-    setProductVariations(null); setConfigurableAttributes(null);
-    setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
-    setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0);
-    setSelectedTechnique(null);
-    
-    const metaForProduct = { proxyUsed: !!wpApiBaseUrlToUse, configUserIdUsed: configUserIdToUse, source };
-
-    if (!productIdToLoad) {
-      setError("No product ID provided. Displaying default customizer.");
-      const defaultViews = defaultFallbackProduct.views;
-      const baseImagesMap: Record<string, {url: string, aiHint?: string}> = {};
-      defaultViews.forEach(view => { baseImagesMap[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
-      setViewBaseImages(baseImagesMap);
-      setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
-      setActiveViewId(defaultViews[0]?.id || null);
-      setIsLoading(false);
-      return;
-    }
-    
-    if (authLoading && !user?.uid && !wpApiBaseUrlToUse && !configUserIdToUse) {
-      setIsLoading(false); 
-      return;
-    }
-
-    const userIdForFirestoreOptions = configUserIdToUse || user?.uid;
-    let baseProductDetails: { id: string; name: string; type: ProductForCustomizer['type']; basePrice: number; customizationTechniques?: CustomizationTechnique[] };
-    let fetchedVariations: WCVariation[] | null = null;
-
-    if (source === 'shopify') {
-        if (!userIdForFirestoreOptions) { setError("User not available for Shopify."); setIsLoading(false); return; }
-        try {
-            const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
-            const credDocSnap = await getDoc(credDocRef);
-            if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
-            const creds = credDocSnap.data() as UserShopifyCredentials;
-            const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productIdToLoad);
-            if (error || !product) throw new Error(error || `Shopify product not found.`);
-            baseProductDetails = {
-                id: product.id, name: product.title, type: 'shopify',
-                basePrice: parseFloat(product.priceRangeV2?.minVariantPrice.amount || '0'),
-            };
-        } catch (e: any) {
-            setError(`Shopify Error: ${e.message}. Displaying default.`);
-            setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
-        }
-    } else if (source === 'woocommerce') {
-        let userWCCredentialsToUse: WooCommerceCredentials | undefined;
-        if (user?.uid && !wpApiBaseUrlToUse && (!configUserIdToUse || !isEmbedded)) {
-            const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
-            const credDocSnap = await getDoc(credDocRef);
-            if (credDocSnap.exists()) {
-                const credData = credDocSnap.data() as UserWooCommerceCredentials;
-                userWCCredentialsToUse = { storeUrl: credData.storeUrl, consumerKey: credData.consumerKey, consumerSecret: credData.consumerSecret };
-            }
-        }
-        
-        const wcProductId = productIdToLoad.split('/').pop() || productIdToLoad;
-        const { product: wcProduct, error: fetchError } = await fetchWooCommerceProductById(wcProductId, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
-        
-        if (fetchError || !wcProduct) {
-          setError((fetchError || "Failed to load product") + ". Displaying default.");
-          setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
-        }
-
-        baseProductDetails = { id: wcProduct.id.toString(), name: wcProduct.name, type: wcProduct.type, basePrice: parseFloat(wcProduct.price || wcProduct.regular_price || '0')};
-
-        if (wcProduct.type === 'variable') {
-            const { variations, error: variationsError } = await fetchWooCommerceProductVariations(wcProductId, userWCCredentialsToUse, wpApiBaseUrlToUse || undefined);
-            if (variationsError) toast({ title: "Variations Load Error", description: variationsError, variant: "destructive" });
-            else fetchedVariations = variations;
-        }
-    } else { // 'customizer-studio'
-        if (!userIdForFirestoreOptions) { setError("User not available for native product."); setIsLoading(false); return; }
-        try {
-            const productDocRef = doc(db, `users/${userIdForFirestoreOptions}/products`, productIdToLoad);
-            const productDocSnap = await getDoc(productDocRef);
-            if (!productDocSnap.exists()) {
-              throw new Error(`Failed to fetch product ${productIdToLoad}. Status: 404.`);
-            }
-            const nativeProduct = productDocSnap.data() as NativeProduct;
-            baseProductDetails = {
-                id: productIdToLoad,
-                name: nativeProduct.name,
-                type: 'simple', 
-                basePrice: 0, 
-                customizationTechniques: nativeProduct.customizationTechniques
-            };
-        } catch (e: any) {
-            setError(`${e.message}. Displaying default.`);
-            setProductDetails(defaultFallbackProduct); setIsLoading(false); return;
-        }
-    }
-
-    let firestoreOptions: ProductOptionsFirestoreData | undefined;
-    if (userIdForFirestoreOptions) {
-        const { options, error: firestoreError } = await loadProductOptionsFromFirestore(userIdForFirestoreOptions, baseProductDetails.id);
-        if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings.`, variant: "default" });
-        firestoreOptions = options;
-    }
-    
-    const finalAllowCustomization = firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
-    if (!finalAllowCustomization) {
-        setError(`Customization for product "${baseProductDetails.name}" is disabled.`);
-        setProductDetails({ ...baseProductDetails, views: [], allowCustomization: false, meta: metaForProduct });
-        setIsLoading(false);
-        return;
-    }
-    
-    let finalDefaultViews = firestoreOptions?.defaultViews || [];
-    if (finalDefaultViews.length === 0) {
-        let defaultImageUrl: string = 'https://placehold.co/700x700.png'; 
-        try {
-          if (source === 'shopify' && userIdForFirestoreOptions) {
-              const credDoc = await getDoc(doc(db, 'userShopifyCredentials', userIdForFirestoreOptions));
-              if (credDoc.exists()) {
-                const creds = credDoc.data();
-                if (creds?.shop && creds.accessToken) {
-                    const { product } = await fetchShopifyProductById(creds.shop, creds.accessToken, baseProductDetails.id);
-                    defaultImageUrl = product?.featuredImage?.url || defaultImageUrl;
-                }
-              }
-          }
-        } catch (e) {
-            console.warn("Could not fetch featured Shopify image for default view.", e);
-        }
-        
-        finalDefaultViews = [{
-            id: `default_view_${baseProductDetails.id}`, name: "Front View",
-            imageUrl: defaultImageUrl,
-            aiHint: defaultFallbackProduct.views[0].aiHint,
-            boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes,
-            price: 0,
-        }];
-        if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
-    }
-
-    if (source === 'customizer-studio' && firestoreOptions) {
-        baseProductDetails.type = firestoreOptions.type;
-        baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
-    } else if (firestoreOptions?.price) {
-        baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
-    } else if (basePriceFromUrl) {
-        baseProductDetails.basePrice = parseFloat(basePriceFromUrl);
-    }
-
-    setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
-    setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
-
-    const baseImagesMapFinal: Record<string, {url: string, aiHint?: string}> = {};
-    finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
-    setViewBaseImages(baseImagesMapFinal);
-    
-    const productWithViews: ProductForCustomizer = {
-      ...baseProductDetails,
-      views: finalDefaultViews,
-      allowCustomization: true,
-      nativeVariations: firestoreOptions?.nativeVariations,
-      meta: metaForProduct,
-      customizationTechniques: baseProductDetails.customizationTechniques
-    };
-
-    if (productWithViews.customizationTechniques && productWithViews.customizationTechniques.length > 0) {
-        setSelectedTechnique(productWithViews.customizationTechniques[0]);
-    }
-
-    if (source === 'customizer-studio' && firestoreOptions?.nativeAttributes) {
-        const nativeAttrs: ConfigurableAttribute[] = [];
-        if (firestoreOptions.nativeAttributes.colors.length > 0) {
-            nativeAttrs.push({ name: 'Color', options: firestoreOptions.nativeAttributes.colors.map(c => c.name) });
-        }
-        if (firestoreOptions.nativeAttributes.sizes.length > 0) {
-            nativeAttrs.push({ name: 'Size', options: firestoreOptions.nativeAttributes.sizes.map(s => s.name) });
-        }
-        setConfigurableAttributes(nativeAttrs);
-        if(nativeAttrs.length > 0) {
-            const initialSelectedOptions: Record<string, string> = {};
-            nativeAttrs.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
-            setSelectedVariationOptions(initialSelectedOptions);
-        }
-    }
-    
-    setProductDetails(productWithViews);
-    if (finalDefaultViews.length > 0) {
-      setActiveViewId(finalDefaultViews[0].id);
-    }
-
-
-    if (source === 'woocommerce' && fetchedVariations) {
-        setProductVariations(fetchedVariations);
-        const attributesMap: Record<string, Set<string>> = {};
-        fetchedVariations.forEach(variation => variation.attributes.forEach(attr => {
-            if (!attributesMap[attr.name]) attributesMap[attr.name] = new Set();
-            attributesMap[attr.name].add(attr.option);
-        }));
-        const allConfigurableAttributes: ConfigurableAttribute[] = Object.entries(attributesMap).map(([name, optionsSet]) => ({ name, options: Array.from(optionsSet) }));
-        setConfigurableAttributes(allConfigurableAttributes);
-        if (allConfigurableAttributes.length > 0) {
-            const initialSelectedOptions: Record<string, string> = {};
-            allConfigurableAttributes.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
-            setSelectedVariationOptions(initialSelectedOptions);
-        }
-    }
-
-    if (editCartItemId && (configUserIdToUse || user?.uid)) {
-        const cartKey = `cs_cart_${configUserIdToUse || user?.uid}`;
-        try {
-            const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
-            const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
-            if (itemToEdit?.customizationDetails?.viewData) {
-                toast({ title: "Editing Mode", description: "Re-populating the canvas from a lightweight cart item is not fully implemented in this version." });
-            }
-        } catch (e) {
-            console.error("Failed to load cart item for editing:", e);
-            toast({ title: "Load Error", description: "Could not load the design from your cart.", variant: "destructive" });
-        }
-    }
-    
-    setIsLoading(false);
-  }, [user?.uid, authLoading, toast, isEmbedded, router, editCartItemId, restoreFromSnapshot, basePriceFromUrl]);
-
-
   useEffect(() => {
-    const targetProductId = productIdFromUrl || null;
-    const targetSource = sourceFromUrl;
-    const targetProxyUrl = wpApiBaseUrlFromUrl || null;
-    const targetConfigUserId = configUserIdFromUrl || null;
+    const loadCustomizerData = async () => {
+        setIsLoading(true);
+        setError(null);
+        setActiveViewId(null);
+        setProductVariations(null); setConfigurableAttributes(null);
+        setSelectedVariationOptions({}); setViewBaseImages({}); setLoadedOptionsByColor(null);
+        setLoadedGroupingAttributeName(null); setTotalCustomizationPrice(0);
+        setSelectedTechnique(null);
+        
+        const metaForProduct = { proxyUsed: !!wpApiBaseUrlFromUrl, configUserIdUsed: configUserIdFromUrl, source: sourceFromUrl };
+
+        if (!productIdFromUrl) {
+            setError("No product ID provided. Displaying default customizer.");
+            setProductDetails({...defaultFallbackProduct, meta: metaForProduct});
+            setActiveViewId(defaultFallbackProduct.views[0]?.id || null);
+            setIsLoading(false);
+            return;
+        }
+
+        const userIdForFirestoreOptions = configUserIdFromUrl || user?.uid;
+        let baseProductDetails: { id: string; name: string; type: ProductForCustomizer['type']; basePrice: number; customizationTechniques?: CustomizationTechnique[] };
+        let fetchedVariations: WCVariation[] | null = null;
+        
+        if (!userIdForFirestoreOptions && !wpApiBaseUrlFromUrl) {
+             setError("Cannot load product without user credentials or a proxy URL.");
+             setIsLoading(false);
+             return;
+        }
+
+        try {
+            if (sourceFromUrl === 'shopify') {
+                if (!userIdForFirestoreOptions) throw new Error("User credentials required for Shopify.");
+                const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
+                const credDocSnap = await getDoc(credDocRef);
+                if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
+                const creds = credDocSnap.data() as UserShopifyCredentials;
+                const { product, error } = await fetchShopifyProductById(creds.shop, creds.accessToken, productIdFromUrl);
+                if (error || !product) throw new Error(error || `Shopify product not found.`);
+                baseProductDetails = {
+                    id: product.id, name: product.title, type: 'shopify',
+                    basePrice: parseFloat(product.priceRangeV2?.minVariantPrice.amount || '0'),
+                };
+            } else if (sourceFromUrl === 'woocommerce') {
+                let userWCCredentialsToUse: WooCommerceCredentials | undefined;
+                if (user?.uid && !wpApiBaseUrlFromUrl && (!configUserIdFromUrl || !isEmbedded)) {
+                    const credDocRef = doc(db, 'userWooCommerceCredentials', user.uid);
+                    const credDocSnap = await getDoc(credDocRef);
+                    if (credDocSnap.exists()) {
+                        const credData = credDocSnap.data() as UserWooCommerceCredentials;
+                        userWCCredentialsToUse = { storeUrl: credData.storeUrl, consumerKey: credData.consumerKey, consumerSecret: credData.consumerSecret };
+                    }
+                }
+                
+                const wcProductId = productIdFromUrl.split('/').pop() || productIdFromUrl;
+                const { product: wcProduct, error: fetchError } = await fetchWooCommerceProductById(wcProductId, userWCCredentialsToUse, wpApiBaseUrlFromUrl || undefined);
+                
+                if (fetchError || !wcProduct) {
+                  throw new Error(fetchError || "Failed to load WooCommerce product.");
+                }
+
+                baseProductDetails = { id: wcProduct.id.toString(), name: wcProduct.name, type: wcProduct.type, basePrice: parseFloat(wcProduct.price || wcProduct.regular_price || '0')};
+
+                if (wcProduct.type === 'variable') {
+                    const { variations, error: variationsError } = await fetchWooCommerceProductVariations(wcProductId, userWCCredentialsToUse, wpApiBaseUrlFromUrl || undefined);
+                    if (variationsError) toast({ title: "Variations Load Error", description: variationsError, variant: "destructive" });
+                    else fetchedVariations = variations;
+                }
+            } else { // 'customizer-studio'
+                if (!userIdForFirestoreOptions) throw new Error("User credentials required for native product.");
+                const productDocRef = doc(db, `users/${userIdForFirestoreOptions}/products`, productIdFromUrl);
+                const productDocSnap = await getDoc(productDocRef);
+                if (!productDocSnap.exists()) {
+                  throw new Error(`Failed to fetch product ${productIdFromUrl}. Status: 404.`);
+                }
+                const nativeProduct = productDocSnap.data() as NativeProduct;
+                baseProductDetails = {
+                    id: productIdFromUrl,
+                    name: nativeProduct.name,
+                    type: 'simple', 
+                    basePrice: 0, 
+                    customizationTechniques: nativeProduct.customizationTechniques
+                };
+            }
+
+            let firestoreOptions: ProductOptionsFirestoreData | undefined;
+            if (userIdForFirestoreOptions) {
+                const { options, error: firestoreError } = await loadProductOptionsFromFirestore(userIdForFirestoreOptions, baseProductDetails.id);
+                if (firestoreError) toast({ title: "Settings Load Issue", description: `Could not load saved settings.`, variant: "default" });
+                firestoreOptions = options;
+            }
+            
+            const finalAllowCustomization = firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
+            if (!finalAllowCustomization) {
+                setError(`Customization for product "${baseProductDetails.name}" is disabled.`);
+                setProductDetails({ ...baseProductDetails, views: [], allowCustomization: false, meta: metaForProduct });
+                setIsLoading(false);
+                return;
+            }
+            
+            let finalDefaultViews = firestoreOptions?.defaultViews || [];
+            if (finalDefaultViews.length === 0) {
+                const defaultImageUrl = 'https://placehold.co/700x700.png';
+                finalDefaultViews = [{
+                    id: `default_view_${baseProductDetails.id}`, name: "Front View",
+                    imageUrl: defaultImageUrl,
+                    aiHint: defaultFallbackProduct.views[0].aiHint,
+                    boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes,
+                    price: 0,
+                }];
+                if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
+            }
+            
+            if (sourceFromUrl === 'customizer-studio' && firestoreOptions) {
+                baseProductDetails.type = firestoreOptions.type;
+                baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
+            } else if (firestoreOptions?.price) {
+                baseProductDetails.basePrice = basePriceFromUrl ? parseFloat(basePriceFromUrl) : firestoreOptions.price;
+            } else if (basePriceFromUrl) {
+                baseProductDetails.basePrice = parseFloat(basePriceFromUrl);
+            }
+
+            setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
+            setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
+
+            const baseImagesMapFinal: Record<string, {url: string, aiHint?: string}> = {};
+            finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
+            setViewBaseImages(baseImagesMapFinal);
+            
+            const productWithViews: ProductForCustomizer = {
+              ...baseProductDetails,
+              views: finalDefaultViews,
+              allowCustomization: true,
+              nativeVariations: firestoreOptions?.nativeVariations,
+              meta: metaForProduct,
+              customizationTechniques: baseProductDetails.customizationTechniques
+            };
+
+            if (productWithViews.customizationTechniques && productWithViews.customizationTechniques.length > 0) {
+                setSelectedTechnique(productWithViews.customizationTechniques[0]);
+            }
+
+            if (sourceFromUrl === 'customizer-studio' && firestoreOptions?.nativeAttributes) {
+                const nativeAttrs: ConfigurableAttribute[] = [];
+                if (firestoreOptions.nativeAttributes.colors.length > 0) {
+                    nativeAttrs.push({ name: 'Color', options: firestoreOptions.nativeAttributes.colors.map(c => c.name) });
+                }
+                if (firestoreOptions.nativeAttributes.sizes.length > 0) {
+                    nativeAttrs.push({ name: 'Size', options: firestoreOptions.nativeAttributes.sizes.map(s => s.name) });
+                }
+                setConfigurableAttributes(nativeAttrs);
+                if(nativeAttrs.length > 0) {
+                    const initialSelectedOptions: Record<string, string> = {};
+                    nativeAttrs.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
+                    setSelectedVariationOptions(initialSelectedOptions);
+                }
+            }
+            
+            setProductDetails(productWithViews);
+            if (finalDefaultViews.length > 0) {
+              setActiveViewId(finalDefaultViews[0].id);
+            }
+
+            if (sourceFromUrl === 'woocommerce' && fetchedVariations) {
+                setProductVariations(fetchedVariations);
+                const attributesMap: Record<string, Set<string>> = {};
+                fetchedVariations.forEach(variation => variation.attributes.forEach(attr => {
+                    if (!attributesMap[attr.name]) attributesMap[attr.name] = new Set();
+                    attributesMap[attr.name].add(attr.option);
+                }));
+                const allConfigurableAttributes: ConfigurableAttribute[] = Object.entries(attributesMap).map(([name, optionsSet]) => ({ name, options: Array.from(optionsSet) }));
+                setConfigurableAttributes(allConfigurableAttributes);
+                if (allConfigurableAttributes.length > 0) {
+                    const initialSelectedOptions: Record<string, string> = {};
+                    allConfigurableAttributes.forEach(attr => { if (attr.options.length > 0) initialSelectedOptions[attr.name] = attr.options[0]; });
+                    setSelectedVariationOptions(initialSelectedOptions);
+                }
+            }
+
+            if (editCartItemId && userIdForFirestoreOptions) {
+                const cartKey = `cs_cart_${userIdForFirestoreOptions}`;
+                try {
+                    const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
+                    const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
+                    if (itemToEdit?.customizationDetails?.viewData) {
+                        toast({ title: "Editing Mode", description: "Canvas re-population is not fully implemented." });
+                    }
+                } catch (e) {
+                    console.error("Failed to load cart item for editing:", e);
+                }
+            }
+            setIsLoading(false);
+        } catch(e: any) {
+            console.error("Error in loadCustomizerData:", e);
+            setError(e.message || "An unknown error occurred while loading product data.");
+            setProductDetails(defaultFallbackProduct);
+            setIsLoading(false);
+        }
+    };
   
-    // Only load if essential info is available or it's a non-authed public scenario
-    const canLoadPublicly = targetConfigUserId || targetProxyUrl;
-    const canLoadAuthed = !authLoading && user;
-  
-    if (canLoadPublicly || canLoadAuthed) {
-      if (
-        lastLoadedProductIdRef.current !== targetProductId ||
-        productDetails?.meta?.source !== targetSource ||
-        lastLoadedProxyUrlRef.current !== targetProxyUrl ||
-        lastLoadedConfigUserIdRef.current !== targetConfigUserId
-      ) {
-        loadCustomizerData(targetProductId, targetSource, targetProxyUrl, targetConfigUserId);
-        lastLoadedProductIdRef.current = targetProductId;
-        lastLoadedProxyUrlRef.current = targetProxyUrl;
-        lastLoadedConfigUserIdRef.current = targetConfigUserId;
-      }
-    } else if (authLoading) {
-      // Still waiting for auth state, do nothing
-    } else if (!productDetails) {
-      // Auth is done, no user, and no public identifiers, load fallback
-      loadCustomizerData(null, 'woocommerce', null, null);
-    }
-  }, [
-    authLoading, user, productIdFromUrl, sourceFromUrl, wpApiBaseUrlFromUrl, configUserIdFromUrl,
-    loadCustomizerData, productDetails
-  ]);
+    // This effect now only triggers when the fundamental context changes.
+    useEffect(() => {
+        const canLoadPublicly = configUserIdFromUrl || wpApiBaseUrlFromUrl;
+        const canLoadAuthed = !authLoading && user;
+
+        if (canLoadPublicly || canLoadAuthed) {
+            loadCustomizerData();
+        } else if (!authLoading) {
+            loadCustomizerData(); // Attempt to load fallback
+        }
+    }, [productIdFromUrl, sourceFromUrl, configUserIdFromUrl, wpApiBaseUrlFromUrl, user, authLoading]);
 
 
  useEffect(() => {
@@ -614,7 +568,7 @@ export default function Customizer() {
     }
 }, [
     selectedVariationOptions, productVariations, viewBaseImages,
-    loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails?.views, productDetails?.basePrice
+    loadedOptionsByColor, loadedGroupingAttributeName, activeViewId
 ]);
 
 
@@ -1003,3 +957,4 @@ export default function Customizer() {
       </div>
   );
 }
+
