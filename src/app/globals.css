@@ -3,99 +3,66 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Removed explicit body font-family, Tailwind will now apply Roboto via font-sans */
-
 @layer base {
   html {
     @apply scroll-smooth;
   }
   :root {
-    --background: 0 0% 100%; /* White */
-    --foreground: 240 10% 3.9%; /* Default dark */
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --background: 200 33.3% 96.9%; /* Very light cyan - #E0F4F1 */
+    --foreground: 194 30% 25%; /* Darker cyan for text */
+    --card: 200 33.3% 99%;
+    --card-foreground: 194 30% 25%;
+    --popover: 200 33.3% 99%;
+    --popover-foreground: 194 30% 25%;
 
-    --primary: 227 95% 41%; /* New: #0635C9 */
-    --primary-foreground: 0 0% 100%; /* White for contrast on new primary */
+    --primary: 194 30.1% 41%; /* Moderate cyan - #468189 */
+    --primary-foreground: 0 0% 100%;
     
-    --secondary: 167 79% 50%; /* New: #1BE5BE */
-    --secondary-foreground: 240 10% 3.9%; /* Dark text for new secondary */
+    --secondary: 279 33.3% 50.6%; /* Muted violet for accents - #8A56AC */
+    --secondary-foreground: 0 0% 100%;
     
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 0 0% 16.1%; /* #292929 */
+    --muted: 200 25% 90%;
+    --muted-foreground: 194 20% 40%;
     
-    --accent: 167 79% 50%; /* New: #1BE5BE */
-    --accent-foreground: 240 10% 3.9%; /* Dark for contrast on new accent */
+    --accent: 279 33.3% 50.6%; /* Muted violet for accents - #8A56AC */
+    --accent-foreground: 0 0% 100%;
     
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 210 40% 90%;
-    --input: 210 40% 90%;
-    --ring: 227 95% 41%; /* Use new primary color for ring */
+    --border: 200 20% 85%;
+    --input: 200 20% 88%;
+    --ring: 194 30.1% 41%; 
 
-    --chart-1: 227 95% 41%; /* New Primary Blue */
-    --chart-2: 167 79% 50%;  /* New Accent/Secondary Teal */
-    --chart-3: 227 85% 31%; /* Darker New Primary Blue */
-    --chart-4: 0 0% 60%;   /* Mid Grey */
-    --chart-5: 167 70% 60%; /* Lighter, desaturated New Accent/Secondary Teal */
     --radius: 0.5rem;
-
-    /* Sidebar variables mapped to the main theme */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 10% 3.9%;
-    --sidebar-primary: 227 95% 41%; /* Mapped to new primary */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 167 79% 50%; /* Mapped to new accent */
-    --sidebar-accent-foreground: 240 10% 3.9%;
-    --sidebar-border: 210 40% 85%;
-    --sidebar-ring: 227 95% 41%; /* Mapped to new primary (ring color) */
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --background: 194 30% 10%;
+    --foreground: 200 33.3% 96.9%;
+    --card: 194 30% 15%;
+    --card-foreground: 200 33.3% 96.9%;
+    --popover: 194 30% 12%;
+    --popover-foreground: 200 33.3% 96.9%;
 
-    --primary: 227 95% 55%; /* Lighter blue for dark mode based on #0635C9 */
-    --primary-foreground: 227 95% 15%; /* Darker blue for contrast */
+    --primary: 194 30.1% 51%; /* Lighter cyan for dark mode */
+    --primary-foreground: 0 0% 100%;
     
-    --secondary: 167 79% 60%; /* Lighter teal for dark mode based on #1BE5BE */
-    --secondary-foreground: 167 79% 10%; /* Darker teal for contrast */
+    --secondary: 279 33.3% 60.6%; /* Lighter violet for dark mode */
+    --secondary-foreground: 0 0% 100%;
     
-    --muted: 240 4% 15.9%;
-    --muted-foreground: 0 0% 89.8%; /* Lighter version of #292929 for dark mode */
+    --muted: 194 20% 20%;
+    --muted-foreground: 200 25% 70%;
     
-    --accent: 167 79% 60%; /* Lighter teal accent for dark mode based on #1BE5BE */
-    --accent-foreground: 167 79% 10%; /* Darker teal for contrast */
+    --accent: 279 33.3% 60.6%;
+    --accent-foreground: 0 0% 100%;
     
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 227 95% 55%; /* Lighter primary for ring in dark mode */
-
-    --chart-1: 227 95% 55%; 
-    --chart-2: 167 79% 60%;  
-    --chart-3: 227 85% 45%; 
-    --chart-4: 0 0% 50%;   
-    --chart-5: 167 70% 70%;
-
-    /* Dark Sidebar variables */
-    --sidebar-background: 240 10% 3.9%; 
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 227 95% 55%; 
-    --sidebar-primary-foreground: 227 95% 15%;
-    --sidebar-accent: 167 79% 60%; 
-    --sidebar-accent-foreground: 167 79% 10%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 227 95% 55%;
+    --border: 194 20% 25%;
+    --input: 194 20% 25%;
+    --ring: 194 30.1% 51%;
   }
 }
 
@@ -106,4 +73,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-headline;
+  }
+}
+
+.grid-pattern {
+  background-size: 25px 25px;
+  background-image: linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
 }
