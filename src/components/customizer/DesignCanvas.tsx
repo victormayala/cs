@@ -1,20 +1,11 @@
 
 "use client";
 
+import React, { useRef, useEffect } from 'react';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
-import React, { useRef, useEffect, useState } from 'react';
-import useImage from 'use-image';
 import type Konva from 'konva';
-import dynamic from 'next/dynamic';
-
-// Dynamically import react-konva components
-const Stage = dynamic(() => import('react-konva').then((mod) => mod.Stage), { ssr: false });
-const Layer = dynamic(() => import('react-konva').then((mod) => mod.Layer), { ssr: false });
-const KonvaImage = dynamic(() => import('react-konva').then((mod) => mod.Image), { ssr: false });
-const KonvaText = dynamic(() => import('react-konva').then((mod) => mod.Text), { ssr: false });
-const Transformer = dynamic(() => import('react-konva').then((mod) => mod.Transformer), { ssr: false });
-const Rect = dynamic(() => import('react-konva').then((mod) => mod.Rect), { ssr: false });
-const Circle = dynamic(() => import('react-konva').then((mod) => mod.Circle), { ssr: false });
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
+import useImage from 'use-image';
 
 // --- Inner Canvas Components ---
 
@@ -59,24 +50,18 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         onTap={onSelect}
         onTransformEnd={onTransformEnd}
         onDragEnd={onTransformEnd}
+        zIndex={imageProps.zIndex}
       />
       {isSelected && !imageProps.isLocked && (
         <Transformer
           ref={trRef}
-          boundBoxFunc={(oldBox, newBox) => {
-            if (newBox.width < 5 || newBox.height < 5) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
         />
       )}
     </>
   );
 };
 
-
-// --- InteractiveCanvasText ---
 interface InteractiveCanvasTextProps {
   textProps: CanvasText;
   isSelected: boolean;
@@ -129,24 +114,18 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         shadowOffsetX={textProps.shadowOffsetX}
         shadowOffsetY={textProps.shadowOffsetY}
         shadowEnabled={textProps.shadowEnabled}
+        zIndex={textProps.zIndex}
       />
       {isSelected && !textProps.isLocked && (
         <Transformer
           ref={trRef}
-          boundBoxFunc={(oldBox, newBox) => {
-            if (newBox.width < 5 || newBox.height < 5) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
         />
       )}
     </>
   );
 }
 
-
-// --- InteractiveCanvasShape ---
 interface InteractiveCanvasShapeProps {
   shapeProps: CanvasShape;
   isSelected: boolean;
@@ -169,7 +148,6 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
   const stageWidth = stage?.width() || 0;
   const stageHeight = stage?.height() || 0;
 
-
   const commonProps = {
     id: shapeProps.id,
     x: (shapeProps.x / 100) * stageWidth,
@@ -185,6 +163,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
     onDragEnd: onTransformEnd,
+    zIndex: shapeProps.zIndex,
   };
 
   const renderShape = () => {
@@ -204,18 +183,12 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
       {isSelected && !shapeProps.isLocked && (
         <Transformer
           ref={trRef}
-          boundBoxFunc={(oldBox, newBox) => {
-            if (newBox.width < 5 || newBox.height < 5) {
-              return oldBox;
-            }
-            return newBox;
-          }}
+          boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
         />
       )}
     </>
   );
 }
-
 
 interface BoundaryBox {
   id: string; name: string; x: number; y: number; width: number; height: number;
@@ -240,8 +213,22 @@ export default function DesignCanvas({
         canvasShapes, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         getStageRef,
     } = useUploads();
-
+    const [backgroundImage] = useImage(productImageUrl || '', 'anonymous');
     const stageRef = getStageRef();
+    const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const checkSize = () => {
+            if (containerRef.current) {
+                const { width } = containerRef.current.getBoundingClientRect();
+                setCanvasDimensions({ width: width, height: width });
+            }
+        };
+        checkSize();
+        window.addEventListener("resize", checkSize);
+        return () => window.removeEventListener("resize", checkSize);
+    }, []);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -255,14 +242,8 @@ export default function DesignCanvas({
         const node = e.target;
         const scale = node.scaleX();
         const rotation = node.rotation();
-
-        const stage = node.getStage();
-        if (!stage) return;
-        const stageWidth = stage.width();
-        const stageHeight = stage.height();
-        
-        const x = (node.x() / stageWidth) * 100;
-        const y = (node.y() / stageHeight) * 100;
+        const x = (node.x() / canvasDimensions.width) * 100;
+        const y = (node.y() / canvasDimensions.height) * 100;
 
         switch (itemType) {
             case 'image': updateCanvasImage(node.id(), { x, y, scale, rotation, movedFromDefault: true }); break;
@@ -276,43 +257,64 @@ export default function DesignCanvas({
     const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeViewId);
 
     return (
-        <Stage
-            ref={stageRef}
-            width={700}
-            height={700}
-            className="absolute top-0 left-0"
-            onClick={handleStageClick}
-            onTap={handleStageClick}
-        >
-            <Layer>
-                {visibleImages.map((img) => (
-                    <InteractiveCanvasImage
-                        key={`${img.id}-${img.zIndex}`}
-                        imageProps={img}
-                        isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-                        onSelect={() => { selectCanvasImage(img.id); }}
-                        onTransformEnd={(e) => handleTransformEnd(e, 'image')}
-                    />
-                ))}
-                {visibleTexts.map((text) => (
-                    <InteractiveCanvasText
-                        key={`${text.id}-${text.zIndex}`}
-                        textProps={text}
-                        isSelected={text.id === selectedCanvasTextId && !text.isLocked}
-                        onSelect={() => { selectCanvasText(text.id); }}
-                        onTransformEnd={(e) => handleTransformEnd(e, 'text')}
-                    />
-                ))}
-                {visibleShapes.map((shape) => (
-                    <InteractiveCanvasShape
-                        key={`${shape.id}-${shape.zIndex}`}
-                        shapeProps={shape}
-                        isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-                        onSelect={() => { selectCanvasShape(shape.id); }}
-                        onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
-                    />
-                ))}
-            </Layer>
-        </Stage>
+        <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
+            {backgroundImage && <KonvaImage image={backgroundImage} width={canvasDimensions.width} height={canvasDimensions.height} className="absolute inset-0 z-0" />}
+            
+            <Stage
+                ref={stageRef}
+                width={canvasDimensions.width}
+                height={canvasDimensions.height}
+                className="absolute top-0 left-0"
+                onClick={handleStageClick}
+                onTap={handleStageClick}
+            >
+                <Layer>
+                    {backgroundImage && <KonvaImage image={backgroundImage} width={canvasDimensions.width} height={canvasDimensions.height} />}
+                    {visibleImages.map((img) => (
+                        <InteractiveCanvasImage
+                            key={`${img.id}-${img.zIndex}`}
+                            imageProps={img}
+                            isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                            onSelect={() => selectCanvasImage(img.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                        />
+                    ))}
+                    {visibleTexts.map((text) => (
+                        <InteractiveCanvasText
+                            key={`${text.id}-${text.zIndex}`}
+                            textProps={text}
+                            isSelected={text.id === selectedCanvasTextId && !text.isLocked}
+                            onSelect={() => selectCanvasText(text.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                        />
+                    ))}
+                    {visibleShapes.map((shape) => (
+                        <InteractiveCanvasShape
+                            key={`${shape.id}-${shape.zIndex}`}
+                            shapeProps={shape}
+                            isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                            onSelect={() => selectCanvasShape(shape.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                        />
+                    ))}
+                </Layer>
+            </Stage>
+
+            {showBoundaryBoxes && productDefinedBoundaryBoxes.map(box => (
+                <div key={box.id} className="absolute border-2 border-dashed border-primary/50 pointer-events-none" style={{
+                    left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`,
+                }}>
+                    <div className="absolute -top-5 left-0 text-xs bg-primary/80 text-primary-foreground px-1 py-0.5 rounded-sm">{box.name}</div>
+                </div>
+            ))}
+
+            {showGrid && (
+              <div className="absolute inset-0 pointer-events-none grid-pattern" style={{
+                '--grid-size': '25px', '--grid-color': 'hsl(var(--border) / 0.5)',
+                backgroundSize: 'var(--grid-size) var(--grid-size)',
+                backgroundImage: 'linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)',
+              } as React.CSSProperties}></div>
+            )}
+        </div>
     );
-};
+}

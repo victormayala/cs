@@ -12,7 +12,9 @@ import type { ProductOptionsFirestoreData, NativeProductVariation } from '@/app/
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, storage } from '@/lib/firebase';
-import { doc, getDoc, uploadString, ref as storageRef, getDownloadURL } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { uploadString, ref as storageRef, getDownloadURL } from 'firebase/firestore';
+
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {

@@ -1,8 +1,10 @@
+
 'use client';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { googleFonts } from '@/lib/google-fonts';
 import type Konva from 'konva';
+import useImage from 'use-image';
 
 // Represents a file uploaded by the user
 export interface UploadedImage {
