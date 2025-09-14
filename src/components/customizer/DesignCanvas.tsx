@@ -1,14 +1,13 @@
-
 "use client";
 
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useUploads } from '@/contexts/UploadContext';
-import { useState, useEffect, useRef, useCallback } from 'react';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
 import dynamic from 'next/dynamic';
 import type Konva from 'konva';
 
-// Dynamically import Konva components
+// Dynamically import Konva components to ensure they are client-side only
 const Stage = dynamic(() => import('react-konva').then((mod) => mod.Stage), { ssr: false });
 const Layer = dynamic(() => import('react-konva').then((mod) => mod.Layer), { ssr: false });
 const KonvaImage = dynamic(() => import('react-konva').then((mod) => mod.Image), { ssr: false });
@@ -25,8 +24,8 @@ interface InteractiveCanvasImageProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
 }
 
-const InteractiveCanvasImage = ({ imageProps, isSelected, onSelect, onTransformEnd }: InteractiveCanvasImageProps) => {
-  const { useImage } = useUploads();
+const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransformEnd }) => {
+  const { useImage } = useUploads(); // Get the hook from context
   const [img] = useImage(imageProps.dataUrl, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -38,14 +37,18 @@ const InteractiveCanvasImage = ({ imageProps, isSelected, onSelect, onTransformE
     }
   }, [isSelected]);
 
+  const stage = shapeRef.current?.getStage();
+  const stageWidth = stage?.width() || 0;
+  const stageHeight = stage?.height() || 0;
+
   return (
     <>
       <KonvaImage
         ref={shapeRef}
         image={img}
         id={imageProps.id}
-        x={(imageProps.x / 100) * (shapeRef.current?.getStage()?.width() || 0) }
-        y={(imageProps.y / 100) * (shapeRef.current?.getStage()?.height() || 0)}
+        x={(imageProps.x / 100) * stageWidth}
+        y={(imageProps.y / 100) * stageHeight}
         width={imageProps.width}
         height={imageProps.height}
         scaleX={imageProps.scale}
@@ -81,7 +84,7 @@ interface InteractiveCanvasTextProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
 }
 
-const InteractiveCanvasText = ({ textProps, isSelected, onSelect, onTransformEnd }: InteractiveCanvasTextProps) => {
+const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -91,6 +94,10 @@ const InteractiveCanvasText = ({ textProps, isSelected, onSelect, onTransformEnd
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
+  
+  const stage = shapeRef.current?.getStage();
+  const stageWidth = stage?.width() || 0;
+  const stageHeight = stage?.height() || 0;
 
   return (
     <>
@@ -98,8 +105,8 @@ const InteractiveCanvasText = ({ textProps, isSelected, onSelect, onTransformEnd
         ref={shapeRef}
         id={textProps.id}
         text={textProps.content}
-        x={(textProps.x / 100) * (shapeRef.current?.getStage()?.width() || 0) }
-        y={(textProps.y / 100) * (shapeRef.current?.getStage()?.height() || 0)}
+        x={(textProps.x / 100) * stageWidth}
+        y={(textProps.y / 100) * stageHeight}
         rotation={textProps.rotation}
         scaleX={textProps.scale}
         scaleY={textProps.scale}
@@ -147,7 +154,7 @@ interface InteractiveCanvasShapeProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
 }
 
-const InteractiveCanvasShape = ({ shapeProps, isSelected, onSelect, onTransformEnd }: InteractiveCanvasShapeProps) => {
+const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransformEnd }) => {
   const shapeRef = useRef<Konva.Rect | Konva.Circle>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -373,3 +380,5 @@ export default function DesignCanvas({
     </div>
   );
 }
+
+    

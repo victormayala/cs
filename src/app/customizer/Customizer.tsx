@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -12,7 +11,7 @@ import type { ProductOptionsFirestoreData, NativeProductVariation } from '@/app/
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, storage } from '@/lib/firebase';
-import { doc, getDoc, uploadString, ref, getDownloadURL } from 'firebase/firestore';
+import { doc, getDoc, uploadString, ref as storageRef, getDownloadURL } from 'firebase/firestore';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
@@ -768,8 +767,8 @@ export default function Customizer() {
             
             const result = await response.json();
             
-            const storageRef = ref(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
-            const uploadStringResult = await uploadString(storageRef, result.compositeImageUrl, 'data_url');
+            const sRef = storageRef(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
+            const uploadStringResult = await uploadString(sRef, result.compositeImageUrl, 'data_url');
             const downloadURL = await getDownloadURL(uploadStringResult.ref);
 
             finalThumbnails.push({
@@ -985,3 +984,5 @@ export default function Customizer() {
       </div>
   );
 }
+
+    

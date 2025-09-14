@@ -1,4 +1,3 @@
-
 "use client";
 
 import { UploadProvider } from "@/contexts/UploadContext";
@@ -31,3 +30,5 @@ export default function CustomizerPage() {
         </UploadProvider>
     );
 }
+
+    
