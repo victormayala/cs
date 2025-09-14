@@ -603,14 +603,14 @@ export default function Customizer() {
   };
   
   const getToolPanelContent = () => {
-     if (!activeViewId && (activeTool !== "layers" && activeTool !== "ai-assistant")) {
-       return (
-         <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
-           <SettingsIcon className="w-12 h-12 mb-4 text-muted-foreground/50" />
-           <h3 className="text-lg font-semibold mb-1">Select a View</h3>
-           <p className="text-sm">Please select a product view before adding elements.</p>
-         </div>
-       );
+    if (!activeViewId && (activeTool !== "layers" && activeTool !== "ai-assistant")) {
+        return (
+            <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
+            <SettingsIcon className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <h3 className="text-lg font-semibold mb-1">Select a View</h3>
+            <p className="text-sm">Please select a product view before adding elements.</p>
+            </div>
+        );
     }
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
@@ -864,96 +864,98 @@ export default function Customizer() {
   }
 
   return (
-      <div className={cn("flex flex-col min-h-svh h-screen w-full", isEmbedded ? "bg-transparent" : "bg-muted/20")}>
-        {!isEmbedded && <AppHeader />}
-        <div className="relative flex flex-1 overflow-hidden">
-          <CustomizerIconNav tools={toolItems} activeTool={activeTool} setActiveTool={setActiveTool} />
-          <div id="tool-panel-content" className={cn("border-r bg-card shadow-sm flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out h-full", isToolPanelOpen ? "w-72 md:w-80 opacity-100" : "w-0 opacity-0 pointer-events-none")}>
-            <div className="p-4 border-b flex-shrink-0"> <h2 className="font-headline text-lg font-semibold text-foreground">{getToolPanelTitle(activeTool)}</h2> </div>
-            <div className={cn("flex-1 h-full overflow-y-auto overflow-x-hidden pb-20 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500", !isToolPanelOpen && "invisible opacity-0")}>
-               {getToolPanelContent()}
-            </div>
+    <div className={cn("flex flex-col min-h-svh h-screen w-full", isEmbedded ? "bg-transparent" : "bg-muted/20")}>
+      {!isEmbedded && <AppHeader />}
+      <div className="relative flex flex-1 overflow-hidden">
+        <CustomizerIconNav tools={toolItems} activeTool={activeTool} setActiveTool={setActiveTool} />
+        <div id="tool-panel-content" className={cn("border-r bg-card shadow-sm flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out h-full", isToolPanelOpen ? "w-72 md:w-80 opacity-100" : "w-0 opacity-0 pointer-events-none")}>
+          <div className="p-4 border-b flex-shrink-0"> <h2 className="font-headline text-lg font-semibold text-foreground">{getToolPanelTitle(activeTool)}</h2> </div>
+          <div className={cn("flex-1 h-full overflow-y-auto overflow-x-hidden pb-20 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500", !isToolPanelOpen && "invisible opacity-0")}>
+             {getToolPanelContent()}
           </div>
-          <Button onClick={toggleToolPanel} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-l-none border-l-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isToolPanelOpen ? "left-[calc(theme(spacing.16)_+_theme(spacing.72))] md:left-[calc(theme(spacing.16)_+_theme(spacing.80))]" : "left-16")} aria-label={isToolPanelOpen ? "Collapse tool panel" : "Expand tool panel"} aria-expanded={isToolPanelOpen} aria-controls="tool-panel-content">
-            {isToolPanelOpen ? <PanelLeftClose className="h-5 w-5"/> : <PanelRightOpen className="h-5 w-5"/>}
-          </Button>
-
-          <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
-            {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
-             <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
-              {isClient ? (
-                <DesignCanvas 
-                  productImageUrl={currentProductImage} 
-                  productImageAlt={`${currentProductName} - ${currentProductAlt}`} 
-                  productImageAiHint={currentProductAiHint} 
-                  productDefinedBoundaryBoxes={currentBoundaryBoxes} 
-                  activeViewId={activeViewId} 
-                  showGrid={showGrid} 
-                  showBoundaryBoxes={showBoundaryBoxes} 
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              )}
-            </div>
-          </main>
-
-           <Button onClick={toggleRightSidebar} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-r-none border-r-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isRightSidebarOpen ? "right-[theme(spacing.72)] md:right-[theme(spacing.80)] lg:right-[theme(spacing.96)]" : "right-0")} aria-label={isRightSidebarOpen ? "Collapse right sidebar" : "Expand right sidebar"} aria-expanded={isRightSidebarOpen} aria-controls="right-panel-content">
-            {isRightSidebarOpen ? <PanelRightClose className="h-5 w-5"/> : <PanelLeftOpen className="h-5 w-5"/>}
-          </Button>
-          <RightPanel 
-            showGrid={showGrid} 
-            toggleGrid={toggleGrid} 
-            showBoundaryBoxes={showBoundaryBoxes} 
-            toggleBoundaryBoxes={toggleBoundaryBoxes} 
-            productDetails={productDetails} 
-            activeViewId={activeViewId} 
-            onViewChange={handleViewChange}
-            className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
-            configurableAttributes={configurableAttributes}
-            selectedVariationOptions={selectedVariationOptions}
-            onVariantOptionSelect={handleVariantOptionSelect} 
-            productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
-            selectedTechnique={selectedTechnique}
-            setSelectedTechnique={setSelectedTechnique}
-          />
         </div>
+        <Button onClick={toggleToolPanel} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-l-none border-l-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isToolPanelOpen ? "left-[calc(theme(spacing.16)_+_theme(spacing.72))] md:left-[calc(theme(spacing.16)_+_theme(spacing.80))]" : "left-16")} aria-label={isToolPanelOpen ? "Collapse tool panel" : "Expand tool panel"} aria-expanded={isToolPanelOpen} aria-controls="tool-panel-content">
+          {isToolPanelOpen ? <PanelLeftClose className="h-5 w-5"/> : <PanelRightOpen className="h-5 w-5"/>}
+        </Button>
 
-        <footer className="fixed bottom-0 left-0 right-0 h-16 border-t bg-card shadow-md px-4 py-2 flex items-center justify-between gap-4 z-40">
-            <div className="flex items-center gap-2">
-                <Button variant="outline" asChild className="hover:bg-accent/20">
-                    <Link href={pdpLink}>
-                       <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Product
-                    </Link>
-                </Button>
-                <div className="text-md font-medium text-muted-foreground truncate hidden md:block" title={currentProductName}> {currentProductName} </div>
-            </div>
-            <div className="flex items-center gap-3">
-                <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
-                {isNativeStoreContext && storeIdFromUrl && (
-                    <Button variant="outline" size="sm" asChild>
-                    <Link href={`/store/${storeIdFromUrl}/cart`}>
-                        <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
-                        <span className="hidden sm:inline">View Cart</span>
-                    </Link>
-                    </Button>
-                )}
-                <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
-                    {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
-                    {isAddingToCart ? "Processing..." : (editCartItemId ? "Update Cart Item" : "Add to Cart")}
-                </Button>
-            </div>
-        </footer>
+        <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
+          {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
+           {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
+           <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
+            {isClient ? (
+              <DesignCanvas 
+                productImageUrl={currentProductImage} 
+                productImageAlt={`${currentProductName} - ${currentProductAlt}`} 
+                productImageAiHint={currentProductAiHint} 
+                productDefinedBoundaryBoxes={currentBoundaryBoxes} 
+                activeViewId={activeViewId} 
+                showGrid={showGrid} 
+                showBoundaryBoxes={showBoundaryBoxes} 
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+        </main>
 
-        {!isEmbedded && <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
-          <AlertDialogContent>
+         <Button onClick={toggleRightSidebar} variant="outline" size="icon" className={cn("absolute top-1/2 -translate-y-1/2 z-30 h-12 w-8 rounded-r-none border-r-0 shadow-md bg-card hover:bg-accent/20", "transition-all duration-300 ease-in-out", isRightSidebarOpen ? "right-[theme(spacing.72)] md:right-[theme(spacing.80)] lg:right-[theme(spacing.96)]" : "right-0")} aria-label={isRightSidebarOpen ? "Collapse right sidebar" : "Expand right sidebar"} aria-expanded={isRightSidebarOpen} aria-controls="right-panel-content">
+          {isRightSidebarOpen ? <PanelRightClose className="h-5 w-5"/> : <PanelLeftOpen className="h-5 w-5"/>}
+        </Button>
+        <RightPanel 
+          showGrid={showGrid} 
+          toggleGrid={toggleGrid} 
+          showBoundaryBoxes={showBoundaryBoxes} 
+          toggleBoundaryBoxes={toggleBoundaryBoxes} 
+          productDetails={productDetails} 
+          activeViewId={activeViewId} 
+          onViewChange={handleViewChange}
+          className={cn("transition-all duration-300 ease-in-out flex-shrink-0 h-full", isRightSidebarOpen ? "w-72 md:w-80 lg:w-96 opacity-100" : "w-0 opacity-0 pointer-events-none")} 
+          configurableAttributes={configurableAttributes}
+          selectedVariationOptions={selectedVariationOptions}
+          onVariantOptionSelect={handleVariantOptionSelect} 
+          productVariations={productDetails?.source === 'woocommerce' ? productVariations : null}
+          selectedTechnique={selectedTechnique}
+          setSelectedTechnique={setSelectedTechnique}
+        />
+      </div>
+
+      <footer className="fixed bottom-0 left-0 right-0 h-16 border-t bg-card shadow-md px-4 py-2 flex items-center justify-between gap-4 z-40">
+          <div className="flex items-center gap-2">
+              <Button variant="outline" asChild className="hover:bg-accent/20">
+                  <Link href={pdpLink}>
+                     <ArrowLeft className="mr-2 h-4 w-4" />
+                      Back to Product
+                  </Link>
+              </Button>
+              <div className="text-md font-medium text-muted-foreground truncate hidden md:block" title={currentProductName}> {currentProductName} </div>
+          </div>
+          <div className="flex items-center gap-3">
+              <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
+              {isNativeStoreContext && storeIdFromUrl && (
+                  <Button variant="outline" size="sm" asChild>
+                  <Link href={`/store/${storeIdFromUrl}/cart`}>
+                      <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
+                      <span className="hidden sm:inline">View Cart</span>
+                  </Link>
+                  </Button>
+              )}
+              <Button size="default" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddToCart} disabled={productDetails?.allowCustomization === false || isAddingToCart}> 
+                  {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (productDetails?.allowCustomization === false ? <Ban className="mr-2 h-5 w-5" /> : <ShoppingCart className="mr-2 h-5 w-5" />)}
+                  {isAddingToCart ? "Processing..." : (editCartItemId ? "Update Cart Item" : "Add to Cart")}
+              </Button>
+          </div>
+      </footer>
+
+      {!isEmbedded && (
+        <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
+            <AlertDialogContent>
             <AlertDialogHeader> <AlertDialogTitle>Unsaved Changes</AlertDialogTitle> <AlertDialogDescription> You have unsaved changes on the canvas. Are you sure you want to leave? Your changes will be lost. </AlertDialogDescription> </AlertDialogHeader>
             <AlertDialogFooter> <AlertDialogCancel onClick={() => { setIsLeaveConfirmOpen(false); setOnConfirmLeaveAction(null); }}> Stay </AlertDialogCancel> <AlertDialogAction onClick={() => { if (onConfirmLeaveAction) onConfirmLeaveAction(); setIsLeaveConfirmOpen(false); setOnConfirmLeaveAction(null); }} className={cn(buttonVariants({variant: "destructive"}))}> Leave </AlertDialogAction> </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>}
-      </div>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
   );
 }
