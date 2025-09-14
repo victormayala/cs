@@ -112,7 +112,6 @@ const InteractiveCanvasText = ({ textProps, isSelected, onSelect, onTransformEnd
         onDragEnd={onTransformEnd}
         fontStyle={`${textProps.fontWeight} ${textProps.fontStyle}`}
         textDecoration={textProps.textDecoration}
-        textTransform={textProps.textTransform}
         lineHeight={textProps.lineHeight}
         letterSpacing={textProps.letterSpacing}
         stroke={textProps.outlineColor}
@@ -373,4 +372,3 @@ export default function DesignCanvas({
     </div>
   );
 }
-
