@@ -160,7 +160,7 @@ async function loadProductOptionsFromFirestore(
     }
     return { options: undefined }; 
   } catch (error: any) {
-    let detailedError = `Failed to load options from cloud: ${error.message}`;
+    let detailedError = `Failed to load options from cloud: ${'error.message'}`;
     if (error.code === 'permission-denied' || error.message?.includes('Missing or insufficient permissions')) {
         detailedError += " This is likely a Firestore security rule issue. Ensure public read access is configured for userProductOptions/{configUserId}/products/{productId} if using configUserId, or that the current user has permission.";
     }
@@ -685,7 +685,7 @@ export default function Customizer() {
                   itemWidth = 'width' in canvasImg ? canvasImg.width : 150;
                   itemHeight = 'height' in canvasImg ? canvasImg.height : 150;
               } else {
-                  const node = stage.findOne(`#${item.id}`);
+                  const node = stage.findOne(`#${'#'+item.id}`);
                   if (node) {
                       itemDataUrl = node.toDataURL();
                       itemWidth = node.width() * node.scaleX();
