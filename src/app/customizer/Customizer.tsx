@@ -538,7 +538,7 @@ export default function Customizer() {
     }
   }, [
       authLoading, user, productIdFromUrl, sourceFromUrl, wpApiBaseUrlFromUrl, configUserIdFromUrl,
-      loadCustomizerData, productDetails 
+      loadCustomizerData
   ]);
 
 
@@ -1002,3 +1002,4 @@ export default function Customizer() {
       </div>
   );
 }
+
