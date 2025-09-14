@@ -515,105 +515,106 @@ export default function Customizer() {
     const targetSource = sourceFromUrl;
     const targetProxyUrl = wpApiBaseUrlFromUrl || null;
     const targetConfigUserId = configUserIdFromUrl || null;
-
-    if (authLoading && !user && !targetProxyUrl && !targetConfigUserId) {
-        if (lastLoadedProductIdRef.current === undefined) { 
-            loadCustomizerData(null, 'woocommerce', null, null);
-            lastLoadedProductIdRef.current = null;
-        }
-        return; 
-    }
-    
-    if (
-        (lastLoadedProductIdRef.current !== targetProductId ||
-         productDetails?.meta?.source !== targetSource ||
-         lastLoadedProxyUrlRef.current !== targetProxyUrl ||
-         lastLoadedConfigUserIdRef.current !== targetConfigUserId) ||
-        !productDetails 
-    ) {
+  
+    // Only load if essential info is available or it's a non-authed public scenario
+    const canLoadPublicly = targetConfigUserId || targetProxyUrl;
+    const canLoadAuthed = !authLoading && user;
+  
+    if (canLoadPublicly || canLoadAuthed) {
+      if (
+        lastLoadedProductIdRef.current !== targetProductId ||
+        productDetails?.meta?.source !== targetSource ||
+        lastLoadedProxyUrlRef.current !== targetProxyUrl ||
+        lastLoadedConfigUserIdRef.current !== targetConfigUserId
+      ) {
         loadCustomizerData(targetProductId, targetSource, targetProxyUrl, targetConfigUserId);
         lastLoadedProductIdRef.current = targetProductId;
         lastLoadedProxyUrlRef.current = targetProxyUrl;
         lastLoadedConfigUserIdRef.current = targetConfigUserId;
+      }
+    } else if (authLoading) {
+      // Still waiting for auth state, do nothing
+    } else if (!productDetails) {
+      // Auth is done, no user, and no public identifiers, load fallback
+      loadCustomizerData(null, 'woocommerce', null, null);
     }
   }, [
-      authLoading, user, productIdFromUrl, sourceFromUrl, wpApiBaseUrlFromUrl, configUserIdFromUrl,
-      loadCustomizerData
+    authLoading, user, productIdFromUrl, sourceFromUrl, wpApiBaseUrlFromUrl, configUserIdFromUrl,
+    loadCustomizerData, productDetails
   ]);
 
 
  useEffect(() => {
-    setProductDetails(prevProductDetails => {
-        if (!prevProductDetails) return null;
+    if (!productDetails || !viewBaseImages) return;
 
-        let matchingVariationPrice: number | null = null;
-        let finalViews = prevProductDetails.views;
+    let matchingVariationPrice: number | null = null;
+    let finalViews = productDetails.views;
 
-        const isVariable = prevProductDetails.type === 'variable' || (prevProductDetails.nativeVariations && prevProductDetails.nativeVariations.length > 0);
-        let matchingNativeVariation: NativeProductVariation | undefined;
-        let matchingWcVariation: WCVariation | undefined;
+    const isVariable = productDetails.type === 'variable' || (productDetails.nativeVariations && productDetails.nativeVariations.length > 0);
+    let matchingNativeVariation: NativeProductVariation | undefined;
+    let matchingWcVariation: WCVariation | undefined;
 
-        if (isVariable) {
-            if (prevProductDetails.source === 'customizer-studio' && prevProductDetails.nativeVariations) {
-                matchingNativeVariation = prevProductDetails.nativeVariations.find(v => 
-                    Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
-                );
-                if (matchingNativeVariation) {
-                    matchingVariationPrice = matchingNativeVariation.price;
-                }
-            } else if (prevProductDetails.source === 'woocommerce' && productVariations) {
-                matchingWcVariation = productVariations.find(variation => 
-                    variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
-                );
-                if (matchingWcVariation) {
-                    matchingVariationPrice = parseFloat(matchingWcVariation.price || '0');
-                }
+    if (isVariable) {
+        if (productDetails.source === 'customizer-studio' && productDetails.nativeVariations) {
+            matchingNativeVariation = productDetails.nativeVariations.find(v => 
+                Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
+            );
+            if (matchingNativeVariation) {
+                matchingVariationPrice = matchingNativeVariation.price;
+            }
+        } else if (productDetails.source === 'woocommerce' && productVariations) {
+            matchingWcVariation = productVariations.find(variation => 
+                variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
+            );
+            if (matchingWcVariation) {
+                matchingVariationPrice = parseFloat(matchingWcVariation.price || '0');
             }
         }
-        
-        const colorKey = loadedGroupingAttributeName ? selectedVariationOptions[loadedGroupingAttributeName] : null;
-        const colorSpecificViews = colorKey && loadedOptionsByColor?.[colorKey]?.views;
+    }
+    
+    const colorKey = loadedGroupingAttributeName ? selectedVariationOptions[loadedGroupingAttributeName] : null;
+    const colorSpecificViews = colorKey && loadedOptionsByColor?.[colorKey]?.views;
 
-        if (colorSpecificViews && colorSpecificViews.length > 0) {
-            finalViews = colorSpecificViews;
-        } else if (matchingWcVariation?.image?.src) {
-             finalViews = [{
-                 id: `wc_variation_view_${matchingWcVariation.id}`,
-                 name: matchingWcVariation.attributes.map(a => a.option).join(' '),
-                 imageUrl: matchingWcVariation.image.src,
-                 aiHint: matchingWcVariation.image.alt || 'product variation',
-                 boundaryBoxes: prevProductDetails.views[0]?.boundaryBoxes || [],
-                 price: 0,
-             }];
-        } else {
-             finalViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
-                id,
-                name: prevProductDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
-                imageUrl: base.url,
-                aiHint: base.aiHint,
-                price: prevProductDetails.views.find(v => v.id === id)?.price,
-                embroideryAdditionalFee: prevProductDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
-                printAdditionalFee: prevProductDetails.views.find(v => v.id === id)?.printAdditionalFee,
-                boundaryBoxes: prevProductDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
-            }));
-        }
+    if (colorSpecificViews && colorSpecificViews.length > 0) {
+        finalViews = colorSpecificViews;
+    } else if (matchingWcVariation?.image?.src) {
+         finalViews = [{
+             id: `wc_variation_view_${matchingWcVariation.id}`,
+             name: matchingWcVariation.attributes.map(a => a.option).join(' '),
+             imageUrl: matchingWcVariation.image.src,
+             aiHint: matchingWcVariation.image.alt || 'product variation',
+             boundaryBoxes: productDetails.views[0]?.boundaryBoxes || [],
+             price: 0,
+         }];
+    } else {
+         finalViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
+            id,
+            name: productDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
+            imageUrl: base.url,
+            aiHint: base.aiHint,
+            price: productDetails.views.find(v => v.id === id)?.price,
+            embroideryAdditionalFee: productDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
+            printAdditionalFee: productDetails.views.find(v => v.id === id)?.printAdditionalFee,
+            boundaryBoxes: productDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
+        }));
+    }
 
-        const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : prevProductDetails.basePrice;
+    const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : productDetails.basePrice;
 
-        const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
-        if (!activeViewStillExists) {
-            setActiveViewId(finalViews[0]?.id || null);
-        }
+    const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
+    if (!activeViewStillExists) {
+        setActiveViewId(finalViews[0]?.id || null);
+    }
+    
+    const viewsChanged = JSON.stringify(productDetails.views) !== JSON.stringify(finalViews);
+    const priceChanged = productDetails.basePrice !== newBasePrice;
 
-        if (JSON.stringify(prevProductDetails.views) !== JSON.stringify(finalViews) || prevProductDetails.basePrice !== newBasePrice) {
-            return { ...prevProductDetails, views: finalViews, basePrice: newBasePrice };
-        }
-
-        return prevProductDetails;
-    });
+    if (viewsChanged || priceChanged) {
+        setProductDetails(prev => prev ? { ...prev, views: finalViews, basePrice: newBasePrice } : null);
+    }
 }, [
     selectedVariationOptions, productVariations, viewBaseImages,
-    loadedOptionsByColor, loadedGroupingAttributeName, activeViewId
+    loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails?.views, productDetails?.basePrice
 ]);
 
 
@@ -640,7 +641,7 @@ export default function Customizer() {
 
     const basePrice = productDetails?.basePrice ?? 0;
     setTotalCustomizationPrice(basePrice + viewSurcharges);
-  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, activeViewId, selectedTechnique]);
+  }, [canvasImages, canvasTexts, canvasShapes, productDetails?.views, productDetails?.basePrice, selectedTechnique]);
 
   const getToolPanelTitle = (toolId: string): string => {
     const tool = toolItems.find(item => item.id === toolId);
@@ -1002,4 +1003,3 @@ export default function Customizer() {
       </div>
   );
 }
-
