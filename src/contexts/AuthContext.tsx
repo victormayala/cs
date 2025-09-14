@@ -139,7 +139,8 @@ function AuthLogicHandler({
     });
 
     return () => unsubscribe();
-  }, [auth, router, pathname, searchParams, setAuthProviderUser, setAuthProviderIsLoading, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     if (!auth) return;
