@@ -3,11 +3,18 @@
 import Image from 'next/image';
 import { useUploads } from '@/contexts/UploadContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
-import useImage from 'use-image';
-import type Konva from 'konva';
 import type { CanvasImage, CanvasText, CanvasShape } from '@/contexts/UploadContext';
+import dynamic from 'next/dynamic';
+import type Konva from 'konva';
 
+// Dynamically import Konva components
+const Stage = dynamic(() => import('react-konva').then((mod) => mod.Stage), { ssr: false });
+const Layer = dynamic(() => import('react-konva').then((mod) => mod.Layer), { ssr: false });
+const KonvaImage = dynamic(() => import('react-konva').then((mod) => mod.Image), { ssr: false });
+const KonvaText = dynamic(() => import('react-konva').then((mod) => mod.Text), { ssr: false });
+const Transformer = dynamic(() => import('react-konva').then((mod) => mod.Transformer), { ssr: false });
+const Rect = dynamic(() => import('react-konva').then((mod) => mod.Rect), { ssr: false });
+const Circle = dynamic(() => import('react-konva').then((mod) => mod.Circle), { ssr: false });
 
 // --- InteractiveCanvasImage ---
 interface InteractiveCanvasImageProps {
@@ -18,6 +25,7 @@ interface InteractiveCanvasImageProps {
 }
 
 const InteractiveCanvasImage = ({ imageProps, isSelected, onSelect, onTransformEnd }: InteractiveCanvasImageProps) => {
+  const { useImage } = useUploads();
   const [img] = useImage(imageProps.dataUrl, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -365,3 +373,4 @@ export default function DesignCanvas({
     </div>
   );
 }
+

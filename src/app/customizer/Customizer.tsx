@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
+import RightPanel from '@/components/customizer/RightPanel';
 import { useUploads } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
@@ -34,8 +35,6 @@ import type { WCCustomProduct, WCVariation, WCVariationAttribute } from '@/types
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
-import RightPanel from '@/components/customizer/RightPanel';
-import DesignCanvas from '@/components/customizer/DesignCanvas';
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
 import TextToolPanel from '@/components/customizer/TextToolPanel';
@@ -46,6 +45,12 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import type { CanvasImage, CanvasText, CanvasShape, ImageTransform } from '@/contexts/UploadContext';
+import dynamic from 'next/dynamic';
+
+const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full flex items-center justify-center bg-muted/30 rounded-lg"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+});
 
 interface BoundaryBox {
   id: string;
@@ -701,49 +706,51 @@ export default function Customizer() {
 
         for (const view of viewsToProcess) {
             const allItemsForView = [
-                ...canvasImages, ...canvasTexts, ...canvasShapes
-            ].filter(item => item.viewId === view.id);
+                ...canvasImages.filter(item => item.viewId === view.id),
+                ...canvasTexts.filter(item => item.viewId === view.id),
+                ...canvasShapes.filter(item => item.viewId === view.id),
+            ];
 
-            const renderedOverlays: ImageTransform[] = await Promise.all(
-              allItemsForView.map(async (item): Promise<ImageTransform> => {
-                let itemDataUrl: string;
-                let itemMimeType: string = 'image/png';
-                let itemWidth, itemHeight;
-                
-                if (item.itemType === 'image' && 'dataUrl' in item) {
-                    itemDataUrl = item.dataUrl;
-                    itemMimeType = item.type;
-                    itemWidth = 'width' in item ? item.width : 150;
-                    itemHeight = 'height' in item ? item.height : 150;
-                } else if (item.itemType === 'text' || item.itemType === 'shape') {
-                    const stage = getStageRef()?.current;
-                    const node = stage?.findOne(`#${item.id}`);
-                    if (!node) throw new Error(`Could not find canvas element for item ${item.id}`);
-                    itemDataUrl = node.toDataURL();
-                    itemWidth = node.width();
-                    itemHeight = node.height();
-                } else {
-                    throw new Error(`Unsupported item type for preview: ${item.itemType}`);
-                }
+            const overlaysForView = await Promise.all(allItemsForView.map(async (item): Promise<ImageTransform> => {
+              let itemDataUrl = '';
+              let itemMimeType = 'image/png';
+              let itemWidth = 150;
+              let itemHeight = 150;
 
-                return {
-                    imageDataUri: itemDataUrl,
-                    mimeType: itemMimeType,
-                    x: (item.x / 100) * 600, // Assuming 600px canvas for consistency
-                    y: (item.y / 100) * 600,
-                    width: 'width' in item ? item.width * item.scale : 150 * item.scale,
-                    height: 'height' in item ? item.height * item.scale : 150 * item.scale,
-                    rotation: item.rotation || 0,
-                    zIndex: item.zIndex || 0,
-                };
-              })
-            );
+              if (item.itemType === 'image') {
+                  const canvasImg = item as CanvasImage;
+                  itemDataUrl = canvasImg.dataUrl;
+                  itemMimeType = canvasImg.type;
+                  itemWidth = 'width' in canvasImg ? canvasImg.width : 150;
+                  itemHeight = 'height' in canvasImg ? canvasImg.height : 150;
+              } else {
+                  const node = stage.findOne(`#${item.id}`);
+                  if (node) {
+                      itemDataUrl = node.toDataURL();
+                      itemWidth = node.width() * node.scaleX();
+                      itemHeight = node.height() * node.scaleY();
+                  } else {
+                      throw new Error(`Canvas node with id #${item.id} not found.`);
+                  }
+              }
+              
+              return {
+                  imageDataUri: itemDataUrl,
+                  mimeType: itemMimeType,
+                  x: (item.x / 100) * 600,
+                  y: (item.y / 100) * 600,
+                  width: item.itemType === 'image' ? itemWidth * item.scale : itemWidth,
+                  height: item.itemType === 'image' ? itemHeight * item.scale : itemHeight,
+                  rotation: item.rotation || 0,
+                  zIndex: item.zIndex || 0,
+              };
+            }));
 
             const payload = {
                 baseImageUrl: view.imageUrl,
                 baseImageWidthPx: 600,
                 baseImageHeightPx: 600,
-                overlays: renderedOverlays,
+                overlays: overlaysForView,
             };
             
             const response = await fetch('/api/preview', {

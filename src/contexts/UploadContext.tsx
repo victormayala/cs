@@ -1,9 +1,9 @@
-
 'use client';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { googleFonts } from '@/lib/google-fonts';
 import type Konva from 'konva';
+import useImageDefault from 'use-image'; // Import the hook
 
 // Represents a file uploaded by the user
 export interface UploadedImage {
@@ -21,6 +21,8 @@ export interface CanvasImage {
   name: string;
   dataUrl: string; // Will now always be a Base64 data URI
   type: string;
+  width: number;
+  height: number;
   scale: number;
   rotation: number;
   x: number; // percentage for left
@@ -169,6 +171,7 @@ interface UploadContextType {
 
   // New function to provide access to the Konva stage for exporting
   getStageRef: () => React.RefObject<Konva.Stage> | null;
+  useImage: typeof useImageDefault;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -309,7 +312,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const currentMaxZIndex = getMaxZIndexForView(viewId);
       const newCanvasImage: CanvasImage = {
         id: crypto.randomUUID(), sourceImageId: sourceImage.id, viewId, name: sourceImage.name,
-        dataUrl: sourceImage.dataUrl, type: sourceImage.type, scale: 1, rotation: 0, 
+        dataUrl: sourceImage.dataUrl, type: sourceImage.type, 
+        width: 150, height: 150, // Default size
+        scale: 1, rotation: 0, 
         x: 50, y: 50, zIndex: currentMaxZIndex + 1, isLocked: false, itemType: 'image',
         movedFromDefault: false,
       };
@@ -329,7 +334,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const currentMaxZIndex = getMaxZIndexForView(viewId);
       const newCanvasImage: CanvasImage = {
         id: crypto.randomUUID(), sourceImageId: sourceId || `url-${crypto.randomUUID()}`, viewId,
-        name: name, dataUrl: dataUrl, type: type, scale: 1, rotation: 0, 
+        name: name, dataUrl: dataUrl, type: type, 
+        width: 150, height: 150, // Default size
+        scale: 1, rotation: 0, 
         x: 50, y: 50, zIndex: currentMaxZIndex + 1, isLocked: false, itemType: 'image',
         movedFromDefault: false,
       };
@@ -695,7 +702,8 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         canvasShapes, addCanvasShape, removeCanvasShape, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         bringShapeLayerForward, sendShapeLayerBackward, duplicateCanvasShape, toggleLockCanvasShape,
         undo, redo, canUndo, canRedo,
-        startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot, getStageRef
+        startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot, getStageRef,
+        useImage: useImageDefault,
       }}
     >
       {children}
@@ -711,4 +719,3 @@ export function useUploads() {
   return context;
 }
 
-    
