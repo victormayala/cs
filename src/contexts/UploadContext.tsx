@@ -3,7 +3,6 @@ import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { googleFonts } from '@/lib/google-fonts';
 import type Konva from 'konva';
-import useImageDefault from 'use-image'; // Import the hook
 
 // Represents a file uploaded by the user
 export interface UploadedImage {
@@ -67,6 +66,7 @@ export interface CanvasText {
   shadowOffsetY: number; // In px
   shadowBlur: number; // In px
   movedFromDefault?: boolean;
+  archAmount: number;
 }
 
 // Represents an instance of a shape on the canvas
@@ -167,7 +167,6 @@ interface UploadContextType {
 
   // New function to provide access to the Konva stage for exporting
   getStageRef: () => React.RefObject<Konva.Stage> | null;
-  useImage: typeof useImageDefault;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -437,6 +436,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         shadowOffsetY: initialStyle?.shadowOffsetY || 0,
         shadowBlur: initialStyle?.shadowBlur || 0,
         movedFromDefault: false,
+        archAmount: initialStyle?.archAmount || 0,
       };
       setCanvasTexts(prev => [...prev, newText]);
       setSelectedCanvasTextId(newText.id);
@@ -698,7 +698,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         bringShapeLayerForward, sendShapeLayerBackward, duplicateCanvasShape, toggleLockCanvasShape,
         undo, redo, canUndo, canRedo,
         startInteractiveOperation, endInteractiveOperation, restoreFromSnapshot, getStageRef,
-        useImage: useImageDefault,
       }}
     >
       {children}
@@ -713,5 +712,3 @@ export function useUploads() {
   }
   return context;
 }
-
-    
