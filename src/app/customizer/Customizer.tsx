@@ -959,5 +959,3 @@ export default function Customizer() {
     </div>
   );
 }
-
-    
