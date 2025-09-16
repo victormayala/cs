@@ -211,6 +211,7 @@ export default function Customizer() {
   const [onConfirmLeaveAction, setOnConfirmLeaveAction] = useState<(() => void) | null>(null);
 
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [activeProductImageUrl, setActiveProductImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<string>(toolItems[0]?.id || "layers");
@@ -555,10 +556,15 @@ export default function Customizer() {
     const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : productDetails.basePrice;
 
     const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
+    let newActiveViewId = activeViewId;
     if (!activeViewStillExists) {
-        setActiveViewId(finalViews[0]?.id || null);
+        newActiveViewId = finalViews[0]?.id || null;
+        setActiveViewId(newActiveViewId);
     }
     
+    const newActiveImageUrl = finalViews.find(v => v.id === newActiveViewId)?.imageUrl || defaultFallbackProduct.views[0].imageUrl;
+    setActiveProductImageUrl(newActiveImageUrl);
+
     const viewsChanged = JSON.stringify(productDetails.views) !== JSON.stringify(finalViews);
     const priceChanged = productDetails.basePrice !== newBasePrice;
 
@@ -839,7 +845,6 @@ export default function Customizer() {
   }
 
   const activeViewData = productDetails?.views.find(v => v.id === activeViewId);
-  const currentProductImage = activeViewData?.imageUrl || defaultFallbackProduct.views[0].imageUrl;
   const currentProductAlt = activeViewData?.name || defaultFallbackProduct.views[0].name;
   const currentProductAiHint = activeViewData?.aiHint || defaultFallbackProduct.views[0].aiHint;
   const currentBoundaryBoxes = activeViewData?.boundaryBoxes || defaultFallbackProduct.views[0].boundaryBoxes;
@@ -883,7 +888,7 @@ export default function Customizer() {
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
             {isClient ? (
               <DesignCanvas 
-                productImageUrl={currentProductImage} 
+                productImageUrl={activeProductImageUrl || defaultFallbackProduct.views[0].imageUrl} 
                 productImageAlt={`${currentProductName} - ${currentProductAlt}`} 
                 productImageAiHint={currentProductAiHint} 
                 productDefinedBoundaryBoxes={currentBoundaryBoxes} 
@@ -958,3 +963,4 @@ export default function Customizer() {
     </div>
   );
 }
+
