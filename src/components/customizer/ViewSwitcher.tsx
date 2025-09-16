@@ -3,19 +3,14 @@
 
 import NextImage from 'next/image';
 import { cn } from '@/lib/utils';
-import type { ProductView as CustomizerProductView } from '@/app/customizer/page';
+import type { ProductView } from '@/app/customizer/Customizer';
 import type { CustomizationTechnique } from '@/app/actions/productActions';
 
-interface ProductView extends CustomizerProductView {
-  price?: number; 
-  embroideryAdditionalFee?: number;
-  printAdditionalFee?: number;
-}
 
 interface ViewSwitcherProps {
   productViews: ProductView[];
   activeViewId: string | null;
-  onViewChange: (id: string) => void; // Changed from setActiveViewId
+  onViewChange: (id: string) => void;
   selectedTechnique?: CustomizationTechnique | null;
 }
 
@@ -42,7 +37,7 @@ export default function ViewSwitcher({ productViews, activeViewId, onViewChange,
           return (
             <button
               key={`${view.id}-${index}`}
-              onClick={() => onViewChange(view.id)} // Use the new handler
+              onClick={() => onViewChange(view.id)}
               className={cn(
                 "rounded-md border-2 p-1.5 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex flex-col items-center text-center w-[70px]",
                 activeViewId === view.id

@@ -7,7 +7,7 @@ import HistoryControls from './HistoryControls';
 import ViewSwitcher from './ViewSwitcher';
 import VariantSelector from './VariantSelector'; 
 import BoundaryBoxControls from './BoundaryBoxControls';
-import type { ProductForCustomizer, ConfigurableAttribute } from '@/app/customizer/page';
+import type { ProductForCustomizer, ConfigurableAttribute } from '@/app/customizer/Customizer';
 import type { WCVariation } from '@/types/woocommerce'; 
 import { cn } from '@/lib/utils';
 import { type CustomizationTechnique } from '@/app/actions/productActions';
@@ -22,7 +22,7 @@ interface RightPanelProps {
   toggleBoundaryBoxes: () => void; 
   productDetails: ProductForCustomizer | null;
   activeViewId: string | null;
-  onViewChange: (id: string) => void; // Changed from setActiveViewId
+  onViewChange: (id: string) => void;
   className?: string;
   configurableAttributes: ConfigurableAttribute[] | null; 
   selectedVariationOptions: Record<string, string>; 
@@ -39,7 +39,7 @@ const RightPanelComponent = ({
   toggleBoundaryBoxes, 
   productDetails,
   activeViewId,
-  onViewChange, // Use the new handler
+  onViewChange,
   className,
   configurableAttributes,
   selectedVariationOptions,
@@ -128,7 +128,7 @@ const RightPanelComponent = ({
             <ViewSwitcher
               productViews={productDetails.views}
               activeViewId={activeViewId}
-              onViewChange={onViewChange} // Pass the handler
+              onViewChange={onViewChange}
               selectedTechnique={selectedTechnique}
             />
           ) : (
