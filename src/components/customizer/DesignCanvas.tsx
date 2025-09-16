@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import useImage from 'use-image';
@@ -43,8 +43,8 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         y={(imageProps.y / 100) * stageHeight}
         width={imageProps.width}
         height={imageProps.height}
-        scaleX={imageProps.scale}
-        scaleY={imageProps.scale}
+        scaleX={imageProps.scaleX}
+        scaleY={imageProps.scaleY}
         rotation={imageProps.rotation}
         draggable={!imageProps.isLocked}
         onClick={onSelect}
@@ -207,7 +207,6 @@ export default function DesignCanvas({
         getStageRef,
     } = useUploads();
     
-    // The `useImage` hook is now passed a data URI from the proxy, which avoids CORS issues.
     const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
@@ -225,6 +224,38 @@ export default function DesignCanvas({
         return () => window.removeEventListener("resize", checkSize);
     }, []);
 
+    const imageDisplayProps = useMemo(() => {
+        if (!backgroundImage) {
+          return { width: 0, height: 0, x: 0, y: 0 };
+        }
+        const canvasWidth = canvasDimensions.width;
+        const canvasHeight = canvasDimensions.height;
+        const imgWidth = backgroundImage.naturalWidth;
+        const imgHeight = backgroundImage.naturalHeight;
+    
+        const canvasRatio = canvasWidth / canvasHeight;
+        const imgRatio = imgWidth / imgHeight;
+    
+        let finalWidth, finalHeight, finalX, finalY;
+    
+        if (imgRatio > canvasRatio) {
+          // Image is wider than canvas, fit to width
+          finalWidth = canvasWidth;
+          finalHeight = canvasWidth / imgRatio;
+          finalX = 0;
+          finalY = (canvasHeight - finalHeight) / 2;
+        } else {
+          // Image is taller than or same ratio as canvas, fit to height
+          finalHeight = canvasHeight;
+          finalWidth = canvasHeight * imgRatio;
+          finalY = 0;
+          finalX = (canvasWidth - finalWidth) / 2;
+        }
+    
+        return { width: finalWidth, height: finalHeight, x: finalX, y: finalY };
+      }, [backgroundImage, canvasDimensions]);
+
+
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
             selectCanvasImage(null);
@@ -235,15 +266,24 @@ export default function DesignCanvas({
 
     const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, itemType: 'image' | 'text' | 'shape') => {
         const node = e.target;
-        const scale = node.scaleX();
-        const rotation = node.rotation();
-        const x = (node.x() / canvasDimensions.width) * 100;
-        const y = (node.y() / canvasDimensions.height) * 100;
+        const newAttrs: Partial<CanvasImage> = {
+            rotation: node.rotation(),
+            x: (node.x() / canvasDimensions.width) * 100,
+            y: (node.y() / canvasDimensions.height) * 100,
+            movedFromDefault: true
+        };
 
-        switch (itemType) {
-            case 'image': updateCanvasImage(node.id(), { x, y, scale, rotation, movedFromDefault: true }); break;
-            case 'text': updateCanvasText(node.id(), { x, y, scale, rotation, movedFromDefault: true }); break;
-            case 'shape': updateCanvasShape(node.id(), { x, y, scale, rotation, movedFromDefault: true }); break;
+        if (itemType === 'image') {
+            (newAttrs as Partial<CanvasImage>).scaleX = node.scaleX();
+            (newAttrs as Partial<CanvasImage>).scaleY = node.scaleY();
+            updateCanvasImage(node.id(), newAttrs);
+        } else {
+            (newAttrs as Partial<CanvasText | CanvasShape>).scale = node.scaleX(); // Assume uniform scaling for text/shapes
+            if(itemType === 'text') {
+                updateCanvasText(node.id(), newAttrs as Partial<CanvasText>);
+            } else {
+                updateCanvasShape(node.id(), newAttrs as Partial<CanvasShape>);
+            }
         }
     };
 
@@ -262,7 +302,15 @@ export default function DesignCanvas({
                 onTap={handleStageClick}
             >
                 <Layer>
-                    {backgroundImage && <KonvaImage image={backgroundImage} width={canvasDimensions.width} height={canvasDimensions.height} />}
+                    {backgroundImage && (
+                        <KonvaImage 
+                            image={backgroundImage} 
+                            width={imageDisplayProps.width} 
+                            height={imageDisplayProps.height}
+                            x={imageDisplayProps.x}
+                            y={imageDisplayProps.y}
+                        />
+                    )}
                 </Layer>
                 <Layer>
                     {visibleImages.map((img) => (
@@ -295,13 +343,20 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
 
-            {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
-                <div key={box.id} className="absolute border-2 border-dashed border-primary/50 pointer-events-none" style={{
-                    left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`,
-                }}>
-                    <div className="absolute -top-5 left-0 text-xs bg-primary/80 text-primary-foreground px-1 py-0.5 rounded-sm">{box.name}</div>
-                </div>
-            ))}
+            {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
+                const boxStyle: React.CSSProperties = {
+                    position: 'absolute',
+                    left: `${(box.x / 100) * imageDisplayProps.width + imageDisplayProps.x}px`,
+                    top: `${(box.y / 100) * imageDisplayProps.height + imageDisplayProps.y}px`,
+                    width: `${(box.width / 100) * imageDisplayProps.width}px`,
+                    height: `${(box.height / 100) * imageDisplayProps.height}px`,
+                  };
+                return(
+                    <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={boxStyle}>
+                        <div className="absolute -top-5 left-0 text-xs bg-primary/80 text-primary-foreground px-1 py-0.5 rounded-sm">{box.name}</div>
+                    </div>
+                )
+            })}
 
             {showGrid && (
               <div className="absolute inset-0 pointer-events-none grid-pattern" style={{
