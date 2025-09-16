@@ -499,10 +499,10 @@ export default function Customizer() {
 
 
  useEffect(() => {
-    if (!productDetails || !viewBaseImages) return;
+    if (!productDetails) return;
 
     let matchingVariationPrice: number | null = null;
-    let finalViews = productDetails.views;
+    let finalViews: ProductView[] = [...productDetails.views]; // Start with current views
 
     const isVariable = productDetails.type === 'variable' || (productDetails.nativeVariations && productDetails.nativeVariations.length > 0);
     let matchingNativeVariation: NativeProductVariation | undefined;
@@ -963,4 +963,3 @@ export default function Customizer() {
     </div>
   );
 }
-
