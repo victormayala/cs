@@ -502,7 +502,7 @@ export default function Customizer() {
     if (!productDetails) return;
 
     let matchingVariationPrice: number | null = null;
-    let finalViews: ProductView[] = [...productDetails.views]; // Start with current views
+    let finalViews: ProductView[] = [...productDetails.views]; 
 
     const isVariable = productDetails.type === 'variable' || (productDetails.nativeVariations && productDetails.nativeVariations.length > 0);
     let matchingNativeVariation: NativeProductVariation | undefined;
@@ -556,9 +556,8 @@ export default function Customizer() {
     const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : productDetails.basePrice;
 
     const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
-    let newActiveViewId = activeViewId;
+    let newActiveViewId = activeViewStillExists ? activeViewId : (finalViews[0]?.id || null);
     if (!activeViewStillExists) {
-        newActiveViewId = finalViews[0]?.id || null;
         setActiveViewId(newActiveViewId);
     }
     
