@@ -296,53 +296,87 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     return Math.max(-1, ...imageZIndexes, ...textZIndexes, ...shapeZIndexes);
   }, [canvasImages, canvasTexts, canvasShapes]);
 
-  // Image Functions
+  // --- Image Functions ---
+  const addImageToCanvasWithCorrectSize = (
+    name: string,
+    dataUrl: string,
+    type: string,
+    viewId: string,
+    sourceId: string
+  ) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX_DIMENSION = 150;
+      const aspectRatio = img.naturalWidth / img.naturalHeight;
+      let width, height;
+      if (aspectRatio > 1) {
+        width = MAX_DIMENSION;
+        height = MAX_DIMENSION / aspectRatio;
+      } else {
+        height = MAX_DIMENSION;
+        width = MAX_DIMENSION * aspectRatio;
+      }
+      
+      queueMicrotask(() => {
+        if (!isInteractiveOperationInProgressRef.current) {
+          pushToUndoStack(createSnapshot());
+        }
+        const currentMaxZIndex = getMaxZIndexForView(viewId);
+        const newCanvasImage: CanvasImage = {
+          id: crypto.randomUUID(),
+          sourceImageId: sourceId,
+          viewId,
+          name,
+          dataUrl,
+          type,
+          width,
+          height,
+          scale: 1,
+          rotation: 0,
+          x: 50,
+          y: 50,
+          zIndex: currentMaxZIndex + 1,
+          isLocked: false,
+          itemType: 'image',
+          movedFromDefault: false,
+        };
+        setCanvasImages(prev => [...prev, newCanvasImage]);
+        setSelectedCanvasImageId(newCanvasImage.id);
+        setSelectedCanvasTextId(null);
+        setSelectedCanvasShapeId(null);
+      });
+    };
+    img.onerror = () => {
+      console.error("Failed to load image for size calculation.");
+    };
+    img.src = dataUrl;
+  };
+
   const addCanvasImage = useCallback((sourceImageId: string, viewId: string) => {
     if (!viewId) { console.error("addCanvasImage: viewId is required"); return; }
     const sourceImage = uploadedImages.find(img => img.id === sourceImageId);
     if (!sourceImage) return;
     
-    queueMicrotask(() => {
-      if (!isInteractiveOperationInProgressRef.current) {
-        pushToUndoStack(createSnapshot());
-      }
-      const currentMaxZIndex = getMaxZIndexForView(viewId);
-      const newCanvasImage: CanvasImage = {
-        id: crypto.randomUUID(), sourceImageId: sourceImage.id, viewId, name: sourceImage.name,
-        dataUrl: sourceImage.dataUrl, type: sourceImage.type, 
-        width: 150, height: 150, // Default size
-        scale: 1, rotation: 0, 
-        x: 50, y: 50, zIndex: currentMaxZIndex + 1, isLocked: false, itemType: 'image',
-        movedFromDefault: false,
-      };
-      setCanvasImages(prev => [...prev, newCanvasImage]);
-      setSelectedCanvasImageId(newCanvasImage.id);
-      setSelectedCanvasTextId(null); setSelectedCanvasShapeId(null);
-    });
+    addImageToCanvasWithCorrectSize(
+      sourceImage.name,
+      sourceImage.dataUrl,
+      sourceImage.type,
+      viewId,
+      sourceImage.id
+    );
   }, [uploadedImages, getMaxZIndexForView, createSnapshot, pushToUndoStack]);
 
   const addCanvasImageFromUrl = useCallback((name: string, dataUrl: string, type: string, viewId: string, sourceId?: string) => {
     if (!viewId) { console.error("addCanvasImageFromUrl: viewId is required"); return; }
-
-    queueMicrotask(() => {
-      if (!isInteractiveOperationInProgressRef.current) {
-        pushToUndoStack(createSnapshot());
-      }
-      const currentMaxZIndex = getMaxZIndexForView(viewId);
-      const newCanvasImage: CanvasImage = {
-        id: crypto.randomUUID(), sourceImageId: sourceId || `url-${crypto.randomUUID()}`, viewId,
-        name: name, dataUrl: dataUrl, type: type, 
-        width: 150, height: 150, // Default size
-        scale: 1, rotation: 0, 
-        x: 50, y: 50, zIndex: currentMaxZIndex + 1, isLocked: false, itemType: 'image',
-        movedFromDefault: false,
-      };
-      setCanvasImages(prev => [...prev, newCanvasImage]);
-      setSelectedCanvasImageId(newCanvasImage.id);
-      setSelectedCanvasTextId(null); setSelectedCanvasShapeId(null);
-    });
+    
+    addImageToCanvasWithCorrectSize(
+      name,
+      dataUrl,
+      type,
+      viewId,
+      sourceId || `url-${crypto.randomUUID()}`
+    );
   }, [getMaxZIndexForView, createSnapshot, pushToUndoStack]);
-
 
   const removeCanvasImage = useCallback((canvasImageId: string) => {
     queueMicrotask(() => {
