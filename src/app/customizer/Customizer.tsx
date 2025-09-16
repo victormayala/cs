@@ -840,11 +840,7 @@ export default function Customizer() {
     );
   }
 
-  const activeViewData = productDetails?.views.find(v => v.id === activeViewId);
-  const currentProductImageUrl = activeViewData?.imageUrl || defaultFallbackProduct.views[0].imageUrl;
-  const currentProductAlt = activeViewData?.name || defaultFallbackProduct.views[0].name;
-  const currentProductAiHint = activeViewData?.aiHint || defaultFallbackProduct.views[0].aiHint;
-  const currentBoundaryBoxes = activeViewData?.boundaryBoxes || defaultFallbackProduct.views[0].boundaryBoxes;
+  const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0] || defaultFallbackProduct.views[0];
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   
   const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
@@ -885,11 +881,7 @@ export default function Customizer() {
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
             {isClient ? (
               <DesignCanvas 
-                productImageUrl={currentProductImageUrl} 
-                productImageAlt={`${currentProductName} - ${currentProductAlt}`} 
-                productImageAiHint={currentProductAiHint} 
-                productDefinedBoundaryBoxes={currentBoundaryBoxes} 
-                activeViewId={activeViewId} 
+                activeView={activeView}
                 showGrid={showGrid} 
                 showBoundaryBoxes={showBoundaryBoxes} 
               />

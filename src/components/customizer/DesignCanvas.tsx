@@ -6,6 +6,7 @@ import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import useImage from 'use-image';
 import type Konva from 'konva';
+import type { ProductView } from '@/app/customizer/Customizer';
 
 // --- Inner Canvas Components ---
 
@@ -190,27 +191,14 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
   );
 }
 
-interface BoundaryBox {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 interface DesignCanvasProps {
-  productImageUrl?: string;
-  productImageAlt?: string;
-  productImageAiHint?: string;
-  productDefinedBoundaryBoxes?: BoundaryBox[];
-  activeViewId: string | null;
+  activeView: ProductView;
   showGrid: boolean;
   showBoundaryBoxes: boolean;
 }
 
 export default function DesignCanvas({
-    productImageUrl, productImageAlt, productImageAiHint,
-    productDefinedBoundaryBoxes = [], activeViewId, showGrid, showBoundaryBoxes
+    activeView, showGrid, showBoundaryBoxes
 }: DesignCanvasProps) {
     const {
         canvasImages, selectedCanvasImageId, selectCanvasImage, updateCanvasImage,
@@ -218,7 +206,7 @@ export default function DesignCanvas({
         canvasShapes, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         getStageRef,
     } = useUploads();
-    const [backgroundImage] = useImage(productImageUrl || '', 'anonymous');
+    const [backgroundImage] = useImage(activeView.imageUrl || '', 'anonymous');
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
@@ -257,9 +245,9 @@ export default function DesignCanvas({
         }
     };
 
-    const visibleImages = canvasImages.filter(img => img.viewId === activeViewId);
-    const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeViewId);
-    const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeViewId);
+    const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
+    const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
+    const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeView.id);
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
@@ -303,7 +291,7 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
 
-            {showBoundaryBoxes && productDefinedBoundaryBoxes.map(box => (
+            {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
                 <div key={box.id} className="absolute border-2 border-dashed border-primary/50 pointer-events-none" style={{
                     left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`,
                 }}>

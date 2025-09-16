@@ -7,7 +7,7 @@ import HistoryControls from './HistoryControls';
 import ViewSwitcher from './ViewSwitcher';
 import VariantSelector from './VariantSelector'; 
 import BoundaryBoxControls from './BoundaryBoxControls';
-import type { ProductForCustomizer, ConfigurableAttribute } from '@/app/customizer/Customizer';
+import type { ProductForCustomizer, ConfigurableAttribute, ProductView } from '@/app/customizer/Customizer';
 import type { WCVariation } from '@/types/woocommerce'; 
 import { cn } from '@/lib/utils';
 import { type CustomizationTechnique } from '@/app/actions/productActions';
