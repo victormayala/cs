@@ -4,7 +4,6 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
-import RightPanel from '@/components/customizer/RightPanel';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
@@ -169,6 +168,28 @@ async function loadProductOptionsFromFirestore(
   }
 }
 
+// Function to proxy image URL and get a data URI
+async function proxyImageUrl(url: string): Promise<string> {
+  if (!url || url.startsWith('data:')) {
+    return url;
+  }
+  try {
+    const response = await fetch('/api/proxy-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!response.ok) {
+      console.error(`Proxy failed for ${url}. Status: ${response.status}`);
+      return url; // Fallback to original URL on error
+    }
+    const { dataUrl } = await response.json();
+    return dataUrl;
+  } catch (error) {
+    console.error(`Error proxying image URL ${url}:`, error);
+    return url; // Fallback to original URL on error
+  }
+}
 
 export default function Customizer() {
   const router = useRouter();
@@ -396,6 +417,14 @@ export default function Customizer() {
               }];
               if (!isEmbedded) toast({ title: "No Saved Settings", description: "Using default view for this product.", variant: "default" });
           }
+
+          // Proxy all view image URLs
+          const proxiedViews = await Promise.all(
+            finalDefaultViews.map(async (view) => ({
+              ...view,
+              imageUrl: await proxyImageUrl(view.imageUrl),
+            }))
+          );
           
           if (sourceFromUrl === 'customizer-studio' && firestoreOptions) {
               baseProductDetails.type = firestoreOptions.type;
@@ -410,12 +439,12 @@ export default function Customizer() {
           setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
 
           const baseImagesMapFinal: Record<string, {url: string, aiHint?: string}> = {};
-          finalDefaultViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
+          proxiedViews.forEach(view => { baseImagesMapFinal[view.id] = { url: view.imageUrl, aiHint: view.aiHint }; });
           setViewBaseImages(baseImagesMapFinal);
           
           const productWithViews: ProductForCustomizer = {
             ...baseProductDetails,
-            views: finalDefaultViews,
+            views: proxiedViews,
             allowCustomization: true,
             nativeVariations: firestoreOptions?.nativeVariations,
             meta: metaForProduct,
@@ -443,8 +472,8 @@ export default function Customizer() {
           }
           
           setProductDetails(productWithViews);
-          if (finalDefaultViews.length > 0) {
-            setActiveViewId(finalDefaultViews[0].id);
+          if (proxiedViews.length > 0) {
+            setActiveViewId(proxiedViews[0].id);
           }
 
           if (sourceFromUrl === 'woocommerce' && fetchedVariations) {
@@ -528,45 +557,57 @@ export default function Customizer() {
     const colorKey = loadedGroupingAttributeName ? selectedVariationOptions[loadedGroupingAttributeName] : null;
     const colorSpecificViews = colorKey && loadedOptionsByColor?.[colorKey]?.views;
 
-    if (colorSpecificViews && colorSpecificViews.length > 0) {
-        finalViews = colorSpecificViews;
-    } else if (matchingWcVariation?.image?.src) {
-         finalViews = [{
-             id: `wc_variation_view_${matchingWcVariation.id}`,
-             name: matchingWcVariation.attributes.map(a => a.option).join(' '),
-             imageUrl: matchingWcVariation.image.src,
-             aiHint: matchingWcVariation.image.alt || 'product variation',
-             boundaryBoxes: productDetails.views[0]?.boundaryBoxes || [],
-             price: 0,
-         }];
-    } else {
-         finalViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
-            id,
-            name: productDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
-            imageUrl: base.url,
-            aiHint: base.aiHint,
-            price: productDetails.views.find(v => v.id === id)?.price,
-            embroideryAdditionalFee: productDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
-            printAdditionalFee: productDetails.views.find(v => v.id === id)?.printAdditionalFee,
-            boundaryBoxes: productDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
+    const processAndProxyViews = async (views: ProductView[]) => {
+      return Promise.all(views.map(async (view) => ({
+        ...view,
+        imageUrl: await proxyImageUrl(view.imageUrl),
+      })));
+    };
+
+    const updateViews = async () => {
+      if (colorSpecificViews && colorSpecificViews.length > 0) {
+        finalViews = await processAndProxyViews(colorSpecificViews);
+      } else if (matchingWcVariation?.image?.src) {
+        finalViews = [{
+          id: `wc_variation_view_${matchingWcVariation.id}`,
+          name: matchingWcVariation.attributes.map(a => a.option).join(' '),
+          imageUrl: await proxyImageUrl(matchingWcVariation.image.src),
+          aiHint: matchingWcVariation.image.alt || 'product variation',
+          boundaryBoxes: productDetails.views[0]?.boundaryBoxes || [],
+          price: 0,
+        }];
+      } else {
+        const baseViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
+          id,
+          name: productDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
+          imageUrl: base.url, // Already proxied
+          aiHint: base.aiHint,
+          price: productDetails.views.find(v => v.id === id)?.price,
+          embroideryAdditionalFee: productDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
+          printAdditionalFee: productDetails.views.find(v => v.id === id)?.printAdditionalFee,
+          boundaryBoxes: productDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
         }));
-    }
+        finalViews = await processAndProxyViews(baseViews);
+      }
 
-    const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : productDetails.basePrice;
+      const newBasePrice = matchingVariationPrice !== null ? matchingVariationPrice : productDetails.basePrice;
 
-    const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
-    let newActiveViewId = activeViewId;
-    if (!activeViewStillExists) {
-      newActiveViewId = finalViews[0]?.id || null;
-      setActiveViewId(newActiveViewId);
-    }
-    
-    const viewsChanged = JSON.stringify(productDetails.views) !== JSON.stringify(finalViews);
-    const priceChanged = productDetails.basePrice !== newBasePrice;
+      const activeViewStillExists = finalViews.some(v => v.id === activeViewId);
+      let newActiveViewId = activeViewId;
+      if (!activeViewStillExists) {
+        newActiveViewId = finalViews[0]?.id || null;
+        setActiveViewId(newActiveViewId);
+      }
+      
+      const viewsChanged = JSON.stringify(productDetails.views) !== JSON.stringify(finalViews);
+      const priceChanged = productDetails.basePrice !== newBasePrice;
 
-    if (viewsChanged || priceChanged) {
+      if (viewsChanged || priceChanged) {
         setProductDetails(prev => prev ? { ...prev, views: finalViews, basePrice: newBasePrice } : null);
-    }
+      }
+    };
+
+    updateViews();
 }, [
     selectedVariationOptions, productVariations, viewBaseImages,
     loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails
@@ -709,7 +750,7 @@ export default function Customizer() {
             }));
 
             const payload = {
-                baseImageUrl: view.imageUrl,
+                baseImageUrl: view.imageUrl, // This is already the proxied data URI
                 baseImageWidthPx: 600,
                 baseImageHeightPx: 600,
                 overlays: overlaysForView,
@@ -813,6 +854,26 @@ export default function Customizer() {
     );
   }
 
+  const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0];
+
+  if (!activeView && !isLoading) {
+    // Handle case where product might have loaded but no views are available
+     return (
+        <div className="flex flex-col min-h-svh h-screen w-full items-center justify-center bg-background p-4">
+            <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+            <h2 className="text-xl font-semibold text-destructive mb-2">Error</h2>
+            <p className="text-muted-foreground text-center mb-6">This product has no views configured. Please add a view in the product options.</p>
+            {!isEmbedded && user && (
+              <Button variant="outline" asChild>
+                  <Link href={`/dashboard/products/${productIdFromUrl}/options?source=${sourceFromUrl}`}>
+                      <SettingsIcon className="mr-2 h-4 w-4" /> Go to Product Options
+                  </Link>
+              </Button>
+            )}
+        </div>
+      );
+  }
+
   if (productDetails && productDetails.allowCustomization === false) {
     return (
       <div className="flex flex-col min-h-svh h-screen w-full items-center justify-center bg-background p-4">
@@ -839,10 +900,8 @@ export default function Customizer() {
       </div>
     );
   }
-
-  const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0] || defaultFallbackProduct.views[0];
-  const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   
+  const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
   const pdpLink = isNativeStoreContext && storeIdFromUrl && productIdFromUrl
     ? `/store/${storeIdFromUrl}/shop/${productIdFromUrl}`
@@ -879,7 +938,7 @@ export default function Customizer() {
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
-            {isClient ? (
+            {isClient && activeView ? (
               <DesignCanvas 
                 activeView={activeView}
                 showGrid={showGrid} 

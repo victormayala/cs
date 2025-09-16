@@ -206,7 +206,9 @@ export default function DesignCanvas({
         canvasShapes, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
         getStageRef,
     } = useUploads();
-    const [backgroundImage] = useImage(activeView.imageUrl || '', 'anonymous');
+    
+    // The `useImage` hook is now passed a data URI from the proxy, which avoids CORS issues.
+    const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
@@ -261,6 +263,8 @@ export default function DesignCanvas({
             >
                 <Layer>
                     {backgroundImage && <KonvaImage image={backgroundImage} width={canvasDimensions.width} height={canvasDimensions.height} />}
+                </Layer>
+                <Layer>
                     {visibleImages.map((img) => (
                         <InteractiveCanvasImage
                             key={`${img.id}-${img.zIndex}`}
