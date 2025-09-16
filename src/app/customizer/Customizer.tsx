@@ -49,6 +49,7 @@ import FreeDesignsPanel from '@/components/customizer/FreeDesignsPanel';
 import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
+import RightPanel from '@/components/customizer/RightPanel';
 
 const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'), {
   ssr: false,
@@ -853,7 +854,7 @@ export default function Customizer() {
       </div>
     );
   }
-
+  
   const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0];
 
   if (!activeView && !isLoading) {
