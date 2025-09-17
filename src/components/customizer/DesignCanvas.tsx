@@ -90,27 +90,19 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
   const stageWidth = stage?.width() || 0;
   const stageHeight = stage?.height() || 0;
   
-  // Logic for arching text
   const textPath = useMemo(() => {
     if (textProps.archAmount === 0 || !stageWidth) return undefined;
-
     const isArchUp = textProps.archAmount > 0;
     const amount = Math.abs(textProps.archAmount) / 100;
-    
-    // Approximate calculations for the arc
     const textWidth = shapeRef.current?.getTextWidth() || stageWidth * 0.8;
     const arcWidth = textWidth * 1.2;
     const arcHeight = arcWidth * amount * 0.4;
-    
     const startX = (stageWidth - arcWidth) / 2;
     const startY = isArchUp ? (stageHeight / 2) + arcHeight / 2 : (stageHeight / 2) - arcHeight / 2;
-
     const controlX = stageWidth / 2;
     const controlY = isArchUp ? startY - arcHeight : startY + arcHeight;
-
     const endX = startX + arcWidth;
     const endY = startY;
-
     return `M${startX},${startY} Q${controlX},${controlY} ${endX},${endY}`;
   }, [textProps.archAmount, stageWidth, stageHeight, textProps.content, textProps.fontSize, textProps.fontFamily]);
 
@@ -158,14 +150,13 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          enabledAnchors={textProps.archAmount !== 0 ? [] : undefined} // Disable resizing for arched text
+          enabledAnchors={textProps.archAmount !== 0 ? [] : undefined}
           rotateEnabled={textProps.archAmount === 0}
         />
       )}
     </>
   );
 }
-
 
 interface InteractiveCanvasShapeProps {
   shapeProps: CanvasShape;
@@ -251,24 +242,40 @@ export default function DesignCanvas({
     
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
-    const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
+    const [backgroundImage, bgImageLoadingStatus] = useImage(activeView.imageUrl, 'anonymous');
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
+    const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 1, height: 1 });
 
     useEffect(() => {
         const container = containerRef.current;
         if (!container || !backgroundImage) return;
 
-        const updateDimensions = () => {
-            const containerWidth = container.offsetWidth;
-            const containerHeight = container.offsetHeight;
+        const observer = new ResizeObserver(() => {
+            const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+            const { naturalWidth, naturalHeight } = backgroundImage;
+            const imgAspectRatio = naturalWidth / naturalHeight;
+            const containerAspectRatio = containerWidth / containerHeight;
+
+            let renderWidth, renderHeight, xOffset, yOffset;
+
+            if (imgAspectRatio > containerAspectRatio) {
+                renderWidth = containerWidth;
+                renderHeight = containerWidth / imgAspectRatio;
+                xOffset = 0;
+                yOffset = (containerHeight - renderHeight) / 2;
+            } else {
+                renderHeight = containerHeight;
+                renderWidth = containerHeight * imgAspectRatio;
+                yOffset = 0;
+                xOffset = (containerWidth - renderWidth) / 2;
+            }
+            
             setCanvasDimensions({ width: containerWidth, height: containerHeight });
-        };
+            setRenderedImageRect({ x: xOffset, y: yOffset, width: renderWidth, height: renderHeight });
+        });
 
-        const resizeObserver = new ResizeObserver(updateDimensions);
-        resizeObserver.observe(container);
-        updateDimensions(); // Initial call
-
-        return () => resizeObserver.disconnect();
+        observer.observe(container);
+        return () => observer.disconnect();
     }, [backgroundImage]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -281,7 +288,7 @@ export default function DesignCanvas({
 
     const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, itemType: 'image' | 'text' | 'shape') => {
         const node = e.target;
-        const newAttrs: Partial<CanvasImage> = {
+        const newAttrs: Partial<CanvasImage | CanvasText | CanvasShape> = {
             rotation: node.rotation(),
             x: (node.x() / canvasDimensions.width) * 100,
             y: (node.y() / canvasDimensions.height) * 100,
@@ -305,44 +312,38 @@ export default function DesignCanvas({
     const dragBoundFunc = useMemo(() => {
         return (pos: { x: number; y: number }) => {
             const { boundaryBoxes } = activeView;
-            if (!boundaryBoxes || boundaryBoxes.length === 0) {
-                return pos; // No constraints
-            }
+            if (!boundaryBoxes || boundaryBoxes.length === 0) return pos;
 
             const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
             if (!selectedId) return pos;
 
             const node = stageRef.current?.findOne(`#${selectedId}`);
             if (!node) return pos;
-
+            
             const nodeBox = node.getClientRect({ skipTransform: true });
             const nodeWidth = nodeBox.width;
             const nodeHeight = nodeBox.height;
 
-            // Convert percentage-based boundary boxes to pixel values
-            const pixelBoundaries = boundaryBoxes.map(box => ({
-                x1: (box.x / 100) * canvasDimensions.width,
-                y1: (box.y / 100) * canvasDimensions.height,
-                x2: ((box.x + box.width) / 100) * canvasDimensions.width,
-                y2: ((box.y + box.height) / 100) * canvasDimensions.height,
-            }));
-
-            // Find the union of all boundary boxes
-            const unionBox = pixelBoundaries.reduce((acc, box) => ({
-                x1: Math.min(acc.x1, box.x1),
-                y1: Math.min(acc.y1, box.y1),
-                x2: Math.max(acc.x2, box.x2),
-                y2: Math.max(acc.y2, box.y2),
+            const unionBox = boundaryBoxes.reduce((acc, box) => ({
+                x1: Math.min(acc.x1, box.x),
+                y1: Math.min(acc.y1, box.y),
+                x2: Math.max(acc.x2, box.x + box.width),
+                y2: Math.max(acc.y2, box.y + box.height),
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-
-            // Clamp the position
-            const newX = Math.max(unionBox.x1, Math.min(pos.x, unionBox.x2 - nodeWidth));
-            const newY = Math.max(unionBox.y1, Math.min(pos.y, unionBox.y2 - nodeHeight));
-
-            return { x: newX, y: newY };
+            
+            const clampX = (val: number, min: number, max: number) => Math.max(min, Math.min(val, max));
+            
+            const boundaryX1 = renderedImageRect.x + (unionBox.x1 / 100) * renderedImageRect.width;
+            const boundaryY1 = renderedImageRect.y + (unionBox.y1 / 100) * renderedImageRect.height;
+            const boundaryX2 = renderedImageRect.x + (unionBox.x2 / 100) * renderedImageRect.width;
+            const boundaryY2 = renderedImageRect.y + (unionBox.y2 / 100) * renderedImageRect.height;
+            
+            return {
+                x: clampX(pos.x, boundaryX1, boundaryX2 - nodeWidth),
+                y: clampX(pos.y, boundaryY1, boundaryY2 - nodeHeight),
+            };
         };
-    }, [activeView, canvasDimensions, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
-
+    }, [activeView.boundaryBoxes, renderedImageRect, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
     const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
@@ -350,15 +351,17 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
-            {/* The visual background image. CSS object-contain handles letterboxing. */}
+            {bgImageLoadingStatus === 'loading' && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+            {bgImageLoadingStatus === 'error' && <div className="absolute inset-0 flex items-center justify-center text-destructive">Error loading image.</div>}
+            
             <img
                 src={activeView.imageUrl}
                 alt={activeView.name}
                 className="absolute inset-0 object-contain w-full h-full pointer-events-none"
                 crossOrigin="anonymous"
+                style={{ opacity: bgImageLoadingStatus === 'loaded' ? 1 : 0 }}
             />
             
-            {/* Konva Stage sits on top */}
             <Stage
                 ref={stageRef}
                 width={canvasDimensions.width}
@@ -401,27 +404,33 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
              
-             {/* Visual Overlay for Boundary Boxes and Grid */}
              <div className="absolute inset-0 pointer-events-none">
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
                     <div
                         key={box.id}
                         className="absolute border-2 border-dashed border-red-500"
                         style={{
-                            left: `${box.x}%`,
-                            top: `${box.y}%`,
-                            width: `${box.width}%`,
-                            height: `${box.height}%`,
+                            left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
+                            top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
+                            width: `${(box.width / 100) * renderedImageRect.width}px`,
+                            height: `${(box.height / 100) * renderedImageRect.height}px`,
                         }}
                     >
                         <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
                     </div>
                 ))}
                  {showGrid && (
-                    <div className="absolute inset-0 grid-pattern"></div>
+                    <div 
+                        className="absolute grid-pattern"
+                        style={{
+                            left: `${renderedImageRect.x}px`,
+                            top: `${renderedImageRect.y}px`,
+                            width: `${renderedImageRect.width}px`,
+                            height: `${renderedImageRect.height}px`,
+                        }}
+                    ></div>
                 )}
             </div>
         </div>
     );
 }
-
