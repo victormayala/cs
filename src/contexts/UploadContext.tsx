@@ -326,13 +326,24 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         }
         const currentMaxZIndex = getMaxZIndexForView(viewId);
         
+        // Calculate initial position to be top-left of the first boundary box
         let initialX = 50;
         let initialY = 50;
 
+        const stage = getStageRef()?.current;
+        const stageWidth = stage?.width() || 1;
+        const stageHeight = stage?.height() || 1;
+
         if (boundaryBoxes && boundaryBoxes.length > 0) {
             const firstBox = boundaryBoxes[0];
-            initialX = firstBox.x + firstBox.width / 2;
-            initialY = firstBox.y + firstBox.height / 2;
+            // Start at the top-left of the box...
+            initialX = firstBox.x;
+            initialY = firstBox.y;
+            // ...then adjust by half the element's size to align its corner.
+            const widthInPercent = (width / stageWidth) * 100;
+            const heightInPercent = (height / stageHeight) * 100;
+            initialX += widthInPercent / 2;
+            initialY += heightInPercent / 2;
         }
 
         const newCanvasImage: CanvasImage = {
@@ -470,10 +481,18 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       let initialX = 50;
       let initialY = 50;
 
+      const stage = getStageRef()?.current;
+      const stageWidth = stage?.width() || 1;
+      const stageHeight = stage?.height() || 1;
+
       if (boundaryBoxes && boundaryBoxes.length > 0) {
           const firstBox = boundaryBoxes[0];
-          initialX = firstBox.x + firstBox.width / 2;
-          initialY = firstBox.y + firstBox.height / 2;
+          initialX = firstBox.x;
+          initialY = firstBox.y;
+          // For text, width is dynamic, so we can't perfectly align to top-left before rendering.
+          // Centering is a more reliable initial placement.
+          initialX += firstBox.width / 2;
+          initialY += firstBox.height / 2;
       }
       
       const newText: CanvasText = {
@@ -598,15 +617,27 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       let initialX = 50;
       let initialY = 50;
 
+      const stage = getStageRef()?.current;
+      const stageWidth = stage?.width() || 1;
+      const stageHeight = stage?.height() || 1;
+
+      const shapeWidth = initialProps?.width || 100;
+      const shapeHeight = initialProps?.height || 100;
+
       if (boundaryBoxes && boundaryBoxes.length > 0) {
           const firstBox = boundaryBoxes[0];
-          initialX = firstBox.x + firstBox.width / 2;
-          initialY = firstBox.y + firstBox.height / 2;
+          initialX = firstBox.x;
+          initialY = firstBox.y;
+          // Adjust for shape's own dimensions to align top-left
+          const widthInPercent = (shapeWidth / stageWidth) * 100;
+          const heightInPercent = (shapeHeight / stageHeight) * 100;
+          initialX += widthInPercent / 2;
+          initialY += heightInPercent / 2;
       }
 
       const defaultProps: CanvasShape = {
         id: crypto.randomUUID(), viewId, shapeType, x: initialX, y: initialY,
-        width: 100, height: 100, rotation: 0, scale: 1,
+        width: shapeWidth, height: shapeHeight, rotation: 0, scale: 1,
         color: initialProps?.color || '#468189', strokeColor: initialProps?.strokeColor || '#000000',
         strokeWidth: initialProps?.strokeWidth || 0, zIndex: currentMaxZIndex + 1,
         isLocked: false, itemType: 'shape',
