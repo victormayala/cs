@@ -33,8 +33,8 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
   }, [isSelected]);
 
   const stage = shapeRef.current?.getStage();
-  const stageWidth = stage?.width() || 0;
-  const stageHeight = stage?.height() || 0;
+  const stageWidth = stage?.width() || 1;
+  const stageHeight = stage?.height() || 1;
 
   return (
     <>
@@ -90,8 +90,8 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
   }, [isSelected, textProps.content, textProps.fontSize]);
   
   const stage = shapeRef.current?.getStage();
-  const stageWidth = stage?.width() || 0;
-  const stageHeight = stage?.height() || 0;
+  const stageWidth = stage?.width() || 1;
+  const stageHeight = stage?.height() || 1;
   
   const textPath = useMemo(() => {
     if (textProps.archAmount === 0 || !stageWidth) return undefined;
@@ -184,8 +184,8 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
   }, [isSelected]);
   
   const stage = shapeRef.current?.getStage();
-  const stageWidth = stage?.width() || 0;
-  const stageHeight = stage?.height() || 0;
+  const stageWidth = stage?.width() || 1;
+  const stageHeight = stage?.height() || 1;
 
   const commonProps = {
     id: shapeProps.id,
@@ -430,3 +430,4 @@ export default function DesignCanvas({
     );
 }
 
+    
