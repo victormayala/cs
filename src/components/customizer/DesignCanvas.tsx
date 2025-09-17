@@ -68,7 +68,7 @@ interface InteractiveCanvasTextProps {
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
-  dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
+  dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y:number};
 }
 
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
@@ -319,14 +319,15 @@ export default function DesignCanvas({
             
             const offsetX = this.offsetX() * this.scaleX();
             const offsetY = this.offsetY() * this.scaleY();
-
+            
             const unionBox = boundaryBoxes.reduce((acc, box) => ({
                 x1: Math.min(acc.x1, box.x),
                 y1: Math.min(acc.y1, box.y),
                 x2: Math.max(acc.x2, box.x + box.width),
                 y2: Math.max(acc.y2, box.y + box.height),
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-            
+
+            // Calculate the absolute pixel boundaries of the combined design area
             const minX = imageRect.x + (unionBox.x1 / 100) * imageRect.width + offsetX;
             const maxX = imageRect.x + (unionBox.x2 / 100) * imageRect.width - (nodeWidth - offsetX);
             const minY = imageRect.y + (unionBox.y1 / 100) * imageRect.height + offsetY;
@@ -337,7 +338,7 @@ export default function DesignCanvas({
                 y: Math.max(minY, Math.min(pos.y, maxY)),
             };
         };
-    }, [activeView.boundaryBoxes, imageRect]);
+    }, [activeView, imageRect]);
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
     const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
@@ -365,7 +366,7 @@ export default function DesignCanvas({
                             y={imageRect.y}
                             width={imageRect.width}
                             height={imageRect.height}
-                            zIndex={0}
+                            zIndex={0} // Ensure background image is at the bottom
                         />
                     )}
 
@@ -439,5 +440,3 @@ export default function DesignCanvas({
         </div>
     );
 }
-
-    
