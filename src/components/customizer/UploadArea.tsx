@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
@@ -13,13 +14,14 @@ import { useSearchParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import type { ApprovedFile } from '@/app/dashboard/store/[storeId]/approved-files/page';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
 
 interface UploadAreaProps {
   activeViewId: string | null;
-  configUserId?: string | null;
+  boundaryBoxes: BoundaryBox[]; // Add boundaryBoxes to props
 }
 
-export default function UploadArea({ activeViewId, configUserId }: UploadAreaProps) {
+export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaProps) {
   const { uploadedImages, addUploadedImage, addCanvasImage, addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +88,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImage(image.id, activeViewId);
+    addCanvasImage(image.id, activeViewId, boundaryBoxes);
   };
   
   const handleApprovedFileClick = (file: ApprovedFile) => {
@@ -94,7 +96,7 @@ export default function UploadArea({ activeViewId, configUserId }: UploadAreaPro
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, file.id);
+    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, boundaryBoxes, file.id);
   };
 
   return (

@@ -10,12 +10,14 @@ import { Gem, PlusCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
 
 interface PremiumDesignsPanelProps {
   activeViewId: string | null;
+  boundaryBoxes: BoundaryBox[];
 }
 
-export default function PremiumDesignsPanel({ activeViewId }: PremiumDesignsPanelProps) {
+export default function PremiumDesignsPanel({ activeViewId, boundaryBoxes }: PremiumDesignsPanelProps) {
   const { addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
 
@@ -24,7 +26,7 @@ export default function PremiumDesignsPanel({ activeViewId }: PremiumDesignsPane
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, design.id);
+    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, boundaryBoxes, design.id);
   };
 
   return (

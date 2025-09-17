@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import { googleFonts } from '@/lib/google-fonts';
 import type Konva from 'konva';
 import useImage from 'use-image';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 // Represents a file uploaded by the user
 export interface UploadedImage {
@@ -126,8 +127,8 @@ interface UploadContextType {
   addUploadedImage: (file: File) => Promise<void>;
   
   canvasImages: CanvasImage[];
-  addCanvasImage: (sourceImageId: string, viewId: string) => void;
-  addCanvasImageFromUrl: (name: string, dataUrl: string, type: string, viewId: string, sourceId?: string) => void;
+  addCanvasImage: (sourceImageId: string, viewId: string, boundaryBoxes: BoundaryBox[]) => void;
+  addCanvasImageFromUrl: (name: string, dataUrl: string, type: string, viewId: string, boundaryBoxes: BoundaryBox[], sourceId?: string) => void;
   removeCanvasImage: (canvasImageId: string) => void;
   selectedCanvasImageId: string | null;
   selectCanvasImage: (canvasImageId: string | null) => void;
@@ -138,7 +139,7 @@ interface UploadContextType {
   toggleLockCanvasImage: (canvasImageId: string) => void;
 
   canvasTexts: CanvasText[];
-  addCanvasText: (content: string, viewId: string, initialStyle?: Partial<CanvasText>) => void;
+  addCanvasText: (content: string, viewId: string, boundaryBoxes: BoundaryBox[], initialStyle?: Partial<CanvasText>) => void;
   removeCanvasText: (canvasTextId: string) => void;
   selectedCanvasTextId: string | null;
   selectCanvasText: (canvasTextId: string | null) => void;
@@ -149,7 +150,7 @@ interface UploadContextType {
   toggleLockCanvasText: (canvasTextId: string) => void;
 
   canvasShapes: CanvasShape[];
-  addCanvasShape: (shapeType: ShapeType, viewId: string, initialProps?: Partial<CanvasShape>) => void;
+  addCanvasShape: (shapeType: ShapeType, viewId: string, boundaryBoxes: BoundaryBox[], initialProps?: Partial<CanvasShape>) => void;
   removeCanvasShape: (shapeId: string) => void;
   selectedCanvasShapeId: string | null;
   selectCanvasShape: (shapeId: string | null) => void;
@@ -303,6 +304,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     dataUrl: string,
     type: string,
     viewId: string,
+    boundaryBoxes: BoundaryBox[],
     sourceId: string
   ) => {
     const img = new Image();
@@ -323,6 +325,16 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           pushToUndoStack(createSnapshot());
         }
         const currentMaxZIndex = getMaxZIndexForView(viewId);
+        
+        let initialX = 50;
+        let initialY = 50;
+
+        if (boundaryBoxes && boundaryBoxes.length > 0) {
+            const firstBox = boundaryBoxes[0];
+            initialX = firstBox.x + firstBox.width / 2;
+            initialY = firstBox.y + firstBox.height / 2;
+        }
+
         const newCanvasImage: CanvasImage = {
           id: crypto.randomUUID(),
           sourceImageId: sourceId,
@@ -335,8 +347,8 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           scaleX: 1,
           scaleY: 1,
           rotation: 0,
-          x: 50,
-          y: 50,
+          x: initialX,
+          y: initialY,
           zIndex: currentMaxZIndex + 1,
           isLocked: false,
           itemType: 'image',
@@ -354,7 +366,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     img.src = dataUrl;
   };
 
-  const addCanvasImage = useCallback((sourceImageId: string, viewId: string) => {
+  const addCanvasImage = useCallback((sourceImageId: string, viewId: string, boundaryBoxes: BoundaryBox[]) => {
     if (!viewId) { console.error("addCanvasImage: viewId is required"); return; }
     const sourceImage = uploadedImages.find(img => img.id === sourceImageId);
     if (!sourceImage) return;
@@ -364,11 +376,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       sourceImage.dataUrl,
       sourceImage.type,
       viewId,
+      boundaryBoxes,
       sourceImage.id
     );
   }, [uploadedImages, getMaxZIndexForView, createSnapshot, pushToUndoStack]);
 
-  const addCanvasImageFromUrl = useCallback((name: string, dataUrl: string, type: string, viewId: string, sourceId?: string) => {
+  const addCanvasImageFromUrl = useCallback((name: string, dataUrl: string, type: string, viewId: string, boundaryBoxes: BoundaryBox[], sourceId?: string) => {
     if (!viewId) { console.error("addCanvasImageFromUrl: viewId is required"); return; }
     
     addImageToCanvasWithCorrectSize(
@@ -376,6 +389,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       dataUrl,
       type,
       viewId,
+      boundaryBoxes,
       sourceId || `url-${crypto.randomUUID()}`
     );
   }, [getMaxZIndexForView, createSnapshot, pushToUndoStack]);
@@ -444,7 +458,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   }, [selectedCanvasImageId, createSnapshot, pushToUndoStack]);
 
   // Text Functions
-  const addCanvasText = useCallback((content: string, viewId: string, initialStyle?: Partial<CanvasText>) => {
+  const addCanvasText = useCallback((content: string, viewId: string, boundaryBoxes: BoundaryBox[], initialStyle?: Partial<CanvasText>) => {
     if (!viewId) { console.error("addCanvasText: viewId is required"); return; }
     queueMicrotask(() => {
       if (!isInteractiveOperationInProgressRef.current) {
@@ -453,8 +467,17 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const currentMaxZIndex = getMaxZIndexForView(viewId);
       const defaultFont = googleFonts.find(f => f.name === 'Arial');
       
+      let initialX = 50;
+      let initialY = 50;
+
+      if (boundaryBoxes && boundaryBoxes.length > 0) {
+          const firstBox = boundaryBoxes[0];
+          initialX = firstBox.x + firstBox.width / 2;
+          initialY = firstBox.y + firstBox.height / 2;
+      }
+      
       const newText: CanvasText = {
-        id: crypto.randomUUID(), viewId, content, x: 50, y: 50, rotation: 0, scale: 1, 
+        id: crypto.randomUUID(), viewId, content, x: initialX, y: initialY, rotation: 0, scale: 1, 
         zIndex: currentMaxZIndex + 1, isLocked: false, itemType: 'text',
         fontFamily: initialStyle?.fontFamily || (defaultFont ? defaultFont.family : 'Arial, sans-serif'),
         fontSize: initialStyle?.fontSize || 24, 
@@ -563,7 +586,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   }, [selectedCanvasTextId, createSnapshot, pushToUndoStack]);
 
   // Shape Functions
-  const addCanvasShape = useCallback((shapeType: ShapeType, viewId: string, initialProps?: Partial<CanvasShape>) => {
+  const addCanvasShape = useCallback((shapeType: ShapeType, viewId: string, boundaryBoxes: BoundaryBox[], initialProps?: Partial<CanvasShape>) => {
     if (!viewId) { console.error("addCanvasShape: viewId is required"); return; }
 
     queueMicrotask(() => {
@@ -571,8 +594,18 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         pushToUndoStack(createSnapshot());
       }
       const currentMaxZIndex = getMaxZIndexForView(viewId);
+      
+      let initialX = 50;
+      let initialY = 50;
+
+      if (boundaryBoxes && boundaryBoxes.length > 0) {
+          const firstBox = boundaryBoxes[0];
+          initialX = firstBox.x + firstBox.width / 2;
+          initialY = firstBox.y + firstBox.height / 2;
+      }
+
       const defaultProps: CanvasShape = {
-        id: crypto.randomUUID(), viewId, shapeType, x: 50, y: 50,
+        id: crypto.randomUUID(), viewId, shapeType, x: initialX, y: initialY,
         width: 100, height: 100, rotation: 0, scale: 1,
         color: initialProps?.color || '#468189', strokeColor: initialProps?.strokeColor || '#000000',
         strokeWidth: initialProps?.strokeWidth || 0, zIndex: currentMaxZIndex + 1,

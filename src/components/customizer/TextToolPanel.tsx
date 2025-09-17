@@ -22,6 +22,7 @@ import { googleFonts } from '@/lib/google-fonts';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
 
 const sanitizeHex = (hex: string): string => {
   let sanitized = hex.replace(/[^0-9a-fA-F]/g, '');
@@ -39,6 +40,7 @@ const sanitizeHex = (hex: string): string => {
 
 interface TextToolPanelProps {
   activeViewId: string | null;
+  boundaryBoxes: BoundaryBox[];
 }
 
 const DEFAULT_FONT_FAMILY = googleFonts.find(f => f.name === 'Arial')?.family || 'Arial, sans-serif';
@@ -65,7 +67,7 @@ const initialTextToolPanelDefaultStyle: Omit<CanvasText, 'id' | 'viewId' | 'zInd
 };
 
 
-export default function TextToolPanel({ activeViewId }: TextToolPanelProps) {
+export default function TextToolPanel({ activeViewId, boundaryBoxes }: TextToolPanelProps) {
   const {
     addCanvasText,
     selectedCanvasTextId,
@@ -163,7 +165,7 @@ export default function TextToolPanel({ activeViewId }: TextToolPanelProps) {
       content: contentToAdd,
       archAmount: currentStyle.archAmount, // Ensure archAmount is passed
     };
-    addCanvasText(contentToAdd, activeViewId, styleForNewText);
+    addCanvasText(contentToAdd, activeViewId, boundaryBoxes, styleForNewText);
     
     if (!selectedText) { 
         setTextValue(''); 

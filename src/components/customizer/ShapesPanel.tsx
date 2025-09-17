@@ -11,6 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
 
 interface ShapeOption {
   type: ShapeType;
@@ -39,9 +40,10 @@ const sanitizeHex = (hex: string): string => {
 
 interface ShapesPanelProps {
   activeViewId: string | null;
+  boundaryBoxes: BoundaryBox[];
 }
 
-export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
+export default function ShapesPanel({ activeViewId, boundaryBoxes }: ShapesPanelProps) {
   const { 
     addCanvasShape, 
     selectedCanvasShapeId, 
@@ -70,7 +72,7 @@ export default function ShapesPanel({ activeViewId }: ShapesPanelProps) {
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasShape(shapeType, activeViewId, {
+    addCanvasShape(shapeType, activeViewId, boundaryBoxes, {
       color: fillColorHex, 
       strokeColor: strokeColorHex,
       strokeWidth: Number(currentStrokeWidth),

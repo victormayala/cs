@@ -15,12 +15,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUploads } from '@/contexts/UploadContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 interface AiAssistantProps {
   activeViewId: string | null;
+  boundaryBoxes: BoundaryBox[];
 }
 
-export default function AiAssistant({ activeViewId }: AiAssistantProps) {
+export default function AiAssistant({ activeViewId, boundaryBoxes }: AiAssistantProps) {
   const [promptText, setPromptText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export default function AiAssistant({ activeViewId }: AiAssistantProps) {
       return;
     }
     const imageName = generatedImageDescription || `AI Design: ${promptText.substring(0, 20)}`;
-    addCanvasImageFromUrl(imageName, generatedImageDataUrl, 'image/png', activeViewId, `ai_gen_${Date.now()}`);
+    addCanvasImageFromUrl(imageName, generatedImageDataUrl, 'image/png', activeViewId, boundaryBoxes, `ai_gen_${Date.now()}`);
     toast({
       title: "Design Added",
       description: "The AI generated design has been added to your canvas.",
