@@ -238,7 +238,9 @@ export default function DesignCanvas({
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
-    const imageContainerRef = useRef<HTMLDivElement>(null);
+
+    const [backgroundImage, imageLoadStatus] = useImage(activeView.imageUrl);
+    const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
     useEffect(() => {
         const checkSize = () => {
@@ -251,6 +253,33 @@ export default function DesignCanvas({
         window.addEventListener("resize", checkSize);
         return () => window.removeEventListener("resize", checkSize);
     }, []);
+
+    useEffect(() => {
+        if (imageLoadStatus === 'loaded' && backgroundImage) {
+            const canvasWidth = canvasDimensions.width;
+            const canvasHeight = canvasDimensions.height;
+            const imgWidth = backgroundImage.naturalWidth;
+            const imgHeight = backgroundImage.naturalHeight;
+
+            const canvasAspect = canvasWidth / canvasHeight;
+            const imgAspect = imgWidth / imgHeight;
+
+            let finalWidth, finalHeight, finalX, finalY;
+
+            if (imgAspect > canvasAspect) { // Image is wider than canvas
+                finalWidth = canvasWidth;
+                finalHeight = finalWidth / imgAspect;
+                finalX = 0;
+                finalY = (canvasHeight - finalHeight) / 2;
+            } else { // Image is taller or same aspect ratio
+                finalHeight = canvasHeight;
+                finalWidth = finalHeight * imgAspect;
+                finalY = 0;
+                finalX = (canvasWidth - finalWidth) / 2;
+            }
+            setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
+        }
+    }, [backgroundImage, imageLoadStatus, canvasDimensions]);
     
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -284,37 +313,36 @@ export default function DesignCanvas({
         }
     };
 
-    const dragBoundFunc = useMemo(() => {
-        return (pos: {x: number, y: number}) => {
-            if (!activeView.boundaryBoxes || activeView.boundaryBoxes.length === 0 || !imageContainerRef.current) {
-                return pos; // No boundaries, no constraint
-            }
+    const dragBoundFunc = useMemo(() => (pos: {x: number, y: number}) => {
+        if (!activeView.boundaryBoxes || activeView.boundaryBoxes.length === 0) {
+            return pos; // No boundaries, no constraint
+        }
 
-            const imageRect = imageContainerRef.current.getBoundingClientRect();
-            const containerRect = containerRef.current!.getBoundingClientRect();
+        const node = stageRef.current?.findOne(`.${selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId}`);
+        if (!node) return pos;
 
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const box = node.getClientRect();
 
-            activeView.boundaryBoxes.forEach(box => {
-                const boxLeftPx = (box.x / 100) * imageRect.width + (imageRect.left - containerRect.left);
-                const boxTopPx = (box.y / 100) * imageRect.height + (imageRect.top - containerRect.top);
-                const boxRightPx = boxLeftPx + (box.width / 100) * imageRect.width;
-                const boxBottomPx = boxTopPx + (box.height / 100) * imageRect.height;
-                
-                minX = Math.min(minX, boxLeftPx);
-                minY = Math.min(minY, boxTopPx);
-                maxX = Math.max(maxX, boxRightPx);
-                maxY = Math.max(maxY, boxBottomPx);
-            });
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-            // This assumes the dragged item's anchor is its top-left.
-            // Konva centers objects, so this might need adjustment based on item size.
-            const newX = Math.max(minX, Math.min(pos.x, maxX));
-            const newY = Math.max(minY, Math.min(pos.y, maxY));
+        activeView.boundaryBoxes.forEach(b => {
+            const boxLeftPx = (b.x / 100) * renderedImageRect.width + renderedImageRect.x;
+            const boxTopPx = (b.y / 100) * renderedImageRect.height + renderedImageRect.y;
+            const boxRightPx = boxLeftPx + (b.width / 100) * renderedImageRect.width;
+            const boxBottomPx = boxTopPx + (b.height / 100) * renderedImageRect.height;
             
-            return { x: newX, y: newY };
-        };
-    }, [activeView.boundaryBoxes]);
+            minX = Math.min(minX, boxLeftPx);
+            minY = Math.min(minY, boxTopPx);
+            maxX = Math.max(maxX, boxRightPx);
+            maxY = Math.max(maxY, boxBottomPx);
+        });
+
+        const newX = Math.max(minX, Math.min(pos.x, maxX - box.width));
+        const newY = Math.max(minY, Math.min(pos.y, maxY - box.height));
+
+        return { x: newX, y: newY };
+    }, [activeView.boundaryBoxes, renderedImageRect, stageRef, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId]);
+
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
     const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
@@ -322,19 +350,19 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
-             {/* Background Image Layer (HTML) */}
-             <div ref={imageContainerRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Image
-                    src={activeView.imageUrl}
-                    alt={activeView.name || 'Product view'}
-                    fill
-                    className="object-contain"
-                    priority
-                    data-ai-hint={activeView.aiHint || "product view"}
-                />
-             </div>
-
-            {/* Konva Canvas for Interactive Elements */}
+             {/* Background Image Layer (Konva) */}
+            <Stage width={canvasDimensions.width} height={canvasDimensions.height} className="absolute top-0 left-0 pointer-events-none">
+                <Layer>
+                    {imageLoadStatus === 'loaded' && (
+                        <KonvaImage 
+                            image={backgroundImage}
+                            {...renderedImageRect}
+                        />
+                    )}
+                </Layer>
+            </Stage>
+            
+            {/* Interactive Elements Layer (Konva) */}
             <Stage
                 ref={stageRef}
                 width={canvasDimensions.width}
@@ -379,25 +407,24 @@ export default function DesignCanvas({
             
             {/* Boundary Box and Grid Overlay Layer (HTML) */}
              <div className="absolute inset-0 w-full h-full pointer-events-none">
-                <div className="relative w-full h-full object-contain">
-                     {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
-                        return (
-                            <div 
-                              key={box.id} 
-                              className="border-2 border-dashed border-red-500 pointer-events-none"
-                              style={{
-                                position: 'absolute',
-                                left: `${box.x}%`,
-                                top: `${box.y}%`,
-                                width: `${box.width}%`,
-                                height: `${box.height}%`,
-                              }}
-                            >
-                                <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
-                            </div>
-                        );
-                    })}
-                </div>
+                {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
+                    const style = {
+                        position: 'absolute',
+                        left: `${(box.x / 100) * renderedImageRect.width + renderedImageRect.x}px`,
+                        top: `${(box.y / 100) * renderedImageRect.height + renderedImageRect.y}px`,
+                        width: `${(box.width / 100) * renderedImageRect.width}px`,
+                        height: `${(box.height / 100) * renderedImageRect.height}px`,
+                    };
+                    return (
+                        <div 
+                          key={box.id} 
+                          className="border-2 border-dashed border-red-500 pointer-events-none"
+                          style={style}
+                        >
+                            <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
+                        </div>
+                    );
+                })}
                 {showGrid && (
                 <div className="absolute inset-0 grid-pattern" style={{
                     '--grid-size': '25px', '--grid-color': 'hsl(var(--border) / 0.5)',
@@ -409,5 +436,3 @@ export default function DesignCanvas({
         </div>
     );
 }
-
-    
