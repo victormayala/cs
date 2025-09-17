@@ -253,23 +253,23 @@ export default function DesignCanvas({
     const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 1, height: 1 });
 
     useEffect(() => {
-        const image = imageRef.current;
-        if (!image) return;
+        const imageElement = imageRef.current;
+        const containerElement = containerRef.current;
+        if (!imageElement || !containerElement) return;
 
         const observer = new ResizeObserver(() => {
-            const { x, y, width, height } = image.getBoundingClientRect();
-            const containerRect = containerRef.current?.getBoundingClientRect();
-            if(containerRect) {
-                 setRenderedImageRect({ 
-                    x: x - containerRect.left, 
-                    y: y - containerRect.top, 
-                    width, 
-                    height 
-                });
-            }
+            const containerRect = containerElement.getBoundingClientRect();
+            const imageRect = imageElement.getBoundingClientRect();
+
+            setRenderedImageRect({ 
+                x: imageRect.left - containerRect.left, 
+                y: imageRect.top - containerRect.top, 
+                width: imageRect.width, 
+                height: imageRect.height 
+            });
         });
 
-        observer.observe(image);
+        observer.observe(containerElement);
         return () => observer.disconnect();
     }, []);
 
@@ -317,14 +317,12 @@ export default function DesignCanvas({
             const stage = this.getStage();
             if (!stage) return pos;
 
-            // Use the node's dimensions for accurate clamping
             const selfRect = this.getClientRect({ skipTransform: true });
             const nodeWidth = selfRect.width;
             const nodeHeight = selfRect.height;
             const offsetX = this.offsetX() * this.scaleX();
             const offsetY = this.offsetY() * this.scaleY();
-            
-            // This is the union of all boundary boxes. An element can be dragged within any defined area.
+
             const unionBox = boundaryBoxes.reduce((acc, box) => ({
                 x1: Math.min(acc.x1, box.x),
                 y1: Math.min(acc.y1, box.y),
@@ -332,7 +330,6 @@ export default function DesignCanvas({
                 y2: Math.max(acc.y2, box.y + box.height),
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
             
-            // Convert percentage-based boundary to pixel values based on the stage (which matches the image)
             const minX = (unionBox.x1 / 100) * stage.width() + offsetX;
             const maxX = (unionBox.x2 / 100) * stage.width() - (nodeWidth - offsetX);
             const minY = (unionBox.y1 / 100) * stage.height() + offsetY;
@@ -430,4 +427,3 @@ export default function DesignCanvas({
     );
 }
 
-    
