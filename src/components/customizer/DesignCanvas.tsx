@@ -1,11 +1,11 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
-import type { ProductView } from '@/app/customizer/Customizer';
+import type { ProductView } from '@/app/customizer/Customizer.tsx';
 import useImage from 'use-image';
 import { Loader2 } from 'lucide-react';
 
@@ -248,7 +248,6 @@ export default function DesignCanvas({
                 height: container.offsetHeight,
             });
             
-            // Recalculate Drag Bounds on resize
             const { boundaryBoxes } = activeView;
              if (!boundaryBoxes || boundaryBoxes.length === 0 || imageRect.width === 0) {
                 setDragBounds(null);
@@ -416,5 +415,3 @@ export default function DesignCanvas({
         </div>
     );
 }
-
-    
