@@ -216,18 +216,17 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
-    const overlayRef = useRef<HTMLDivElement>(null); // Ref for the overlay div
 
     const [overlayRect, setOverlayRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [isImageLoading, setIsImageLoading] = useState(true);
 
     const { boundaryBoxes } = activeView;
+    const [dragBounds, setDragBounds] = useState({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
     
     useEffect(() => {
         const container = containerRef.current;
         const image = imageRef.current;
-        const overlay = overlayRef.current;
-        if (!container || !image || !overlay) return;
+        if (!container || !image) return;
 
         const calculateRect = () => {
             const containerRect = container.getBoundingClientRect();
@@ -256,57 +255,61 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
             }
             
             setOverlayRect({ width: renderWidth, height: renderHeight, x, y });
+
+            if (boundaryBoxes && boundaryBoxes.length > 0) {
+                const unionBox = boundaryBoxes.reduce((acc, box) => ({
+                    x1: Math.min(acc.x1, box.x),
+                    y1: Math.min(acc.y1, box.y),
+                    x2: Math.max(acc.x2, box.x + box.width),
+                    y2: Math.max(acc.y2, box.y + box.height),
+                }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+
+                setDragBounds({
+                    minX: (unionBox.x1 / 100) * renderWidth,
+                    maxX: (unionBox.x2 / 100) * renderWidth, // Corrected from renderHeight
+                    minY: (unionBox.y1 / 100) * renderHeight,
+                    maxY: (unionBox.y2 / 100) * renderHeight,
+                });
+            } else {
+                // If no boundary boxes, allow dragging anywhere on the image
+                setDragBounds({ minX: 0, maxX: renderWidth, minY: 0, maxY: renderHeight });
+            }
         };
         
         const resizeObserver = new ResizeObserver(calculateRect);
         resizeObserver.observe(container);
 
-        image.addEventListener('load', () => {
+        const handleImageLoad = () => {
             setIsImageLoading(false);
             calculateRect();
-        });
+        };
 
+        image.addEventListener('load', handleImageLoad);
         if (image.complete) {
-            setIsImageLoading(false);
-            calculateRect();
+            handleImageLoad();
         }
 
         return () => {
           resizeObserver.disconnect();
-          if (image) image.removeEventListener('load', calculateRect);
+          image.removeEventListener('load', handleImageLoad);
         };
-    }, []);
+    }, [activeView.imageUrl, boundaryBoxes]); // Rerun when image or boxes change
 
 
     const dragBoundFunc = useMemo(() => {
       return function(this: Konva.Node, pos: { x: number; y: number }) {
-        if (!boundaryBoxes || boundaryBoxes.length === 0) {
-            return pos;
-        }
-
         const selfRect = this.getClientRect({ relativeTo: this.getParent() });
         const offsetX = selfRect.width / 2;
         const offsetY = selfRect.height / 2;
 
-        const unionBox = boundaryBoxes.reduce((acc, box) => ({
-            x1: Math.min(acc.x1, box.x),
-            y1: Math.min(acc.y1, box.y),
-            x2: Math.max(acc.x2, box.x + box.width),
-            y2: Math.max(acc.y2, box.y + box.height),
-        }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+        const { minX, maxX, minY, maxY } = dragBounds;
         
-        // Calculate boundaries in pixels relative to the stage (overlay)
-        const minX = (unionBox.x1 / 100) * overlayRect.width;
-        const maxX = (unionBox.x2 / 100) * overlayRect.width;
-        const minY = (unionBox.y1 / 100) * overlayRect.height;
-        const maxY = (unionBox.y2 / 100) * overlayRect.height;
-
         return {
             x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
             y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
         };
       };
-    }, [boundaryBoxes, overlayRect]);
+    }, [dragBounds]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -352,12 +355,11 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 ref={imageRef}
                 src={activeView.imageUrl}
                 alt={activeView.name}
-                className={cn("w-full h-full object-contain pointer-events-none transition-opacity", isImageLoading ? 'opacity-0' : 'opacity-100')}
+                className={cn("absolute w-full h-full object-contain pointer-events-none transition-opacity", isImageLoading ? 'opacity-0' : 'opacity-100')}
                 crossOrigin="anonymous"
             />
             
             <div 
-                ref={overlayRef}
                 className="absolute"
                 style={{
                   top: `${overlayRect.y}px`,
