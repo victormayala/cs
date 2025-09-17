@@ -198,6 +198,13 @@ interface DesignCanvasProps {
   showBoundaryBoxes: boolean;
 }
 
+interface ImageRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export default function DesignCanvas({
     activeView, showGrid, showBoundaryBoxes
 }: DesignCanvasProps) {
@@ -211,53 +218,89 @@ export default function DesignCanvas({
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
     const [backgroundImage, bgImageLoadingStatus] = useImage(activeView.imageUrl, 'anonymous');
-    
-    const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+    const [renderedImageRect, setRenderedImageRect] = useState<ImageRect | null>(null);
+
+    const [dragBounds, setDragBounds] = useState({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
 
     useEffect(() => {
         const container = containerRef.current;
-        if (!container) return;
+        if (!container || !backgroundImage) return;
 
-        const observer = new ResizeObserver(() => {
-            setStageSize({
-                width: container.offsetWidth,
-                height: container.offsetHeight,
-            });
-        });
+        const calculateRect = () => {
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            const imageWidth = backgroundImage.naturalWidth;
+            const imageHeight = backgroundImage.naturalHeight;
+
+            const containerRatio = containerWidth / containerHeight;
+            const imageRatio = imageWidth / imageHeight;
+
+            let finalWidth, finalHeight, finalX, finalY;
+
+            if (containerRatio > imageRatio) {
+                // Container is wider than the image (letterboxed left/right)
+                finalHeight = containerHeight;
+                finalWidth = containerHeight * imageRatio;
+                finalX = (containerWidth - finalWidth) / 2;
+                finalY = 0;
+            } else {
+                // Container is taller than or equal to the image's aspect ratio (letterboxed top/bottom)
+                finalWidth = containerWidth;
+                finalHeight = containerWidth / imageRatio;
+                finalX = 0;
+                finalY = (containerHeight - finalHeight) / 2;
+            }
+
+            setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
+        };
+
+        calculateRect(); // Initial calculation
+        
+        const observer = new ResizeObserver(calculateRect);
         observer.observe(container);
         
         return () => observer.disconnect();
-    }, []);
+    }, [backgroundImage]);
+
+    useEffect(() => {
+      if (!renderedImageRect) return;
+
+      const { boundaryBoxes } = activeView;
+      if (!boundaryBoxes || boundaryBoxes.length === 0) {
+        setDragBounds({ minX: 0, maxX: renderedImageRect.width, minY: 0, maxY: renderedImageRect.height });
+        return;
+      }
+      
+      const unionBox = boundaryBoxes.reduce((acc, box) => ({
+          x1: Math.min(acc.x1, box.x),
+          y1: Math.min(acc.y1, box.y),
+          x2: Math.max(acc.x2, box.x + box.width),
+          y2: Math.max(acc.y2, box.y + box.height),
+      }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+
+      setDragBounds({
+          minX: (unionBox.x1 / 100) * renderedImageRect.width,
+          maxX: (unionBox.x2 / 100) * renderedImageRect.width,
+          minY: (unionBox.y1 / 100) * renderedImageRect.height,
+          maxY: (unionBox.y2 / 100) * renderedImageRect.height,
+      });
+
+    }, [renderedImageRect, activeView]);
 
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
-            if (!containerRef.current) return pos;
-
-            const { boundaryBoxes } = activeView;
-            if (!boundaryBoxes || boundaryBoxes.length === 0) return pos;
-
             const selfRect = this.getClientRect({ relativeTo: this.getParent() });
             const offsetX = selfRect.width / 2;
             const offsetY = selfRect.height / 2;
 
-            const unionBox = boundaryBoxes.reduce((acc, box) => ({
-                x1: Math.min(acc.x1, box.x),
-                y1: Math.min(acc.y1, box.y),
-                x2: Math.max(acc.x2, box.x + box.width),
-                y2: Math.max(acc.y2, box.y + box.height),
-            }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+            const { minX, maxX, minY, maxY } = dragBounds;
             
-            const minX = (unionBox.x1 / 100) * stageSize.width;
-            const maxX = (unionBox.x2 / 100) * stageSize.width;
-            const minY = (unionBox.y1 / 100) * stageSize.height;
-            const maxY = (unionBox.y2 / 100) * stageSize.height;
-
             return {
                 x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
                 y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
             };
         };
-    }, [activeView, stageSize]);
+    }, [dragBounds]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -307,12 +350,22 @@ export default function DesignCanvas({
                 priority
             />
 
-            {showGrid && (
-                 <div className="absolute inset-0 grid-pattern pointer-events-none" />
+            {showGrid && renderedImageRect && (
+                 <div className="absolute grid-pattern pointer-events-none" style={{
+                    left: `${renderedImageRect.x}px`,
+                    top: `${renderedImageRect.y}px`,
+                    width: `${renderedImageRect.width}px`,
+                    height: `${renderedImageRect.height}px`,
+                 }} />
             )}
 
-            {showBoundaryBoxes && (
-                <div className="absolute inset-0 pointer-events-none">
+            {showBoundaryBoxes && renderedImageRect && (
+                <div className="absolute inset-0 pointer-events-none" style={{
+                    left: `${renderedImageRect.x}px`,
+                    top: `${renderedImageRect.y}px`,
+                    width: `${renderedImageRect.width}px`,
+                    height: `${renderedImageRect.height}px`,
+                }}>
                     {activeView.boundaryBoxes.map(box => (
                         <div key={box.id} className="absolute border-2 border-dashed border-red-500" style={{
                             left: `${box.x}%`,
@@ -326,13 +379,13 @@ export default function DesignCanvas({
             
             <Stage
                 ref={stageRef}
-                width={stageSize.width}
-                height={stageSize.height}
+                width={containerRef.current?.offsetWidth || 0}
+                height={containerRef.current?.offsetHeight || 0}
                 className="absolute top-0 left-0"
                 onClick={handleStageClick}
                 onTap={handleStageClick}
             >
-                <Layer name="interactive-layer">
+                <Layer name="interactive-layer" x={renderedImageRect?.x || 0} y={renderedImageRect?.y || 0}>
                     {visibleImages.map((img) => (
                         <InteractiveCanvasImage
                             key={`${img.id}-${img.zIndex}`}
