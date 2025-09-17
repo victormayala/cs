@@ -295,7 +295,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
         }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
 
         const minX = (unionBox.x1 / 100) * renderedImageRect.width;
-        const maxX = (unionBox.x2 / 100) * renderedImageRect.width;
+        const maxX = ((unionBox.x2 / 100) * renderedImageRect.width) * 1.3; // ADDING 30%
         const minY = (unionBox.y1 / 100) * renderedImageRect.height;
         const maxY = (unionBox.y2 / 100) * renderedImageRect.height;
 
