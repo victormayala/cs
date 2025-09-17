@@ -8,6 +8,7 @@ import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
 import useImage from 'use-image';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 // --- Inner Canvas Components ---
 
@@ -434,3 +435,5 @@ export default function DesignCanvas({
         </div>
     );
 }
+
+    
