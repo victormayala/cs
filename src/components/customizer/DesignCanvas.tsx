@@ -8,6 +8,8 @@ import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer.tsx';
 import useImage from 'use-image';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 // --- Inner Canvas Components ---
 
@@ -211,32 +213,6 @@ export default function DesignCanvas({
     const [backgroundImage, bgImageLoadingStatus] = useImage(activeView.imageUrl, 'anonymous');
     
     const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-    const [dragBounds, setDragBounds] = useState<{minX: number, maxX: number, minY: number, maxY: number} | null>(null);
-
-    const imageRect = useMemo(() => {
-        if (!backgroundImage || stageSize.width === 0 || stageSize.height === 0) {
-            return { x: 0, y: 0, width: 0, height: 0 };
-        }
-
-        const stageRatio = stageSize.width / stageSize.height;
-        const imageRatio = backgroundImage.naturalWidth / backgroundImage.height;
-
-        let width, height, x, y;
-
-        if (stageRatio > imageRatio) {
-            height = stageSize.height;
-            width = height * imageRatio;
-            x = (stageSize.width - width) / 2;
-            y = 0;
-        } else {
-            width = stageSize.width;
-            height = width / imageRatio;
-            x = 0;
-            y = (stageSize.height - height) / 2;
-        }
-        return { x, y, width, height };
-    }, [backgroundImage, stageSize]);
-
 
     useEffect(() => {
         const container = containerRef.current;
@@ -247,12 +223,22 @@ export default function DesignCanvas({
                 width: container.offsetWidth,
                 height: container.offsetHeight,
             });
-            
+        });
+        observer.observe(container);
+        
+        return () => observer.disconnect();
+    }, []);
+
+    const dragBoundFunc = useMemo(() => {
+        return function(this: Konva.Node, pos: { x: number; y: number }) {
+            if (!containerRef.current) return pos;
+
             const { boundaryBoxes } = activeView;
-             if (!boundaryBoxes || boundaryBoxes.length === 0 || imageRect.width === 0) {
-                setDragBounds(null);
-                return;
-            }
+            if (!boundaryBoxes || boundaryBoxes.length === 0) return pos;
+
+            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+            const offsetX = selfRect.width / 2;
+            const offsetY = selfRect.height / 2;
 
             const unionBox = boundaryBoxes.reduce((acc, box) => ({
                 x1: Math.min(acc.x1, box.x),
@@ -260,40 +246,21 @@ export default function DesignCanvas({
                 x2: Math.max(acc.x2, box.x + box.width),
                 y2: Math.max(acc.y2, box.y + box.height),
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-
-            setDragBounds({
-                minX: imageRect.x + (unionBox.x1 / 100) * imageRect.width,
-                maxX: imageRect.x + (unionBox.x2 / 100) * imageRect.width,
-                minY: imageRect.y + (unionBox.y1 / 100) * imageRect.height,
-                maxY: imageRect.y + (unionBox.y2 / 100) * imageRect.height,
-            });
-
-        });
-        observer.observe(container);
-        
-        return () => observer.disconnect();
-    }, [activeView, imageRect]);
-    
-    const dragBoundFunc = useMemo(() => {
-        return function(this: Konva.Node, pos: { x: number; y: number }) {
-            const { boundaryBoxes } = activeView;
-            if (!boundaryBoxes || boundaryBoxes.length === 0 || !dragBounds) return pos;
-
-            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-            const offsetX = selfRect.width / 2;
-            const offsetY = selfRect.height / 2;
             
-            const { minX, maxX, minY, maxY } = dragBounds;
+            const minX = (unionBox.x1 / 100) * stageSize.width;
+            const maxX = (unionBox.x2 / 100) * stageSize.width;
+            const minY = (unionBox.y1 / 100) * stageSize.height;
+            const maxY = (unionBox.y2 / 100) * stageSize.height;
 
             return {
                 x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
                 y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
             };
         };
-    }, [activeView, dragBounds]);
+    }, [activeView, stageSize]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-        if (e.target === e.target.getStage() || e.target.attrs.id === 'background-image') {
+        if (e.target === e.target.getStage()) {
             selectCanvasImage(null);
             selectCanvasText(null);
             selectCanvasShape(null);
@@ -332,6 +299,31 @@ export default function DesignCanvas({
         <div ref={containerRef} className="relative w-full h-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
             {bgImageLoadingStatus === 'loading' && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
             
+            <Image
+                src={activeView.imageUrl}
+                alt={activeView.name}
+                fill
+                className="object-contain w-full h-full pointer-events-none"
+                priority
+            />
+
+            {showGrid && (
+                 <div className="absolute inset-0 grid-pattern pointer-events-none" />
+            )}
+
+            {showBoundaryBoxes && (
+                <div className="absolute inset-0 pointer-events-none">
+                    {activeView.boundaryBoxes.map(box => (
+                        <div key={box.id} className="absolute border-2 border-dashed border-red-500" style={{
+                            left: `${box.x}%`,
+                            top: `${box.y}%`,
+                            width: `${box.width}%`,
+                            height: `${box.height}%`,
+                        }} />
+                    ))}
+                </div>
+            )}
+            
             <Stage
                 ref={stageRef}
                 width={stageSize.width}
@@ -340,42 +332,6 @@ export default function DesignCanvas({
                 onClick={handleStageClick}
                 onTap={handleStageClick}
             >
-                {/* Background Layer */}
-                <Layer listening={false} name="background-layer">
-                    {backgroundImage && imageRect.width > 0 && (
-                        <KonvaImage
-                            id="background-image"
-                            image={backgroundImage}
-                            x={imageRect.x}
-                            y={imageRect.y}
-                            width={imageRect.width}
-                            height={imageRect.height}
-                            zIndex={0}
-                        />
-                    )}
-
-                    {showGrid && imageRect.width > 0 && Array.from({ length: 9 }).map((_, i) => (
-                        <React.Fragment key={`grid-${i}`}>
-                            <Rect x={imageRect.x} y={imageRect.y + ((i + 1) * imageRect.height / 10)} width={imageRect.width} height={1} fill="rgba(128, 128, 128, 0.3)"/>
-                            <Rect x={imageRect.x + ((i + 1) * imageRect.width / 10)} y={imageRect.y} width={1} height={imageRect.height} fill="rgba(128, 128, 128, 0.3)"/>
-                        </React.Fragment>
-                    ))}
-
-                    {showBoundaryBoxes && imageRect.width > 0 && activeView.boundaryBoxes.map(box => (
-                        <Rect
-                            key={box.id}
-                            x={imageRect.x + (box.x / 100) * imageRect.width}
-                            y={imageRect.y + (box.y / 100) * imageRect.height}
-                            width={(box.width / 100) * imageRect.width}
-                            height={(box.height / 100) * imageRect.height}
-                            stroke="red"
-                            strokeWidth={2}
-                            dash={[10, 5]}
-                        />
-                    ))}
-                </Layer>
-                
-                {/* Interactive Elements Layer */}
                 <Layer name="interactive-layer">
                     {visibleImages.map((img) => (
                         <InteractiveCanvasImage
