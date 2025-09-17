@@ -78,14 +78,16 @@ interface InteractiveCanvasTextProps {
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  const [fontLoaded] = useImage(`https://fonts.googleapis.com/css2?family=${textProps.fontFamily.replace(/ /g, '+')}:wght@400;700&display=swap`);
+  // This useImage is a trick to try and force a re-render when a font might load.
+  // Konva has its own font loading mechanisms, but this can help in some cases.
+  useImage(`https://fonts.googleapis.com/css2?family=${textProps.fontFamily.replace(/ /g, '+')}:wght@400;700&display=swap`);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
       trRef.current.nodes([shapeRef.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected, fontLoaded]);
+  }, [isSelected, textProps.content, textProps.fontSize]);
   
   const stage = shapeRef.current?.getStage();
   const stageWidth = stage?.width() || 0;
@@ -146,6 +148,9 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         textPath={textPath ? textProps.content : undefined}
         {...commonTextProps}
         text={textPath ? undefined : textProps.content}
+        // Offset to drag from center
+        offsetX={shapeRef.current?.width() ? shapeRef.current.width() / 2 : 0}
+        offsetY={shapeRef.current?.height() ? shapeRef.current.height() / 2 : 0}
       />
       {isSelected && !textProps.isLocked && (
         <Transformer
@@ -204,9 +209,9 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
   const renderShape = () => {
     switch (shapeProps.shapeType) {
       case 'rectangle':
-        return <Rect ref={shapeRef as React.Ref<Konva.Rect>} {...commonProps} width={shapeProps.width} height={shapeProps.height} />;
+        return <Rect ref={shapeRef as React.Ref<Konva.Rect>} {...commonProps} width={shapeProps.width} height={shapeProps.height} offsetX={shapeProps.width / 2} offsetY={shapeProps.height / 2} />;
       case 'circle':
-        return <Circle ref={shapeRef as React.Ref<Konva.Circle>} {...commonProps} radius={shapeProps.width / 2} />;
+        return <Circle ref={shapeRef as React.Ref<Konva.Circle>} {...commonProps} radius={shapeProps.width / 2} />; // Circle doesn't need offset for centering
       default:
         return null;
     }
@@ -243,41 +248,30 @@ export default function DesignCanvas({
     
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
     const [backgroundImage, bgImageLoadingStatus] = useImage(activeView.imageUrl, 'anonymous');
-    const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 1, height: 1 });
 
     useEffect(() => {
-        const container = containerRef.current;
-        if (!container || !backgroundImage) return;
+        const image = imageRef.current;
+        if (!image) return;
 
         const observer = new ResizeObserver(() => {
-            const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
-            const { naturalWidth, naturalHeight } = backgroundImage;
-            const imgAspectRatio = naturalWidth / naturalHeight;
-            const containerAspectRatio = containerWidth / containerHeight;
-
-            let renderWidth, renderHeight, xOffset, yOffset;
-
-            if (imgAspectRatio > containerAspectRatio) {
-                renderWidth = containerWidth;
-                renderHeight = containerWidth / imgAspectRatio;
-                xOffset = 0;
-                yOffset = (containerHeight - renderHeight) / 2;
-            } else {
-                renderHeight = containerHeight;
-                renderWidth = containerHeight * imgAspectRatio;
-                yOffset = 0;
-                xOffset = (containerWidth - renderWidth) / 2;
+            const { x, y, width, height } = image.getBoundingClientRect();
+            const containerRect = containerRef.current?.getBoundingClientRect();
+            if(containerRect) {
+                 setRenderedImageRect({ 
+                    x: x - containerRect.left, 
+                    y: y - containerRect.top, 
+                    width, 
+                    height 
+                });
             }
-            
-            setCanvasDimensions({ width: containerWidth, height: containerHeight });
-            setRenderedImageRect({ x: xOffset, y: yOffset, width: renderWidth, height: renderHeight });
         });
 
-        observer.observe(container);
+        observer.observe(image);
         return () => observer.disconnect();
-    }, [backgroundImage]);
+    }, []);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -289,17 +283,22 @@ export default function DesignCanvas({
 
     const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, itemType: 'image' | 'text' | 'shape') => {
         const node = e.target;
+        const stage = node.getStage();
+        if(!stage) return;
+        const stageWidth = stage.width();
+        const stageHeight = stage.height();
+
         const newAttrs: Partial<CanvasImage | CanvasText | CanvasShape> = {
             rotation: node.rotation(),
-            x: (node.x() / canvasDimensions.width) * 100,
-            y: (node.y() / canvasDimensions.height) * 100,
+            x: (node.x() / stageWidth) * 100,
+            y: (node.y() / stageHeight) * 100,
             movedFromDefault: true
         };
 
         if (itemType === 'image') {
             (newAttrs as Partial<CanvasImage>).scaleX = node.scaleX();
             (newAttrs as Partial<CanvasImage>).scaleY = node.scaleY();
-            updateCanvasImage(node.id(), newAttrs);
+            updateCanvasImage(node.id(), newAttrs as Partial<CanvasImage>);
         } else {
             (newAttrs as Partial<CanvasText | CanvasShape>).scale = node.scaleX();
             if(itemType === 'text') {
@@ -311,20 +310,21 @@ export default function DesignCanvas({
     };
     
     const dragBoundFunc = useMemo(() => {
-        return (pos: { x: number; y: number }) => {
+        return function(this: Konva.Node, pos: { x: number; y: number }) {
             const { boundaryBoxes } = activeView;
             if (!boundaryBoxes || boundaryBoxes.length === 0) return pos;
 
-            const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
-            if (!selectedId) return pos;
+            const stage = this.getStage();
+            if (!stage) return pos;
 
-            const node = stageRef.current?.findOne(`#${selectedId}`);
-            if (!node) return pos;
+            // Use the node's dimensions for accurate clamping
+            const selfRect = this.getClientRect({ skipTransform: true });
+            const nodeWidth = selfRect.width;
+            const nodeHeight = selfRect.height;
+            const offsetX = this.offsetX() * this.scaleX();
+            const offsetY = this.offsetY() * this.scaleY();
             
-            const nodeBox = node.getClientRect({ skipTransform: true });
-            const nodeWidth = nodeBox.width;
-            const nodeHeight = nodeBox.height;
-
+            // This is the union of all boundary boxes. An element can be dragged within any defined area.
             const unionBox = boundaryBoxes.reduce((acc, box) => ({
                 x1: Math.min(acc.x1, box.x),
                 y1: Math.min(acc.y1, box.y),
@@ -332,42 +332,42 @@ export default function DesignCanvas({
                 y2: Math.max(acc.y2, box.y + box.height),
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
             
-            const clampX = (val: number, min: number, max: number) => Math.max(min, Math.min(val, max));
-            
-            const boundaryX1 = renderedImageRect.x + (unionBox.x1 / 100) * renderedImageRect.width;
-            const boundaryY1 = renderedImageRect.y + (unionBox.y1 / 100) * renderedImageRect.height;
-            const boundaryX2 = renderedImageRect.x + (unionBox.x2 / 100) * renderedImageRect.width;
-            const boundaryY2 = renderedImageRect.y + (unionBox.y2 / 100) * renderedImageRect.height;
+            // Convert percentage-based boundary to pixel values based on the stage (which matches the image)
+            const minX = (unionBox.x1 / 100) * stage.width() + offsetX;
+            const maxX = (unionBox.x2 / 100) * stage.width() - (nodeWidth - offsetX);
+            const minY = (unionBox.y1 / 100) * stage.height() + offsetY;
+            const maxY = (unionBox.y2 / 100) * stage.height() - (nodeHeight - offsetY);
             
             return {
-                x: clampX(pos.x, boundaryX1, boundaryX2 - nodeWidth),
-                y: clampX(pos.y, boundaryY1, boundaryY2 - nodeHeight),
+                x: Math.max(minX, Math.min(pos.x, maxX)),
+                y: Math.max(minY, Math.min(pos.y, maxY)),
             };
         };
-    }, [activeView.boundaryBoxes, renderedImageRect, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
+    }, [activeView.boundaryBoxes]);
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
     const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
     const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeView.id);
 
     return (
-        <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
+        <div ref={containerRef} className="relative w-full h-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
             {bgImageLoadingStatus === 'loading' && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-            {bgImageLoadingStatus === 'error' && <div className="absolute inset-0 flex items-center justify-center text-destructive">Error loading image.</div>}
             
             <img
+                ref={imageRef}
                 src={activeView.imageUrl}
                 alt={activeView.name}
-                className="absolute inset-0 object-contain w-full h-full pointer-events-none"
                 crossOrigin="anonymous"
+                className="absolute inset-0 object-contain w-full h-full pointer-events-none"
                 style={{ opacity: bgImageLoadingStatus === 'loaded' ? 1 : 0 }}
             />
             
             <Stage
                 ref={stageRef}
-                width={canvasDimensions.width}
-                height={canvasDimensions.height}
-                className="absolute top-0 left-0"
+                width={renderedImageRect.width}
+                height={renderedImageRect.height}
+                className="absolute"
+                style={{ top: `${renderedImageRect.y}px`, left: `${renderedImageRect.x}px` }}
                 onClick={handleStageClick}
                 onTap={handleStageClick}
             >
@@ -405,30 +405,24 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
              
-             <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 pointer-events-none" style={{ top: `${renderedImageRect.y}px`, left: `${renderedImageRect.x}px`, width: `${renderedImageRect.width}px`, height: `${renderedImageRect.height}px` }}>
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
                     <div
                         key={box.id}
-                        className="absolute border-2 border-dashed border-red-500"
+                        className="absolute border-2 border-dashed border-red-500/70"
                         style={{
-                            left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
-                            top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
-                            width: `${(box.width / 100) * renderedImageRect.width}px`,
-                            height: `${(box.height / 100) * renderedImageRect.height}px`,
+                            left: `${box.x}%`,
+                            top: `${box.y}%`,
+                            width: `${box.width}%`,
+                            height: `${box.height}%`,
                         }}
                     >
-                        <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
+                        <div className="absolute -top-5 left-0 text-xs bg-red-500/80 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
                     </div>
                 ))}
                  {showGrid && (
                     <div 
-                        className="absolute grid-pattern"
-                        style={{
-                            left: `${renderedImageRect.x}px`,
-                            top: `${renderedImageRect.y}px`,
-                            width: `${renderedImageRect.width}px`,
-                            height: `${renderedImageRect.height}px`,
-                        }}
+                        className="absolute inset-0 grid-pattern"
                     ></div>
                 )}
             </div>
@@ -436,4 +430,3 @@ export default function DesignCanvas({
     );
 }
 
-    
