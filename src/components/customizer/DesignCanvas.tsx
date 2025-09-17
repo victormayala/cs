@@ -344,15 +344,16 @@ export default function DesignCanvas({
             </Stage>
 
             {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
-                const boxStyle: React.CSSProperties = {
+                const style: React.CSSProperties = {
                     position: 'absolute',
                     left: `${(box.x / 100) * imageDisplayProps.width + imageDisplayProps.x}px`,
                     top: `${(box.y / 100) * imageDisplayProps.height + imageDisplayProps.y}px`,
                     width: `${(box.width / 100) * imageDisplayProps.width}px`,
                     height: `${(box.height / 100) * imageDisplayProps.height}px`,
-                  };
+                };
+
                 return(
-                    <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={boxStyle}>
+                    <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={style}>
                         <div className="absolute -top-5 left-0 text-xs bg-primary/50 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
                     </div>
                 )
