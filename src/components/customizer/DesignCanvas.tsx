@@ -183,7 +183,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onClick: onSelect,
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
-    onDragEnd: onTransformEnd,
+    onDragEnd: onDragEnd,
     zIndex: shapeProps.zIndex,
   };
 
@@ -387,3 +387,5 @@ export default function DesignCanvas({
         </div>
     );
 }
+
+    
