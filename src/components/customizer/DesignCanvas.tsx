@@ -217,7 +217,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
 
-    const [overlayRect, setOverlayRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+    const [imageRect, setImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [isImageLoading, setIsImageLoading] = useState(true);
 
     const { boundaryBoxes } = activeView;
@@ -254,7 +254,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 y = (containerRect.height - renderHeight) / 2;
             }
             
-            setOverlayRect({ width: renderWidth, height: renderHeight, x, y });
+            setImageRect({ width: renderWidth, height: renderHeight, x, y });
 
             if (boundaryBoxes && boundaryBoxes.length > 0) {
                 const unionBox = boundaryBoxes.reduce((acc, box) => ({
@@ -266,7 +266,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
 
                 setDragBounds({
                     minX: (unionBox.x1 / 100) * renderWidth,
-                    maxX: (unionBox.x2 / 100) * renderWidth, // Corrected from renderHeight
+                    maxX: (unionBox.x2 / 100) * renderWidth * 1.3, // Corrected and widened by 30% for testing
                     minY: (unionBox.y1 / 100) * renderHeight,
                     maxY: (unionBox.y2 / 100) * renderHeight,
                 });
@@ -293,7 +293,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
           resizeObserver.disconnect();
           image.removeEventListener('load', handleImageLoad);
         };
-    }, [activeView.imageUrl, boundaryBoxes]); // Rerun when image or boxes change
+    }, [activeView.imageUrl, boundaryBoxes]);
 
 
     const dragBoundFunc = useMemo(() => {
@@ -362,10 +362,10 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
             <div 
                 className="absolute"
                 style={{
-                  top: `${overlayRect.y}px`,
-                  left: `${overlayRect.x}px`,
-                  width: `${overlayRect.width}px`,
-                  height: `${overlayRect.height}px`,
+                  top: `${imageRect.y}px`,
+                  left: `${imageRect.x}px`,
+                  width: `${imageRect.width}px`,
+                  height: `${imageRect.height}px`,
                 }}
             >
                 {showGrid && (
@@ -390,8 +390,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
 
                 <Stage
                     ref={stageRef}
-                    width={overlayRect.width}
-                    height={overlayRect.height}
+                    width={imageRect.width}
+                    height={imageRect.height}
                     className="absolute top-0 left-0"
                     onClick={handleStageClick}
                     onTap={handleStageClick}
