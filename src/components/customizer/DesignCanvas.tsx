@@ -287,7 +287,7 @@ export default function DesignCanvas({
 
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-        if (e.target === e.target.getStage()) {
+        if (e.target === e.target.getStage() || e.target.attrs.id === 'background-image') {
             selectCanvasImage(null);
             selectCanvasText(null);
             selectCanvasShape(null);
@@ -368,12 +368,14 @@ export default function DesignCanvas({
                     {/* Background Product Image */}
                     {backgroundImage && imageRect.width > 0 && (
                         <KonvaImage
+                            id="background-image"
                             image={backgroundImage}
                             x={imageRect.x}
                             y={imageRect.y}
                             width={imageRect.width}
                             height={imageRect.height}
-                            listening={false} // This is just a background
+                            listening={false}
+                            zIndex={0}
                         />
                     )}
 

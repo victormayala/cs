@@ -295,7 +295,8 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     const imageZIndexes = canvasImages.filter(img => img.viewId === viewId).map(img => img.zIndex);
     const textZIndexes = canvasTexts.filter(txt => txt.viewId === viewId).map(txt => txt.zIndex);
     const shapeZIndexes = canvasShapes.filter(shp => shp.viewId === viewId).map(shp => shp.zIndex);
-    return Math.max(-1, ...imageZIndexes, ...textZIndexes, ...shapeZIndexes);
+    const maxZ = Math.max(0, ...imageZIndexes, ...textZIndexes, ...shapeZIndexes);
+    return maxZ;
   }, [canvasImages, canvasTexts, canvasShapes]);
 
   // --- Image Functions ---
