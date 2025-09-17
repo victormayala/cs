@@ -183,7 +183,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onClick: onSelect,
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
-    onDragEnd: onDragEnd,
+    onDragEnd: onTransformEnd,
     zIndex: shapeProps.zIndex,
   };
 
@@ -217,6 +217,14 @@ interface DesignCanvasProps {
   showBoundaryBoxes: boolean;
 }
 
+// NEW: State for rendered image dimensions
+interface RenderedImageRect {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
 export default function DesignCanvas({
     activeView, showGrid, showBoundaryBoxes
 }: DesignCanvasProps) {
@@ -231,6 +239,9 @@ export default function DesignCanvas({
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
+    
+    // NEW: State to hold the final rendered dimensions and position of the background image.
+    const [renderedImageRect, setRenderedImageRect] = useState<RenderedImageRect | null>(null);
 
     useEffect(() => {
         const checkSize = () => {
@@ -243,36 +254,32 @@ export default function DesignCanvas({
         window.addEventListener("resize", checkSize);
         return () => window.removeEventListener("resize", checkSize);
     }, []);
-
-    const imageDisplayProps = useMemo(() => {
-        if (!backgroundImage) {
-          return { width: 0, height: 0, x: 0, y: 0 };
-        }
+    
+    const handleBackgroundImageLoad = (bgImage: HTMLImageElement) => {
         const canvasWidth = canvasDimensions.width;
         const canvasHeight = canvasDimensions.height;
-        const imgWidth = backgroundImage.naturalWidth;
-        const imgHeight = backgroundImage.naturalHeight;
-    
+        const imgWidth = bgImage.naturalWidth;
+        const imgHeight = bgImage.naturalHeight;
+
         const canvasRatio = canvasWidth / canvasHeight;
         const imgRatio = imgWidth / imgHeight;
-    
-        let finalWidth, finalHeight, finalX, finalY;
-    
-        if (imgRatio > canvasRatio) {
-          finalWidth = canvasWidth;
-          finalHeight = canvasWidth / imgRatio;
-          finalX = 0;
-          finalY = (canvasHeight - finalHeight) / 2;
-        } else {
-          finalHeight = canvasHeight;
-          finalWidth = canvasHeight * imgRatio;
-          finalY = 0;
-          finalX = (canvasWidth - finalWidth) / 2;
-        }
-    
-        return { width: finalWidth, height: finalHeight, x: finalX, y: finalY };
-      }, [backgroundImage, canvasDimensions]);
 
+        let finalWidth, finalHeight, finalX, finalY;
+
+        if (imgRatio > canvasRatio) {
+            finalWidth = canvasWidth;
+            finalHeight = canvasWidth / imgRatio;
+            finalX = 0;
+            finalY = (canvasHeight - finalHeight) / 2;
+        } else {
+            finalHeight = canvasHeight;
+            finalWidth = canvasHeight * imgRatio;
+            finalY = 0;
+            finalX = (canvasWidth - finalWidth) / 2;
+        }
+
+        setRenderedImageRect({ width: finalWidth, height: finalHeight, x: finalX, y: finalY });
+    };
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -323,10 +330,13 @@ export default function DesignCanvas({
                     {backgroundImage && (
                         <KonvaImage 
                             image={backgroundImage} 
-                            width={imageDisplayProps.width} 
-                            height={imageDisplayProps.height}
-                            x={imageDisplayProps.x}
-                            y={imageDisplayProps.y}
+                            // The onLoad event is now used to set our state
+                            onLoad={() => handleBackgroundImageLoad(backgroundImage)}
+                            // The rendered dimensions are now from state
+                            width={renderedImageRect?.width} 
+                            height={renderedImageRect?.height}
+                            x={renderedImageRect?.x}
+                            y={renderedImageRect?.y}
                         />
                     )}
                 </Layer>
@@ -361,20 +371,21 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
 
-            {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
+            {/* NEW, CORRECTED BOUNDARY BOX LOGIC */}
+            {showBoundaryBoxes && renderedImageRect && activeView.boundaryBoxes.map(box => {
                 const style: React.CSSProperties = {
                     position: 'absolute',
-                    left: `${(box.x / 100) * imageDisplayProps.width + imageDisplayProps.x}px`,
-                    top: `${(box.y / 100) * imageDisplayProps.height + imageDisplayProps.y}px`,
-                    width: `${(box.width / 100) * imageDisplayProps.width}px`,
-                    height: `${(box.height / 100) * imageDisplayProps.height}px`,
+                    left: `${(box.x / 100) * renderedImageRect.width + renderedImageRect.x}px`,
+                    top: `${(box.y / 100) * renderedImageRect.height + renderedImageRect.y}px`,
+                    width: `${(box.width / 100) * renderedImageRect.width}px`,
+                    height: `${(box.height / 100) * renderedImageRect.height}px`,
                 };
 
-                return(
+                return (
                     <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={style}>
                         <div className="absolute -top-5 left-0 text-xs bg-primary/50 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
                     </div>
-                )
+                );
             })}
 
             {showGrid && (
@@ -387,5 +398,3 @@ export default function DesignCanvas({
         </div>
     );
 }
-
-    
