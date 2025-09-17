@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import useImage from 'use-image';
 import type Konva from 'konva';
@@ -73,6 +73,24 @@ interface InteractiveCanvasTextProps {
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
+  const [pathData, setPathData] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (shapeRef.current && textProps.archAmount !== 0) {
+      const textWidth = shapeRef.current.width();
+      const radius = (textWidth * 180) / (Math.abs(textProps.archAmount) * Math.PI);
+      const isUpward = textProps.archAmount > 0;
+      
+      const M = `M 0 ${isUpward ? radius : 0}`;
+      const A = `A ${radius} ${radius} 0 0 ${isUpward ? 1 : 0} ${textWidth} ${isUpward ? radius : 0}`;
+      
+      setPathData(`${M} ${A}`);
+      shapeRef.current.text(''); // Clear normal text
+    } else {
+      setPathData(undefined); // Reset path data if not arched
+    }
+  }, [textProps.content, textProps.archAmount, textProps.fontSize, textProps.fontFamily, textProps.letterSpacing, shapeRef.current?.width()]);
+
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
@@ -116,6 +134,8 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         shadowOffsetY={textProps.shadowOffsetY}
         shadowEnabled={textProps.shadowEnabled}
         zIndex={textProps.zIndex}
+        data={pathData}
+        textArr={pathData ? [{ text: textProps.content, x: 0, y:0 }] : undefined}
       />
       {isSelected && !textProps.isLocked && (
         <Transformer
