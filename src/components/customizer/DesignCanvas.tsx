@@ -4,9 +4,9 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
-import useImage from 'use-image';
 import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
+import Image from 'next/image';
 
 // --- Inner Canvas Components ---
 
@@ -18,7 +18,6 @@ interface InteractiveCanvasImageProps {
 }
 
 const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransformEnd }) => {
-  const [img] = useImage(imageProps.dataUrl, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -37,8 +36,8 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
     <>
       <KonvaImage
         ref={shapeRef}
-        image={img}
         id={imageProps.id}
+        image={typeof window !== 'undefined' ? (() => { const i = new window.Image(); i.src = imageProps.dataUrl; return i; })() : undefined}
         x={(imageProps.x / 100) * stageWidth}
         y={(imageProps.y / 100) * stageHeight}
         width={imageProps.width}
@@ -217,13 +216,6 @@ interface DesignCanvasProps {
   showBoundaryBoxes: boolean;
 }
 
-interface RenderedImageRect {
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-}
-
 export default function DesignCanvas({
     activeView, showGrid, showBoundaryBoxes
 }: DesignCanvasProps) {
@@ -234,13 +226,10 @@ export default function DesignCanvas({
         getStageRef,
     } = useUploads();
     
-    const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
     
-    const [renderedImageRect, setRenderedImageRect] = useState<RenderedImageRect | null>(null);
-
     useEffect(() => {
         const checkSize = () => {
             if (containerRef.current) {
@@ -252,35 +241,6 @@ export default function DesignCanvas({
         window.addEventListener("resize", checkSize);
         return () => window.removeEventListener("resize", checkSize);
     }, []);
-    
-    useEffect(() => {
-        if (backgroundImage) {
-            const canvasWidth = canvasDimensions.width;
-            const canvasHeight = canvasDimensions.height;
-            const imgWidth = backgroundImage.naturalWidth;
-            const imgHeight = backgroundImage.naturalHeight;
-
-            if(imgWidth === 0 || imgHeight === 0) return;
-
-            const canvasRatio = canvasWidth / canvasHeight;
-            const imgRatio = imgWidth / imgHeight;
-
-            let finalWidth, finalHeight, finalX, finalY;
-
-            if (imgRatio > canvasRatio) {
-                finalWidth = canvasWidth;
-                finalHeight = canvasWidth / imgRatio;
-                finalX = 0;
-                finalY = (canvasHeight - finalHeight) / 2;
-            } else {
-                finalHeight = canvasHeight;
-                finalWidth = canvasHeight * imgRatio;
-                finalY = 0;
-                finalX = (canvasWidth - finalWidth) / 2;
-            }
-            setRenderedImageRect({ width: finalWidth, height: finalHeight, x: finalX, y: finalY });
-        }
-    }, [backgroundImage, canvasDimensions]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -319,6 +279,16 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
+             {/* Background Image Layer (HTML) */}
+            <Image
+                src={activeView.imageUrl}
+                alt={activeView.name || 'Product view'}
+                fill
+                className="object-contain w-full h-full pointer-events-none"
+                priority
+            />
+
+            {/* Konva Canvas for Interactive Elements */}
             <Stage
                 ref={stageRef}
                 width={canvasDimensions.width}
@@ -327,17 +297,6 @@ export default function DesignCanvas({
                 onClick={handleStageClick}
                 onTap={handleStageClick}
             >
-                <Layer>
-                    {backgroundImage && renderedImageRect && (
-                        <KonvaImage 
-                            image={backgroundImage} 
-                            width={renderedImageRect.width} 
-                            height={renderedImageRect.height}
-                            x={renderedImageRect.x}
-                            y={renderedImageRect.y}
-                        />
-                    )}
-                </Layer>
                 <Layer>
                     {visibleImages.map((img) => (
                         <InteractiveCanvasImage
@@ -368,30 +327,33 @@ export default function DesignCanvas({
                     ))}
                 </Layer>
             </Stage>
+            
+            {/* Boundary Box and Grid Overlay Layer (HTML) */}
+            <div className="absolute inset-0 pointer-events-none">
+                {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
+                    const style: React.CSSProperties = {
+                        position: 'absolute',
+                        left: `${box.x}%`,
+                        top: `${box.y}%`,
+                        width: `${box.width}%`,
+                        height: `${box.height}%`,
+                    };
 
-            {showBoundaryBoxes && renderedImageRect && activeView.boundaryBoxes.map(box => {
-                const style: React.CSSProperties = {
-                    position: 'absolute',
-                    left: `${(box.x / 100) * renderedImageRect.width + renderedImageRect.x}px`,
-                    top: `${(box.y / 100) * renderedImageRect.height + renderedImageRect.y}px`,
-                    width: `${(box.width / 100) * renderedImageRect.width}px`,
-                    height: `${(box.height / 100) * renderedImageRect.height}px`,
-                };
+                    return (
+                        <div key={box.id} className="border-2 border-dashed border-primary/50" style={style}>
+                            <div className="absolute -top-5 left-0 text-xs bg-primary/50 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
+                        </div>
+                    );
+                })}
 
-                return (
-                    <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={style}>
-                        <div className="absolute -top-5 left-0 text-xs bg-primary/50 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
-                    </div>
-                );
-            })}
-
-            {showGrid && (
-              <div className="absolute inset-0 pointer-events-none grid-pattern" style={{
-                '--grid-size': '25px', '--grid-color': 'hsl(var(--border) / 0.5)',
-                backgroundSize: 'var(--grid-size) var(--grid-size)',
-                backgroundImage: 'linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)',
-              } as React.CSSProperties}></div>
-            )}
+                {showGrid && (
+                <div className="absolute inset-0 grid-pattern" style={{
+                    '--grid-size': '25px', '--grid-color': 'hsl(var(--border) / 0.5)',
+                    backgroundSize: 'var(--grid-size) var(--grid-size)',
+                    backgroundImage: 'linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)',
+                } as React.CSSProperties}></div>
+                )}
+            </div>
         </div>
     );
 }
