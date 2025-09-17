@@ -28,8 +28,8 @@ export interface CanvasImage {
   scaleX: number;
   scaleY: number;
   rotation: number;
-  x: number; // percentage for left
-  y: number; // percentage for top
+  x: number; // Now in pixels
+  y: number; // Now in pixels
   zIndex: number;
   isLocked: boolean;
   itemType: 'image';
@@ -41,8 +41,8 @@ export interface CanvasText {
   id: string;
   viewId: string; // ID of the product view this text belongs to
   content: string;
-  x: number; // percentage for left
-  y: number; // percentage for top
+  x: number; // Now in pixels
+  y: number; // Now in pixels
   rotation: number;
   scale: number; // General scale, also affects visual font size
   zIndex: number;
@@ -80,8 +80,8 @@ export interface CanvasShape {
   id: string;
   viewId: string; // ID of the product view this shape belongs to
   shapeType: ShapeType;
-  x: number; // percentage for left (center of shape)
-  y: number; // percentage for top (center of shape)
+  x: number; // Now in pixels (center of shape)
+  y: number; // Now in pixels (center of shape)
   width: number; // base width in px
   height: number; // base height in px
   rotation: number;
@@ -326,24 +326,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         }
         const currentMaxZIndex = getMaxZIndexForView(viewId);
         
-        // Calculate initial position to be top-left of the first boundary box
-        let initialX = 50;
-        let initialY = 50;
-
-        const stage = getStageRef()?.current;
-        const stageWidth = stage?.width() || 1;
-        const stageHeight = stage?.height() || 1;
+        let initialX = 300;
+        let initialY = 300;
 
         if (boundaryBoxes && boundaryBoxes.length > 0) {
             const firstBox = boundaryBoxes[0];
-            // Start at the top-left of the box...
-            initialX = firstBox.x;
-            initialY = firstBox.y;
-            // ...then adjust by half the element's size to align its corner.
-            const widthInPercent = (width / stageWidth) * 100;
-            const heightInPercent = (height / stageHeight) * 100;
-            initialX += widthInPercent / 2;
-            initialY += heightInPercent / 2;
+            initialX = (firstBox.x + firstBox.width / 2);
+            initialY = (firstBox.y + firstBox.height / 2);
         }
 
         const newCanvasImage: CanvasImage = {
@@ -441,7 +430,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       }
       const currentMaxZIndex = getMaxZIndexForView(originalImage.viewId);
       const newCanvasImage: CanvasImage = {
-        ...originalImage, id: crypto.randomUUID(), x: originalImage.x + 2, y: originalImage.y + 2, 
+        ...originalImage, id: crypto.randomUUID(), x: originalImage.x + 20, y: originalImage.y + 20, 
         zIndex: currentMaxZIndex + 1, isLocked: false, movedFromDefault: true,
       };
       setCanvasImages(prev => [...prev, newCanvasImage]);
@@ -478,21 +467,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       const currentMaxZIndex = getMaxZIndexForView(viewId);
       const defaultFont = googleFonts.find(f => f.name === 'Arial');
       
-      let initialX = 50;
-      let initialY = 50;
-
-      const stage = getStageRef()?.current;
-      const stageWidth = stage?.width() || 1;
-      const stageHeight = stage?.height() || 1;
+      let initialX = 300;
+      let initialY = 300;
 
       if (boundaryBoxes && boundaryBoxes.length > 0) {
           const firstBox = boundaryBoxes[0];
-          initialX = firstBox.x;
-          initialY = firstBox.y;
-          // For text, width is dynamic, so we can't perfectly align to top-left before rendering.
-          // Centering is a more reliable initial placement.
-          initialX += firstBox.width / 2;
-          initialY += firstBox.height / 2;
+          initialX = (firstBox.x + firstBox.width / 2);
+          initialY = (firstBox.y + firstBox.height / 2);
       }
       
       const newText: CanvasText = {
@@ -577,7 +558,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       }
       const currentMaxZIndex = getMaxZIndexForView(originalText.viewId);
       const newText: CanvasText = {
-        ...originalText, id: crypto.randomUUID(), x: originalText.x + 2, y: originalText.y + 2,
+        ...originalText, id: crypto.randomUUID(), x: originalText.x + 20, y: originalText.y + 20,
         zIndex: currentMaxZIndex + 1, isLocked: false, movedFromDefault: true,
       };
       setCanvasTexts(prev => [...prev, newText]);
@@ -614,25 +595,16 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       }
       const currentMaxZIndex = getMaxZIndexForView(viewId);
       
-      let initialX = 50;
-      let initialY = 50;
-
-      const stage = getStageRef()?.current;
-      const stageWidth = stage?.width() || 1;
-      const stageHeight = stage?.height() || 1;
+      let initialX = 300;
+      let initialY = 300;
 
       const shapeWidth = initialProps?.width || 100;
       const shapeHeight = initialProps?.height || 100;
 
       if (boundaryBoxes && boundaryBoxes.length > 0) {
           const firstBox = boundaryBoxes[0];
-          initialX = firstBox.x;
-          initialY = firstBox.y;
-          // Adjust for shape's own dimensions to align top-left
-          const widthInPercent = (shapeWidth / stageWidth) * 100;
-          const heightInPercent = (shapeHeight / stageHeight) * 100;
-          initialX += widthInPercent / 2;
-          initialY += heightInPercent / 2;
+          initialX = (firstBox.x + firstBox.width / 2);
+          initialY = (firstBox.y + firstBox.height / 2);
       }
 
       const defaultProps: CanvasShape = {
@@ -687,7 +659,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       }
       const currentMaxZIndex = getMaxZIndexForView(originalShape.viewId);
       const newShape: CanvasShape = {
-        ...originalShape, id: crypto.randomUUID(), x: originalShape.x + 2, y: originalShape.y + 2,
+        ...originalShape, id: crypto.randomUUID(), x: originalShape.x + 20, y: originalShape.y + 20,
         zIndex: currentMaxZIndex + 1, isLocked: false, movedFromDefault: true,
       };
       setCanvasShapes(prev => [...prev, newShape]);
