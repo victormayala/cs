@@ -219,7 +219,7 @@ export default function DesignCanvas({
         }
 
         const stageRatio = stageSize.width / stageSize.height;
-        const imageRatio = backgroundImage.width / backgroundImage.height;
+        const imageRatio = backgroundImage.naturalWidth / backgroundImage.height;
 
         let width, height, x, y;
 
@@ -283,10 +283,7 @@ export default function DesignCanvas({
             const offsetX = selfRect.width / 2;
             const offsetY = selfRect.height / 2;
             
-            const minX = dragBounds.minX;
-            const maxX = dragBounds.maxX;
-            const minY = dragBounds.minY;
-            const maxY = dragBounds.maxY;
+            const { minX, maxX, minY, maxY } = dragBounds;
 
             return {
                 x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
