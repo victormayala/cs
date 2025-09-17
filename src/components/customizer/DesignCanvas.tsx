@@ -217,21 +217,37 @@ export default function DesignCanvas({
     
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
-    const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
-    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const imageRef = useRef<HTMLImageElement>(null);
+    const [imageRect, setImageRect] = useState<Rect | null>(null);
     const [dragBounds, setDragBounds] = useState({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
 
     useEffect(() => {
         const container = containerRef.current;
-        if (!container || !backgroundImage) return;
+        const image = imageRef.current;
+        if (!container || !image) return;
 
-        const calculateSize = () => {
-            if (!container || !backgroundImage) return;
-            setCanvasSize({ width: container.offsetWidth, height: container.offsetHeight });
+        const calculateRect = () => {
+            if (!container || !image) return;
+            const containerRatio = container.offsetWidth / container.offsetHeight;
+            const imageRatio = image.naturalWidth / image.naturalHeight;
+            
+            let width, height, x, y;
+            if (containerRatio > imageRatio) {
+                height = container.offsetHeight;
+                width = height * imageRatio;
+                x = (container.offsetWidth - width) / 2;
+                y = 0;
+            } else {
+                width = container.offsetWidth;
+                height = width / imageRatio;
+                x = 0;
+                y = (container.offsetHeight - height) / 2;
+            }
+            setImageRect({ x, y, width, height });
 
             const { boundaryBoxes } = activeView;
             if (!boundaryBoxes || boundaryBoxes.length === 0) {
-              setDragBounds({ minX: 0, maxX: container.offsetWidth, minY: 0, maxY: container.offsetHeight });
+              setDragBounds({ minX: 0, maxX: width, minY: 0, maxY: height });
               return;
             }
       
@@ -243,20 +259,24 @@ export default function DesignCanvas({
             }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
 
             setDragBounds({
-                minX: (unionBox.x1 / 100) * container.offsetWidth,
-                maxX: (unionBox.x2 / 100) * container.offsetWidth,
-                minY: (unionBox.y1 / 100) * container.offsetHeight,
-                maxY: (unionBox.y2 / 100) * container.offsetHeight,
+                minX: (unionBox.x1 / 100) * width,
+                maxX: (unionBox.x2 / 100) * width,
+                minY: (unionBox.y1 / 100) * height,
+                maxY: (unionBox.y2 / 100) * height,
             });
         };
 
-        calculateSize();
-        
-        const observer = new ResizeObserver(calculateSize);
+        const observer = new ResizeObserver(calculateRect);
         observer.observe(container);
+        image.addEventListener('load', calculateRect);
         
-        return () => observer.disconnect();
-    }, [backgroundImage, activeView]);
+        if(image.complete) calculateRect();
+
+        return () => {
+          observer.disconnect();
+          image.removeEventListener('load', calculateRect);
+        };
+    }, [activeView]);
 
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
@@ -311,76 +331,84 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full h-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
-            {!backgroundImage && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+            {!imageRect && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
             
-            {backgroundImage && (
-                <Image
-                    src={activeView.imageUrl}
-                    alt={activeView.name}
-                    fill
-                    className="object-contain w-full h-full pointer-events-none"
-                    priority
-                />
-            )}
-
-            {showGrid && canvasSize.width > 0 && (
-                 <div className="absolute grid-pattern pointer-events-none inset-0" />
-            )}
-
-            {showBoundaryBoxes && canvasSize.width > 0 && (
-                <div className="absolute inset-0 pointer-events-none">
-                    {activeView.boundaryBoxes.map(box => (
-                        <div key={box.id} className="absolute border-2 border-dashed border-red-500" style={{
-                            left: `${box.x}%`,
-                            top: `${box.y}%`,
-                            width: `${box.width}%`,
-                            height: `${box.height}%`,
-                        }} />
-                    ))}
-                </div>
-            )}
+            <img
+                ref={imageRef}
+                src={activeView.imageUrl}
+                alt={activeView.name}
+                className="w-full h-full object-contain pointer-events-none"
+                crossOrigin="anonymous"
+            />
             
-            <Stage
-                ref={stageRef}
-                width={canvasSize.width}
-                height={canvasSize.height}
-                className="absolute top-0 left-0"
-                onClick={handleStageClick}
-                onTap={handleStageClick}
-            >
-                <Layer name="interactive-layer">
-                    {visibleImages.map((img) => (
-                        <InteractiveCanvasImage
-                            key={`${img.id}-${img.zIndex}`}
-                            imageProps={img}
-                            isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-                            onSelect={() => selectCanvasImage(img.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'image')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                    {visibleTexts.map((text) => (
-                        <InteractiveCanvasText
-                            key={`${text.id}-${text.zIndex}`}
-                            textProps={text}
-                            isSelected={text.id === selectedCanvasTextId && !text.isLocked}
-                            onSelect={() => selectCanvasText(text.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'text')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                    {visibleShapes.map((shape) => (
-                        <InteractiveCanvasShape
-                            key={`${shape.id}-${shape.zIndex}`}
-                            shapeProps={shape}
-                            isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-                            onSelect={() => selectCanvasShape(shape.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                </Layer>
-            </Stage>
+            {imageRect && (
+              <div 
+                className="absolute"
+                style={{
+                  left: `${imageRect.x}px`,
+                  top: `${imageRect.y}px`,
+                  width: `${imageRect.width}px`,
+                  height: `${imageRect.height}px`,
+                }}
+              >
+                  {showGrid && <div className="absolute grid-pattern pointer-events-none inset-0" />}
+
+                  {showBoundaryBoxes && (
+                      <div className="absolute inset-0 pointer-events-none">
+                          {activeView.boundaryBoxes.map(box => (
+                              <div key={box.id} className="absolute border-2 border-dashed border-red-500" style={{
+                                  left: `${box.x}%`,
+                                  top: `${box.y}%`,
+                                  width: `${box.width}%`,
+                                  height: `${box.height}%`,
+                              }} />
+                          ))}
+                      </div>
+                  )}
+
+                  <Stage
+                      ref={stageRef}
+                      width={imageRect.width}
+                      height={imageRect.height}
+                      className="absolute top-0 left-0"
+                      onClick={handleStageClick}
+                      onTap={handleStageClick}
+                  >
+                      <Layer name="interactive-layer">
+                          {visibleImages.map((img) => (
+                              <InteractiveCanvasImage
+                                  key={`${img.id}-${img.zIndex}`}
+                                  imageProps={img}
+                                  isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                                  onSelect={() => selectCanvasImage(img.id)}
+                                  onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                                  dragBoundFunc={dragBoundFunc}
+                              />
+                          ))}
+                          {visibleTexts.map((text) => (
+                              <InteractiveCanvasText
+                                  key={`${text.id}-${text.zIndex}`}
+                                  textProps={text}
+                                  isSelected={text.id === selectedCanvasTextId && !text.isLocked}
+                                  onSelect={() => selectCanvasText(text.id)}
+                                  onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                                  dragBoundFunc={dragBoundFunc}
+                              />
+                          ))}
+                          {visibleShapes.map((shape) => (
+                              <InteractiveCanvasShape
+                                  key={`${shape.id}-${shape.zIndex}`}
+                                  shapeProps={shape}
+                                  isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                                  onSelect={() => selectCanvasShape(shape.id)}
+                                  onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                                  dragBoundFunc={dragBoundFunc}
+                              />
+                          ))}
+                      </Layer>
+                  </Stage>
+              </div>
+            )}
         </div>
     );
 }

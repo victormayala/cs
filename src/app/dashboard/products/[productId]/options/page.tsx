@@ -92,7 +92,7 @@ async function loadProductOptionsFromFirestoreClient(userId: string, productId: 
     }
     return { options: undefined };
   } catch (error: any) {
-    let errorMessage = `Failed to load options: ${'error.message'}`;
+    let errorMessage = `Failed to load options: ${error.message}`;
     if (error.code === 'permission-denied') {
         errorMessage = "Permission denied. Please check your Firestore security rules to allow reads on 'userProductOptions' for authenticated users.";
     }
@@ -137,6 +137,8 @@ function ProductOptionsPage() {
   const [viewIdToDelete, setViewIdToDelete] = useState<string | null>(null);
   
   const imageWrapperRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [imageRect, setImageRect] = useState<DOMRect | null>(null);
   type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; pointerStartX: number; pointerStartY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; };
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -610,6 +612,10 @@ function ProductOptionsPage() {
     };
     
     const handleAddBoundaryBoxToEditor = useCallback(() => {
+        if (!imageRect) {
+            toast({ title: "Image Not Ready", description: "Please wait for the view image to load." });
+            return;
+        }
         setEditorViews(currentViews => {
             return currentViews.map(view => {
                 if (view.id === activeViewIdInEditor) {
@@ -632,7 +638,7 @@ function ProductOptionsPage() {
                 return view;
             });
         });
-    }, [activeViewIdInEditor, toast]);
+    }, [activeViewIdInEditor, toast, imageRect]);
 
     const handleRemoveBoundaryBoxFromEditor = useCallback((boxId: string) => {
       setEditorViews(prevViews => prevViews.map(v => {
@@ -667,7 +673,7 @@ function ProductOptionsPage() {
         e.preventDefault();
         e.stopPropagation();
 
-        if (!imageWrapperRef.current) return;
+        if (!imageRect) return;
         
         const coords = getMouseOrTouchCoords(e);
         activeDragRef.current = {
@@ -681,14 +687,14 @@ function ProductOptionsPage() {
             initialBoxHeight: box.height,
         };
         
-        window.addEventListener('mousemove', handleInteractionMove);
-        window.addEventListener('touchmove', handleInteractionMove, { passive: false });
-        window.addEventListener('mouseup', handleInteractionEnd);
-        window.addEventListener('touchend', handleInteractionEnd);
+        document.addEventListener('mousemove', handleInteractionMove);
+        document.addEventListener('touchmove', handleInteractionMove, { passive: false });
+        document.addEventListener('mouseup', handleInteractionEnd);
+        document.addEventListener('touchend', handleInteractionEnd);
     };
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-        if (!activeDragRef.current || !imageWrapperRef.current) return;
+        if (!activeDragRef.current || !imageRect) return;
         
         e.preventDefault();
         
@@ -697,13 +703,12 @@ function ProductOptionsPage() {
         if (!boxEl) return;
         
         const coords = getMouseOrTouchCoords(e);
-        const containerRect = imageWrapperRef.current.getBoundingClientRect();
-        if (containerRect.width === 0 || containerRect.height === 0) return;
+        if (imageRect.width === 0 || imageRect.height === 0) return;
         
         const dx = coords.x - pointerStartX;
         const dy = coords.y - pointerStartY;
-        const dxPercent = (dx / containerRect.width) * 100;
-        const dyPercent = (dy / containerRect.height) * 100;
+        const dxPercent = (dx / imageRect.width) * 100;
+        const dyPercent = (dy / imageRect.height) * 100;
         
         let newX = initialBoxX, newY = initialBoxY, newWidth = initialBoxWidth, newHeight = initialBoxHeight;
         
@@ -724,7 +729,7 @@ function ProductOptionsPage() {
         boxEl.style.top = `${newY}%`;
         boxEl.style.width = `${newWidth}%`;
         boxEl.style.height = `${newHeight}%`;
-    }, []);
+    }, [imageRect]);
     
     const handleInteractionEnd = useCallback(() => {
         if (!activeDragRef.current) return;
@@ -750,30 +755,47 @@ function ProductOptionsPage() {
         }
         
         activeDragRef.current = null;
-        window.removeEventListener('mousemove', handleInteractionMove);
-        window.removeEventListener('touchmove', handleInteractionMove);
-        window.removeEventListener('mouseup', handleInteractionEnd);
-        window.removeEventListener('touchend', handleInteractionEnd);
+        document.removeEventListener('mousemove', handleInteractionMove);
+        document.removeEventListener('touchmove', handleInteractionMove);
+        document.removeEventListener('mouseup', handleInteractionEnd);
+        document.removeEventListener('touchend', handleInteractionEnd);
     }, [activeViewIdInEditor, handleInteractionMove]);
 
     useEffect(() => {
-      const moveHandler = (e: MouseEvent | TouchEvent) => handleInteractionMove(e);
-      const endHandler = () => handleInteractionEnd();
-  
-      if (activeDragRef.current) {
-        window.addEventListener("mousemove", moveHandler);
-        window.addEventListener("touchmove", moveHandler, { passive: false });
-        window.addEventListener("mouseup", endHandler);
-        window.addEventListener("touchend", endHandler);
-      }
-  
-      return () => {
-        window.removeEventListener("mousemove", moveHandler);
-        window.removeEventListener("touchmove", moveHandler);
-        window.removeEventListener("mouseup", endHandler);
-        window.removeEventListener("touchend", endHandler);
+      const container = imageWrapperRef.current;
+      const image = imageRef.current;
+      if (!isViewEditorOpen || !container || !image) return;
+
+      const calculateRect = () => {
+        if (!container || !image) return;
+        const containerRatio = container.offsetWidth / container.offsetHeight;
+        const imageRatio = image.naturalWidth / image.naturalHeight;
+        
+        let width, height, x, y;
+        if (containerRatio > imageRatio) {
+            height = container.offsetHeight;
+            width = height * imageRatio;
+            x = (container.offsetWidth - width) / 2;
+            y = 0;
+        } else {
+            width = container.offsetWidth;
+            height = width / imageRatio;
+            x = 0;
+            y = (container.offsetHeight - height) / 2;
+        }
+        setImageRect(new DOMRect(x, y, width, height));
       };
-    }, [handleInteractionMove, handleInteractionEnd]);
+
+      const observer = new ResizeObserver(calculateRect);
+      observer.observe(container);
+      image.addEventListener('load', calculateRect);
+      if (image.complete) calculateRect();
+
+      return () => {
+        observer.disconnect();
+        image.removeEventListener('load', calculateRect);
+      }
+    }, [isViewEditorOpen]);
 
 
       const categoryTree = useMemo(() => {
@@ -1072,8 +1094,8 @@ function ProductOptionsPage() {
                       </CardHeader>
                       <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
-                           {currentViewInEditor?.imageUrl ? (<Image src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} fill className="object-contain pointer-events-none w-full h-full" data-ai-hint={currentViewInEditor.aiHint || "product view"} priority />) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
-                           {(currentViewInEditor?.boundaryBoxes || []).map((box, index) => (
+                           {currentViewInEditor?.imageUrl ? (<img ref={imageRef} src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" crossOrigin="anonymous"/>) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
+                           {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box, index) => (
                              <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
@@ -1081,7 +1103,13 @@ function ProductOptionsPage() {
                                               selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10',
                                               activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
-                                style={{ left: `${box.x}%`, top: `${box.y}%`, width: `${box.width}%`, height: `${box.height}%`, zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 }}
+                                style={{ 
+                                    left: `calc(${imageRect.x}px + ${box.x}%)`, 
+                                    top: `calc(${imageRect.y}px + ${box.y}%)`, 
+                                    width: `${(box.width / 100) * imageRect.width}px`, 
+                                    height: `${(box.height / 100) * imageRect.height}px`,
+                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 
+                                }}
                                 onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                 onTouchStart={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                               >
@@ -1209,5 +1237,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
-    
