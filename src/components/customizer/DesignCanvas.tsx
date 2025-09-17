@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
@@ -303,16 +304,13 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
             const offsetY = selfRect.height / 2;
             
             const { minX, maxX, minY, maxY } = dragBounds;
-
-            // Manually widen the area by 30% for debugging.
-            const widerMaxX = maxX + (imageRect.width * 0.30);
     
             return {
-                x: Math.max(minX + offsetX, Math.min(pos.x, widerMaxX - offsetX)),
+                x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
                 y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
             };
         };
-    }, [dragBounds, imageRect.width]);
+    }, [dragBounds]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
