@@ -16,10 +16,10 @@ export interface SizeAttribute {
 interface BoundaryBox {
   id: string;
   name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x: number;      // Position from left as a percentage (0-100)
+  y: number;      // Position from top as a percentage (0-100)
+  width: number;  // Width as a percentage (0-100)
+  height: number; // Height as a percentage (0-100)
 }
 
 export interface ProductView {
@@ -86,3 +86,5 @@ export interface ProductOptionsFirestoreData {
 
 // These types are also used on the client, so we export them.
 export type { BoundaryBox };
+
+    
