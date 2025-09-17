@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const Customizer = dynamic(() => import("./Customizer"), {
+const CustomizerComponent = dynamic(() => import("./Customizer").then(mod => ({ default: mod.Customizer })), {
   ssr: false,
   loading: () => (
     <div className="flex min-h-svh h-screen w-full items-center justify-center bg-background">
@@ -26,7 +26,7 @@ export default function CustomizerPage() {
                 <p className="ml-3 text-muted-foreground">Loading Customizer Page...</p>
               </div>
             }>
-                <Customizer />
+                <CustomizerComponent />
             </Suspense>
         </UploadProvider>
     );

@@ -7,7 +7,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
-import type { ProductOptionsFirestoreData, NativeProductVariation } from '@/app/actions/productOptionsActions';
+import type { ProductOptionsFirestoreData, NativeProductVariation, BoundaryBox } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, storage } from '@/lib/firebase';
@@ -62,15 +62,6 @@ const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'
 
 
 // --- Main Customizer Component ---
-
-interface BoundaryBox {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 export interface ProductView {
   id: string;
@@ -192,7 +183,7 @@ async function proxyImageUrl(url: string): Promise<string> {
   }
 }
 
-export default function Customizer() {
+export function Customizer() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -648,6 +639,8 @@ export default function Customizer() {
     return tool ? tool.label : "Design Tool";
   };
   
+  const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0];
+
   const getToolPanelContent = () => {
     if (!activeViewId && (activeTool !== "layers" && activeTool !== "ai-assistant")) {
         return (
@@ -658,15 +651,18 @@ export default function Customizer() {
             </div>
         );
     }
+
+    const boundaryBoxes = activeView?.boundaryBoxes || [];
+
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
-      case "ai-assistant": return <AiAssistant activeViewId={activeViewId} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
-      case "text": return <TextToolPanel activeViewId={activeViewId} />;
-      case "shapes": return <ShapesPanel activeViewId={activeViewId} />;
-      case "clipart": return <ClipartPanel activeViewId={activeViewId} />;
-      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} />;
-      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} />;
+      case "ai-assistant": return <AiAssistant activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       default:
         return (
           <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
@@ -857,8 +853,6 @@ export default function Customizer() {
       </div>
     );
   }
-  
-  const activeView = productDetails?.views.find(v => v.id === activeViewId) || productDetails?.views[0];
 
   if (!activeView && !isLoading) {
     // Handle case where product might have loaded but no views are available
