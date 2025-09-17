@@ -2,11 +2,12 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
 import useImage from 'use-image';
+import { cn } from '@/lib/utils';
 
 // --- Inner Canvas Components ---
 
@@ -76,60 +77,95 @@ interface InteractiveCanvasTextProps {
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
+  const [fontLoaded] = useImage(`https://fonts.googleapis.com/css2?family=${textProps.fontFamily.replace(/ /g, '+')}:wght@400;700&display=swap`);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
       trRef.current.nodes([shapeRef.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected]);
+  }, [isSelected, fontLoaded]);
   
   const stage = shapeRef.current?.getStage();
   const stageWidth = stage?.width() || 0;
   const stageHeight = stage?.height() || 0;
+  
+  // Logic for arching text
+  const textPath = useMemo(() => {
+    if (textProps.archAmount === 0 || !stageWidth) return undefined;
+
+    const isArchUp = textProps.archAmount > 0;
+    const amount = Math.abs(textProps.archAmount) / 100;
+    
+    // Approximate calculations for the arc
+    const textWidth = shapeRef.current?.getTextWidth() || stageWidth * 0.8;
+    const arcWidth = textWidth * 1.2;
+    const arcHeight = arcWidth * amount * 0.4;
+    
+    const startX = (stageWidth - arcWidth) / 2;
+    const startY = isArchUp ? (stageHeight / 2) + arcHeight / 2 : (stageHeight / 2) - arcHeight / 2;
+
+    const controlX = stageWidth / 2;
+    const controlY = isArchUp ? startY - arcHeight : startY + arcHeight;
+
+    const endX = startX + arcWidth;
+    const endY = startY;
+
+    return `M${startX},${startY} Q${controlX},${controlY} ${endX},${endY}`;
+  }, [textProps.archAmount, stageWidth, stageHeight, textProps.content, textProps.fontSize, textProps.fontFamily]);
+
+  const commonTextProps = {
+    id: textProps.id,
+    text: textProps.content,
+    rotation: textProps.rotation,
+    scaleX: textProps.scale,
+    scaleY: textProps.scale,
+    fontSize: textProps.fontSize,
+    fontFamily: textProps.fontFamily,
+    fill: textProps.color,
+    draggable: !textProps.isLocked,
+    onClick: onSelect,
+    onTap: onSelect,
+    onTransformEnd: onTransformEnd,
+    onDragEnd: onTransformEnd,
+    fontStyle: `${textProps.fontWeight} ${textProps.fontStyle}`,
+    textDecoration: textProps.textDecoration,
+    lineHeight: textProps.lineHeight,
+    letterSpacing: textProps.letterSpacing,
+    stroke: textProps.outlineColor,
+    strokeWidth: textProps.outlineWidth,
+    shadowColor: textProps.shadowColor,
+    shadowBlur: textProps.shadowBlur,
+    shadowOffsetX: textProps.shadowOffsetX,
+    shadowOffsetY: textProps.shadowOffsetY,
+    shadowEnabled: textProps.shadowEnabled,
+    zIndex: textProps.zIndex,
+    dragBoundFunc: dragBoundFunc,
+  };
 
   return (
     <>
       <KonvaText
         ref={shapeRef}
-        id={textProps.id}
-        text={textProps.content}
         x={(textProps.x / 100) * stageWidth}
         y={(textProps.y / 100) * stageHeight}
-        rotation={textProps.rotation}
-        scaleX={textProps.scale}
-        scaleY={textProps.scale}
-        fontSize={textProps.fontSize}
-        fontFamily={textProps.fontFamily}
-        fill={textProps.color}
-        draggable={!textProps.isLocked}
-        onClick={onSelect}
-        onTap={onSelect}
-        onTransformEnd={onTransformEnd}
-        onDragEnd={onTransformEnd}
-        fontStyle={`${textProps.fontWeight} ${textProps.fontStyle}`}
-        textDecoration={textProps.textDecoration}
-        lineHeight={textProps.lineHeight}
-        letterSpacing={textProps.letterSpacing}
-        stroke={textProps.outlineColor}
-        strokeWidth={textProps.outlineWidth}
-        shadowColor={textProps.shadowColor}
-        shadowBlur={textProps.shadowBlur}
-        shadowOffsetX={textProps.shadowOffsetX}
-        shadowOffsetY={textProps.shadowOffsetY}
-        shadowEnabled={textProps.shadowEnabled}
-        zIndex={textProps.zIndex}
-        dragBoundFunc={dragBoundFunc}
+        data={textPath}
+        textPath={textPath ? textProps.content : undefined}
+        {...commonTextProps}
+        text={textPath ? undefined : textProps.content}
       />
       {isSelected && !textProps.isLocked && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
+          enabledAnchors={textProps.archAmount !== 0 ? [] : undefined} // Disable resizing for arched text
+          rotateEnabled={textProps.archAmount === 0}
         />
       )}
     </>
   );
 }
+
 
 interface InteractiveCanvasShapeProps {
   shapeProps: CanvasShape;
@@ -215,46 +251,23 @@ export default function DesignCanvas({
     
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
-    const imageRef = useRef<HTMLImageElement>(null);
-
     const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
-    const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
     useEffect(() => {
         const container = containerRef.current;
-        if (!container) return;
+        if (!container || !backgroundImage) return;
 
-        const resizeObserver = new ResizeObserver(() => {
-            if (containerRef.current && imageRef.current && backgroundImage) {
-                const containerWidth = containerRef.current.offsetWidth;
-                const containerHeight = containerRef.current.offsetHeight;
+        const updateDimensions = () => {
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            setCanvasDimensions({ width: containerWidth, height: containerHeight });
+        };
 
-                const imgNaturalWidth = backgroundImage.naturalWidth;
-                const imgNaturalHeight = backgroundImage.naturalHeight;
-                
-                const containerAspect = containerWidth / containerHeight;
-                const imgAspect = imgNaturalWidth / imgNaturalHeight;
-
-                let finalWidth, finalHeight, finalX, finalY;
-                if (imgAspect > containerAspect) {
-                    finalWidth = containerWidth;
-                    finalHeight = finalWidth / imgAspect;
-                    finalX = 0;
-                    finalY = (containerHeight - finalHeight) / 2;
-                } else {
-                    finalHeight = containerHeight;
-                    finalWidth = finalHeight * imgAspect;
-                    finalY = 0;
-                    finalX = (containerWidth - finalWidth) / 2;
-                }
-
-                setCanvasDimensions({ width: finalWidth, height: finalHeight });
-                setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
-            }
-        });
-
+        const resizeObserver = new ResizeObserver(updateDimensions);
         resizeObserver.observe(container);
+        updateDimensions(); // Initial call
+
         return () => resizeObserver.disconnect();
     }, [backgroundImage]);
 
@@ -289,43 +302,46 @@ export default function DesignCanvas({
         }
     };
     
-    const dragBoundFunc = useMemo(() => (pos: { x: number; y: number }) => {
-        if (!activeView.boundaryBoxes || activeView.boundaryBoxes.length === 0) {
-            return pos;
-        }
+    const dragBoundFunc = useMemo(() => {
+        return (pos: { x: number; y: number }) => {
+            const { boundaryBoxes } = activeView;
+            if (!boundaryBoxes || boundaryBoxes.length === 0) {
+                return pos; // No constraints
+            }
 
-        const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
-        if (!selectedId) return pos;
-        
-        const node = stageRef.current?.findOne(`#${selectedId}`);
-        if (!node) return pos;
+            const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
+            if (!selectedId) return pos;
 
-        const nodeBox = node.getClientRect({ skipTransform: true }); // Use bounding box without rotation/scale for simplicity
-        const nodeWidth = nodeBox.width;
-        const nodeHeight = nodeBox.height;
-        const nodeHalfWidth = nodeWidth / 2;
-        const nodeHalfHeight = nodeHeight / 2;
+            const node = stageRef.current?.findOne(`#${selectedId}`);
+            if (!node) return pos;
 
-        let totalBoundX1 = Infinity, totalBoundY1 = Infinity, totalBoundX2 = -Infinity, totalBoundY2 = -Infinity;
-        activeView.boundaryBoxes.forEach(box => {
-            const boxX1 = (box.x / 100) * canvasDimensions.width;
-            const boxY1 = (box.y / 100) * canvasDimensions.height;
-            const boxX2 = ((box.x + box.width) / 100) * canvasDimensions.width;
-            const boxY2 = ((box.y + box.height) / 100) * canvasDimensions.height;
+            const nodeBox = node.getClientRect({ skipTransform: true });
+            const nodeWidth = nodeBox.width;
+            const nodeHeight = nodeBox.height;
 
-            totalBoundX1 = Math.min(totalBoundX1, boxX1);
-            totalBoundY1 = Math.min(totalBoundY1, boxY1);
-            totalBoundX2 = Math.max(totalBoundX2, boxX2);
-            totalBoundY2 = Math.max(totalBoundY2, boxY2);
-        });
+            // Convert percentage-based boundary boxes to pixel values
+            const pixelBoundaries = boundaryBoxes.map(box => ({
+                x1: (box.x / 100) * canvasDimensions.width,
+                y1: (box.y / 100) * canvasDimensions.height,
+                x2: ((box.x + box.width) / 100) * canvasDimensions.width,
+                y2: ((box.y + box.height) / 100) * canvasDimensions.height,
+            }));
 
-        // The pos is the top-left corner of the node.
-        const newX = Math.max(totalBoundX1, Math.min(pos.x, totalBoundX2 - nodeWidth));
-        const newY = Math.max(totalBoundY1, Math.min(pos.y, totalBoundY2 - nodeHeight));
-        
-        return { x: newX, y: newY };
+            // Find the union of all boundary boxes
+            const unionBox = pixelBoundaries.reduce((acc, box) => ({
+                x1: Math.min(acc.x1, box.x1),
+                y1: Math.min(acc.y1, box.y1),
+                x2: Math.max(acc.x2, box.x2),
+                y2: Math.max(acc.y2, box.y2),
+            }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
 
-    }, [activeView.boundaryBoxes, canvasDimensions, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
+            // Clamp the position
+            const newX = Math.max(unionBox.x1, Math.min(pos.x, unionBox.x2 - nodeWidth));
+            const newY = Math.max(unionBox.y1, Math.min(pos.y, unionBox.y2 - nodeHeight));
+
+            return { x: newX, y: newY };
+        };
+    }, [activeView, canvasDimensions, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
 
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
@@ -336,71 +352,57 @@ export default function DesignCanvas({
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
             {/* The visual background image. CSS object-contain handles letterboxing. */}
             <img
-                ref={imageRef}
                 src={activeView.imageUrl}
                 alt={activeView.name}
                 className="absolute inset-0 object-contain w-full h-full pointer-events-none"
                 crossOrigin="anonymous"
             />
             
-            {/* Konva Stage sits on top, sized to match the letterboxed image */}
-            <div style={{
-                position: 'absolute',
-                left: `${renderedImageRect.x}px`,
-                top: `${renderedImageRect.y}px`,
-                width: `${renderedImageRect.width}px`,
-                height: `${renderedImageRect.height}px`,
-            }}>
-                <Stage
-                    ref={stageRef}
-                    width={canvasDimensions.width}
-                    height={canvasDimensions.height}
-                    className="absolute top-0 left-0"
-                    onClick={handleStageClick}
-                    onTap={handleStageClick}
-                >
-                    <Layer>
-                        {visibleImages.map((img) => (
-                            <InteractiveCanvasImage
-                                key={`${img.id}-${img.zIndex}`}
-                                imageProps={img}
-                                isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-                                onSelect={() => selectCanvasImage(img.id)}
-                                onTransformEnd={(e) => handleTransformEnd(e, 'image')}
-                                dragBoundFunc={dragBoundFunc}
-                            />
-                        ))}
-                        {visibleTexts.map((text) => (
-                            <InteractiveCanvasText
-                                key={`${text.id}-${text.zIndex}`}
-                                textProps={text}
-                                isSelected={text.id === selectedCanvasTextId && !text.isLocked}
-                                onSelect={() => selectCanvasText(text.id)}
-                                onTransformEnd={(e) => handleTransformEnd(e, 'text')}
-                                dragBoundFunc={dragBoundFunc}
-                            />
-                        ))}
-                        {visibleShapes.map((shape) => (
-                            <InteractiveCanvasShape
-                                key={`${shape.id}-${shape.zIndex}`}
-                                shapeProps={shape}
-                                isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-                                onSelect={() => selectCanvasShape(shape.id)}
-                                onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
-                                dragBoundFunc={dragBoundFunc}
-                            />
-                        ))}
-                    </Layer>
-                </Stage>
-            </div>
+            {/* Konva Stage sits on top */}
+            <Stage
+                ref={stageRef}
+                width={canvasDimensions.width}
+                height={canvasDimensions.height}
+                className="absolute top-0 left-0"
+                onClick={handleStageClick}
+                onTap={handleStageClick}
+            >
+                <Layer>
+                    {visibleImages.map((img) => (
+                        <InteractiveCanvasImage
+                            key={`${img.id}-${img.zIndex}`}
+                            imageProps={img}
+                            isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                            onSelect={() => selectCanvasImage(img.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                            dragBoundFunc={dragBoundFunc}
+                        />
+                    ))}
+                    {visibleTexts.map((text) => (
+                        <InteractiveCanvasText
+                            key={`${text.id}-${text.zIndex}`}
+                            textProps={text}
+                            isSelected={text.id === selectedCanvasTextId && !text.isLocked}
+                            onSelect={() => selectCanvasText(text.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                            dragBoundFunc={dragBoundFunc}
+                        />
+                    ))}
+                    {visibleShapes.map((shape) => (
+                        <InteractiveCanvasShape
+                            key={`${shape.id}-${shape.zIndex}`}
+                            shapeProps={shape}
+                            isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                            onSelect={() => selectCanvasShape(shape.id)}
+                            onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                            dragBoundFunc={dragBoundFunc}
+                        />
+                    ))}
+                </Layer>
+            </Stage>
              
              {/* Visual Overlay for Boundary Boxes and Grid */}
-             <div className="absolute inset-0 pointer-events-none" style={{
-                left: `${renderedImageRect.x}px`,
-                top: `${renderedImageRect.y}px`,
-                width: `${renderedImageRect.width}px`,
-                height: `${renderedImageRect.height}px`,
-             }}>
+             <div className="absolute inset-0 pointer-events-none">
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
                     <div
                         key={box.id}
@@ -422,3 +424,4 @@ export default function DesignCanvas({
         </div>
     );
 }
+
