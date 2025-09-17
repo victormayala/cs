@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
@@ -21,7 +21,7 @@ interface InteractiveCanvasImageProps {
 const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  const [image] = useImage(imageProps.dataUrl);
+  const [image] = useImage(imageProps.dataUrl, 'anonymous');
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
@@ -76,24 +76,6 @@ interface InteractiveCanvasTextProps {
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  const [pathData, setPathData] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (shapeRef.current && textProps.archAmount !== 0) {
-      const textWidth = shapeRef.current.width();
-      const radius = (textWidth * 180) / (Math.abs(textProps.archAmount) * Math.PI);
-      const isUpward = textProps.archAmount > 0;
-      
-      const M = `M 0 ${isUpward ? radius : 0}`;
-      const A = `A ${radius} ${radius} 0 0 ${isUpward ? 1 : 0} ${textWidth} ${isUpward ? radius : 0}`;
-      
-      setPathData(`${M} ${A}`);
-      shapeRef.current.text(''); // Clear normal text
-    } else {
-      setPathData(undefined); // Reset path data if not arched
-    }
-  }, [textProps.content, textProps.archAmount, textProps.fontSize, textProps.fontFamily, textProps.letterSpacing, shapeRef.current?.width()]);
-
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
@@ -137,8 +119,6 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         shadowOffsetY={textProps.shadowOffsetY}
         shadowEnabled={textProps.shadowEnabled}
         zIndex={textProps.zIndex}
-        data={pathData}
-        textArr={pathData ? [{ text: textProps.content, x: 0, y:0 }] : undefined}
         dragBoundFunc={dragBoundFunc}
       />
       {isSelected && !textProps.isLocked && (
@@ -234,9 +214,11 @@ export default function DesignCanvas({
     } = useUploads();
     
     const stageRef = getStageRef();
-    const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
-    const [backgroundImage, backgroundImageLoadStatus] = useImage(activeView.imageUrl);
+    const imageRef = useRef<HTMLImageElement>(null);
+
+    const [backgroundImage] = useImage(activeView.imageUrl, 'anonymous');
+    const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
     useEffect(() => {
@@ -244,43 +226,37 @@ export default function DesignCanvas({
         if (!container) return;
 
         const resizeObserver = new ResizeObserver(() => {
-            if (containerRef.current) {
-                const { width } = containerRef.current.getBoundingClientRect();
-                setCanvasDimensions({ width: width, height: width });
+            if (containerRef.current && imageRef.current && backgroundImage) {
+                const containerWidth = containerRef.current.offsetWidth;
+                const containerHeight = containerRef.current.offsetHeight;
+
+                const imgNaturalWidth = backgroundImage.naturalWidth;
+                const imgNaturalHeight = backgroundImage.naturalHeight;
+                
+                const containerAspect = containerWidth / containerHeight;
+                const imgAspect = imgNaturalWidth / imgNaturalHeight;
+
+                let finalWidth, finalHeight, finalX, finalY;
+                if (imgAspect > containerAspect) {
+                    finalWidth = containerWidth;
+                    finalHeight = finalWidth / imgAspect;
+                    finalX = 0;
+                    finalY = (containerHeight - finalHeight) / 2;
+                } else {
+                    finalHeight = containerHeight;
+                    finalWidth = finalHeight * imgAspect;
+                    finalY = 0;
+                    finalX = (containerWidth - finalWidth) / 2;
+                }
+
+                setCanvasDimensions({ width: finalWidth, height: finalHeight });
+                setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
             }
         });
 
         resizeObserver.observe(container);
         return () => resizeObserver.disconnect();
-    }, []);
-
-    useEffect(() => {
-        if (backgroundImage && backgroundImageLoadStatus === 'loaded') {
-            const canvasWidth = canvasDimensions.width;
-            const canvasHeight = canvasDimensions.height;
-            const imgWidth = backgroundImage.naturalWidth;
-            const imgHeight = backgroundImage.naturalHeight;
-
-            const canvasAspect = canvasWidth / canvasHeight;
-            const imgAspect = imgWidth / imgHeight;
-
-            let finalWidth, finalHeight, finalX, finalY;
-
-            if (imgAspect > canvasAspect) {
-                finalWidth = canvasWidth;
-                finalHeight = finalWidth / imgAspect;
-                finalX = 0;
-                finalY = (canvasHeight - finalHeight) / 2;
-            } else {
-                finalHeight = canvasHeight;
-                finalWidth = finalHeight * imgAspect;
-                finalY = 0;
-                finalX = (canvasWidth - finalWidth) / 2;
-            }
-            setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
-        }
-    }, [backgroundImage, backgroundImageLoadStatus, canvasDimensions]);
-    
+    }, [backgroundImage]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -312,42 +288,44 @@ export default function DesignCanvas({
             }
         }
     };
-
-    const dragBoundFunc = useMemo(() => (pos: {x: number, y: number}) => {
+    
+    const dragBoundFunc = useMemo(() => (pos: { x: number; y: number }) => {
         if (!activeView.boundaryBoxes || activeView.boundaryBoxes.length === 0) {
             return pos;
         }
-        
+
         const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
         if (!selectedId) return pos;
-
+        
         const node = stageRef.current?.findOne(`#${selectedId}`);
         if (!node) return pos;
 
-        const nodeBox = node.getClientRect();
-        
-        let unionBox = {
-            x1: Infinity, y1: Infinity,
-            x2: -Infinity, y2: -Infinity,
-        };
+        const nodeBox = node.getClientRect({ skipTransform: true }); // Use bounding box without rotation/scale for simplicity
+        const nodeWidth = nodeBox.width;
+        const nodeHeight = nodeBox.height;
+        const nodeHalfWidth = nodeWidth / 2;
+        const nodeHalfHeight = nodeHeight / 2;
 
-        activeView.boundaryBoxes.forEach(b => {
-            const boxLeftPx = (b.x / 100) * renderedImageRect.width + renderedImageRect.x;
-            const boxTopPx = (b.y / 100) * renderedImageRect.height + renderedImageRect.y;
-            const boxWidthPx = (b.width / 100) * renderedImageRect.width;
-            const boxHeightPx = (b.height / 100) * renderedImageRect.height;
-            
-            unionBox.x1 = Math.min(unionBox.x1, boxLeftPx);
-            unionBox.y1 = Math.min(unionBox.y1, boxTopPx);
-            unionBox.x2 = Math.max(unionBox.x2, boxLeftPx + boxWidthPx);
-            unionBox.y2 = Math.max(unionBox.y2, boxTopPx + boxHeightPx);
+        let totalBoundX1 = Infinity, totalBoundY1 = Infinity, totalBoundX2 = -Infinity, totalBoundY2 = -Infinity;
+        activeView.boundaryBoxes.forEach(box => {
+            const boxX1 = (box.x / 100) * canvasDimensions.width;
+            const boxY1 = (box.y / 100) * canvasDimensions.height;
+            const boxX2 = ((box.x + box.width) / 100) * canvasDimensions.width;
+            const boxY2 = ((box.y + box.height) / 100) * canvasDimensions.height;
+
+            totalBoundX1 = Math.min(totalBoundX1, boxX1);
+            totalBoundY1 = Math.min(totalBoundY1, boxY1);
+            totalBoundX2 = Math.max(totalBoundX2, boxX2);
+            totalBoundY2 = Math.max(totalBoundY2, boxY2);
         });
 
-        const newX = Math.max(unionBox.x1, Math.min(pos.x, unionBox.x2 - nodeBox.width));
-        const newY = Math.max(unionBox.y1, Math.min(pos.y, unionBox.y2 - nodeBox.height));
-
+        // The pos is the top-left corner of the node.
+        const newX = Math.max(totalBoundX1, Math.min(pos.x, totalBoundX2 - nodeWidth));
+        const newY = Math.max(totalBoundY1, Math.min(pos.y, totalBoundY2 - nodeHeight));
+        
         return { x: newX, y: newY };
-    }, [activeView.boundaryBoxes, renderedImageRect, stageRef, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId]);
+
+    }, [activeView.boundaryBoxes, canvasDimensions, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId, stageRef]);
 
 
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
@@ -356,92 +334,91 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
+            {/* The visual background image. CSS object-contain handles letterboxing. */}
             <img
+                ref={imageRef}
                 src={activeView.imageUrl}
                 alt={activeView.name}
                 className="absolute inset-0 object-contain w-full h-full pointer-events-none"
-             />
-             
-             <div className="absolute inset-0 pointer-events-none">
-                {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
-                    const style: React.CSSProperties = {
-                        position: 'absolute',
-                        left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
-                        top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
-                        width: `${(box.width / 100) * renderedImageRect.width}px`,
-                        height: `${(box.height / 100) * renderedImageRect.height}px`,
-                    };
-                    return (
-                        <div
-                            key={box.id}
-                            className="border-2 border-dashed border-red-500"
-                            style={style}
-                        >
-                            <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <Stage
-                ref={stageRef}
-                width={canvasDimensions.width}
-                height={canvasDimensions.height}
-                className="absolute top-0 left-0"
-                onClick={handleStageClick}
-                onTap={handleStageClick}
-            >
-                <Layer>
-                    {visibleImages.map((img) => (
-                        <InteractiveCanvasImage
-                            key={`${img.id}-${img.zIndex}`}
-                            imageProps={img}
-                            isSelected={img.id === selectedCanvasImageId && !img.isLocked}
-                            onSelect={() => selectCanvasImage(img.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'image')}
-                            onDragEnd={(e) => handleTransformEnd(e, 'image')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                    {visibleTexts.map((text) => (
-                        <InteractiveCanvasText
-                            key={`${text.id}-${text.zIndex}`}
-                            textProps={text}
-                            isSelected={text.id === selectedCanvasTextId && !text.isLocked}
-                            onSelect={() => selectCanvasText(text.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'text')}
-                            onDragEnd={(e) => handleTransformEnd(e, 'text')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                    {visibleShapes.map((shape) => (
-                        <InteractiveCanvasShape
-                            key={`${shape.id}-${shape.zIndex}`}
-                            shapeProps={shape}
-                            isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
-                            onSelect={() => selectCanvasShape(shape.id)}
-                            onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
-                            onDragEnd={(e) => handleTransformEnd(e, 'shape')}
-                            dragBoundFunc={dragBoundFunc}
-                        />
-                    ))}
-                </Layer>
-            </Stage>
+                crossOrigin="anonymous"
+            />
             
-             <div className="absolute inset-0 w-full h-full pointer-events-none">
-                {showGrid && (
-                <div className="absolute inset-0 grid-pattern" style={{
-                    left: `${renderedImageRect.x}px`,
-                    top: `${renderedImageRect.y}px`,
-                    width: `${renderedImageRect.width}px`,
-                    height: `${renderedImageRect.height}px`,
-                    backgroundSize: '25px 25px',
-                    backgroundImage: 'linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px)',
-                } as React.CSSProperties}></div>
+            {/* Konva Stage sits on top, sized to match the letterboxed image */}
+            <div style={{
+                position: 'absolute',
+                left: `${renderedImageRect.x}px`,
+                top: `${renderedImageRect.y}px`,
+                width: `${renderedImageRect.width}px`,
+                height: `${renderedImageRect.height}px`,
+            }}>
+                <Stage
+                    ref={stageRef}
+                    width={canvasDimensions.width}
+                    height={canvasDimensions.height}
+                    className="absolute top-0 left-0"
+                    onClick={handleStageClick}
+                    onTap={handleStageClick}
+                >
+                    <Layer>
+                        {visibleImages.map((img) => (
+                            <InteractiveCanvasImage
+                                key={`${img.id}-${img.zIndex}`}
+                                imageProps={img}
+                                isSelected={img.id === selectedCanvasImageId && !img.isLocked}
+                                onSelect={() => selectCanvasImage(img.id)}
+                                onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                                dragBoundFunc={dragBoundFunc}
+                            />
+                        ))}
+                        {visibleTexts.map((text) => (
+                            <InteractiveCanvasText
+                                key={`${text.id}-${text.zIndex}`}
+                                textProps={text}
+                                isSelected={text.id === selectedCanvasTextId && !text.isLocked}
+                                onSelect={() => selectCanvasText(text.id)}
+                                onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                                dragBoundFunc={dragBoundFunc}
+                            />
+                        ))}
+                        {visibleShapes.map((shape) => (
+                            <InteractiveCanvasShape
+                                key={`${shape.id}-${shape.zIndex}`}
+                                shapeProps={shape}
+                                isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
+                                onSelect={() => selectCanvasShape(shape.id)}
+                                onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                                dragBoundFunc={dragBoundFunc}
+                            />
+                        ))}
+                    </Layer>
+                </Stage>
+            </div>
+             
+             {/* Visual Overlay for Boundary Boxes and Grid */}
+             <div className="absolute inset-0 pointer-events-none" style={{
+                left: `${renderedImageRect.x}px`,
+                top: `${renderedImageRect.y}px`,
+                width: `${renderedImageRect.width}px`,
+                height: `${renderedImageRect.height}px`,
+             }}>
+                {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
+                    <div
+                        key={box.id}
+                        className="absolute border-2 border-dashed border-red-500"
+                        style={{
+                            left: `${box.x}%`,
+                            top: `${box.y}%`,
+                            width: `${box.width}%`,
+                            height: `${box.height}%`,
+                        }}
+                    >
+                        <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
+                    </div>
+                ))}
+                 {showGrid && (
+                    <div className="absolute inset-0 grid-pattern"></div>
                 )}
             </div>
         </div>
     );
 }
-
-    
