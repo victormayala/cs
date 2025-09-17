@@ -266,7 +266,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
 
                 setDragBounds({
                     minX: (unionBox.x1 / 100) * renderWidth,
-                    maxX: (unionBox.x2 / 100) * renderWidth * 1.3, // Corrected and widened by 30% for testing
+                    maxX: (unionBox.x2 / 100) * renderWidth,
                     minY: (unionBox.y1 / 100) * renderHeight,
                     maxY: (unionBox.y2 / 100) * renderHeight,
                 });
@@ -433,3 +433,5 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
         </div>
     );
 }
+
+    
