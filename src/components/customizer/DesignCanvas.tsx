@@ -1,11 +1,11 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
-import type { ProductView } from '@/app/customizer/Customizer.tsx';
+import type { ProductView } from '@/app/customizer/Customizer';
 import useImage from 'use-image';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -278,18 +278,16 @@ export default function DesignCanvas({
         };
     }, [activeView]);
 
-    const dragBoundFunc = useMemo(() => {
-        return function(this: Konva.Node, pos: { x: number; y: number }) {
-            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-            const offsetX = selfRect.width / 2;
-            const offsetY = selfRect.height / 2;
+    const dragBoundFunc = useCallback(function(this: Konva.Node, pos: { x: number; y: number }) {
+        const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+        const offsetX = selfRect.width / 2;
+        const offsetY = selfRect.height / 2;
 
-            const { minX, maxX, minY, maxY } = dragBounds;
-            
-            return {
-                x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
-                y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
-            };
+        const { minX, maxX, minY, maxY } = dragBounds;
+        
+        return {
+            x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
+            y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
         };
     }, [dragBounds]);
 
