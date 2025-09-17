@@ -32,9 +32,6 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
     }
   }, [isSelected]);
 
-  const stage = shapeRef.current?.getStage();
-  if (!stage) return null;
-
   return (
     <>
       <KonvaImage
@@ -77,37 +74,33 @@ interface InteractiveCanvasTextProps {
 const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  useImage(`https://fonts.googleapis.com/css2?family=${textProps.fontFamily.replace(/ /g, '+')}:wght@400;700&display=swap`);
+  const [fontLoaded] = useImage(`https://fonts.googleapis.com/css2?family=${textProps.fontFamily.replace(/ /g, '+')}:wght@400;700&display=swap`);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
       trRef.current.nodes([shapeRef.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected, textProps.content, textProps.fontSize]);
+  }, [isSelected, textProps.content, textProps.fontSize, fontLoaded]);
   
-  const stage = shapeRef.current?.getStage();
-  if (!stage) return null;
-
   const textPath = useMemo(() => {
-    if (textProps.archAmount === 0) return undefined;
+    if (textProps.archAmount === 0 || !shapeRef.current) return undefined;
     const isArchUp = textProps.archAmount > 0;
     const amount = Math.abs(textProps.archAmount) / 100;
-    const textWidth = shapeRef.current?.getTextWidth() || stage.width() * 0.8;
+    const textWidth = shapeRef.current?.getTextWidth() || textProps.fontSize * textProps.content.length * 0.6;
     const arcWidth = textWidth * 1.2;
     const arcHeight = arcWidth * amount * 0.4;
-    const startX = (stage.width() - arcWidth) / 2;
-    const startY = isArchUp ? (stage.height() / 2) + arcHeight / 2 : (stage.height() / 2) - arcHeight / 2;
-    const controlX = stage.width() / 2;
+    const startX = (shapeRef.current.getStage()!.width() - arcWidth) / 2;
+    const startY = isArchUp ? (shapeRef.current.getStage()!.height() / 2) + arcHeight / 2 : (shapeRef.current.getStage()!.height() / 2) - arcHeight / 2;
+    const controlX = shapeRef.current.getStage()!.width() / 2;
     const controlY = isArchUp ? startY - arcHeight : startY + arcHeight;
     const endX = startX + arcWidth;
     const endY = startY;
     return `M${startX},${startY} Q${controlX},${controlY} ${endX},${endY}`;
-  }, [textProps.archAmount, stage?.width(), stage?.height(), textProps.content, textProps.fontSize, textProps.fontFamily]);
+  }, [textProps.archAmount, textProps.content, textProps.fontSize, textProps.fontFamily, fontLoaded]);
 
   const commonTextProps = {
     id: textProps.id,
-    text: textProps.content,
     rotation: textProps.rotation,
     scaleX: textProps.scale,
     scaleY: textProps.scale,
@@ -177,9 +170,6 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
-  
-  const stage = shapeRef.current?.getStage();
-  if (!stage) return null;
 
   const commonProps = {
     id: shapeProps.id,
@@ -271,12 +261,12 @@ export default function DesignCanvas({
 
         let width, height, x, y;
 
-        if (stageRatio > imageRatio) { // Stage is wider than image (letterboxed on sides)
+        if (stageRatio > imageRatio) {
             height = stageSize.height;
             width = height * imageRatio;
             x = (stageSize.width - width) / 2;
             y = 0;
-        } else { // Stage is taller than or same as image (letterboxed on top/bottom)
+        } else {
             width = stageSize.width;
             height = width / imageRatio;
             x = 0;
@@ -321,11 +311,12 @@ export default function DesignCanvas({
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
             const { boundaryBoxes } = activeView;
-            if (!boundaryBoxes || boundaryBoxes.length === 0) return pos;
+            if (!boundaryBoxes || boundaryBoxes.length === 0 || imageRect.width === 0) return pos;
 
             const selfRect = this.getClientRect({ skipTransform: true });
             const nodeWidth = selfRect.width;
             const nodeHeight = selfRect.height;
+            
             const offsetX = this.offsetX() * this.scaleX();
             const offsetY = this.offsetY() * this.scaleY();
 
@@ -364,8 +355,8 @@ export default function DesignCanvas({
                 onClick={handleStageClick}
                 onTap={handleStageClick}
             >
-                <Layer>
-                    {/* Background Product Image */}
+                {/* Background Layer */}
+                <Layer listening={false}>
                     {backgroundImage && imageRect.width > 0 && (
                         <KonvaImage
                             id="background-image"
@@ -374,12 +365,10 @@ export default function DesignCanvas({
                             y={imageRect.y}
                             width={imageRect.width}
                             height={imageRect.height}
-                            listening={false}
                             zIndex={0}
                         />
                     )}
 
-                    {/* Grid */}
                     {showGrid && imageRect.width > 0 && Array.from({ length: 9 }).map((_, i) => (
                         <React.Fragment key={`grid-${i}`}>
                             <Rect
@@ -388,7 +377,6 @@ export default function DesignCanvas({
                                 width={imageRect.width}
                                 height={1}
                                 fill="rgba(128, 128, 128, 0.3)"
-                                listening={false}
                             />
                             <Rect
                                 x={imageRect.x + ((i + 1) * imageRect.width / 10)}
@@ -396,12 +384,10 @@ export default function DesignCanvas({
                                 width={1}
                                 height={imageRect.height}
                                 fill="rgba(128, 128, 128, 0.3)"
-                                listening={false}
                             />
                         </React.Fragment>
                     ))}
 
-                    {/* Boundary Boxes */}
                     {showBoundaryBoxes && imageRect.width > 0 && activeView.boundaryBoxes.map(box => (
                         <Rect
                             key={box.id}
@@ -412,11 +398,12 @@ export default function DesignCanvas({
                             stroke="red"
                             strokeWidth={2}
                             dash={[10, 5]}
-                            listening={false}
                         />
                     ))}
-
-                    {/* Interactive Elements */}
+                </Layer>
+                
+                {/* Interactive Elements Layer */}
+                <Layer>
                     {visibleImages.map((img) => (
                         <InteractiveCanvasImage
                             key={`${img.id}-${img.zIndex}`}
@@ -452,3 +439,5 @@ export default function DesignCanvas({
         </div>
     );
 }
+
+    
