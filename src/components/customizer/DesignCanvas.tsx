@@ -317,7 +317,7 @@ export default function DesignCanvas({
             return pos; // No boundaries, no constraint
         }
         
-        const node = stageRef.current?.findOne(`.${selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId}`);
+        const node = stageRef.current?.findOne(`#${selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId}`);
         if (!node) return pos;
 
         const box = node.getClientRect();
@@ -349,16 +349,41 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
-             {/* Background Image Layer (HTML) */}
-             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                  <img
                     src={activeView.imageUrl}
                     alt={activeView.name}
                     className="object-contain w-full h-full"
                  />
              </div>
-            
-            {/* Interactive Elements Layer (Konva) */}
+
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    width: `${canvasDimensions.width}px`,
+                    height: `${canvasDimensions.height}px`,
+                }}
+            >
+                {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
+                    const style: React.CSSProperties = {
+                        position: 'absolute',
+                        left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
+                        top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
+                        width: `${(box.width / 100) * renderedImageRect.width}px`,
+                        height: `${(box.height / 100) * renderedImageRect.height}px`,
+                    };
+                    return (
+                        <div
+                            key={box.id}
+                            className="border-2 border-dashed border-red-500"
+                            style={style}
+                        >
+                            <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
+                        </div>
+                    );
+                })}
+            </div>
+
             <Stage
                 ref={stageRef}
                 width={canvasDimensions.width}
@@ -401,35 +426,18 @@ export default function DesignCanvas({
                 </Layer>
             </Stage>
             
-            {/* Boundary Box and Grid Overlay Layer (HTML) */}
              <div className="absolute inset-0 w-full h-full pointer-events-none">
-                <div className="relative w-full h-full">
-                    {showBoundaryBoxes && activeView.boundaryBoxes.map(box => (
-                        <div
-                            key={box.id}
-                            className="border-2 border-dashed border-red-500 pointer-events-none"
-                            style={{
-                                position: 'absolute',
-                                left: `${box.x}%`,
-                                top: `${box.y}%`,
-                                width: `${box.width}%`,
-                                height: `${box.height}%`,
-                            }}
-                        >
-                            <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
-                        </div>
-                    ))}
-                </div>
                 {showGrid && (
                 <div className="absolute inset-0 grid-pattern" style={{
-                    '--grid-size': '25px', '--grid-color': 'hsl(var(--border) / 0.5)',
-                    backgroundSize: 'var(--grid-size) var(--grid-size)',
-                    backgroundImage: 'linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)',
+                    left: `${renderedImageRect.x}px`,
+                    top: `${renderedImageRect.y}px`,
+                    width: `${renderedImageRect.width}px`,
+                    height: `${renderedImageRect.height}px`,
+                    backgroundSize: '25px 25px',
+                    backgroundImage: 'linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px)',
                 } as React.CSSProperties}></div>
                 )}
             </div>
         </div>
     );
 }
-
-    
