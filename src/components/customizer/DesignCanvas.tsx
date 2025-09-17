@@ -352,8 +352,8 @@ export default function DesignCanvas({
                     height: `${(box.height / 100) * imageDisplayProps.height}px`,
                   };
                 return(
-                    <div key={box.id} className="border-2 border-dashed border-primary/50 pointer-events-none" style={boxStyle}>
-                        <div className="absolute -top-5 left-0 text-xs bg-primary/80 text-primary-foreground px-1 py-0.5 rounded-sm">{box.name}</div>
+                    <div key={box.id} className="border-2 border-dashed border-red-500 pointer-events-none" style={boxStyle}>
+                        <div className="absolute -top-5 left-0 text-xs bg-red-500 text-white px-1 py-0.5 rounded-sm">{box.name}</div>
                     </div>
                 )
             })}
