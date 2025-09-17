@@ -423,6 +423,9 @@ export default function Customizer() {
           const proxiedViews = await Promise.all(
             finalDefaultViews.map(async (view) => ({
               ...view,
+              price: view.price ?? 0,
+              embroideryAdditionalFee: view.embroideryAdditionalFee ?? 0,
+              printAdditionalFee: view.printAdditionalFee ?? 0,
               imageUrl: await proxyImageUrl(view.imageUrl),
             }))
           );
@@ -743,8 +746,8 @@ export default function Customizer() {
                   mimeType: itemMimeType,
                   x: (item.x / 100) * 600,
                   y: (item.y / 100) * 600,
-                  width: item.itemType === 'image' ? itemWidth * item.scale : itemWidth,
-                  height: item.itemType === 'image' ? itemHeight * item.scale : itemHeight,
+                  width: item.itemType === 'image' ? itemWidth * item.scaleX : itemWidth,
+                  height: item.itemType === 'image' ? itemHeight * item.scaleY : itemHeight,
                   rotation: item.rotation || 0,
                   zIndex: item.zIndex || 0,
               };

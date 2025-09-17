@@ -24,7 +24,8 @@ export interface CanvasImage {
   type: string;
   width: number;
   height: number;
-  scale: number;
+  scaleX: number;
+  scaleY: number;
   rotation: number;
   x: number; // percentage for left
   y: number; // percentage for top
@@ -331,7 +332,8 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           type,
           width,
           height,
-          scale: 1,
+          scaleX: 1,
+          scaleY: 1,
           rotation: 0,
           x: 50,
           y: 50,
