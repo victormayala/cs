@@ -239,13 +239,11 @@ export default function DesignCanvas({
         let finalWidth, finalHeight, finalX, finalY;
     
         if (imgRatio > canvasRatio) {
-          // Image is wider than canvas, fit to width
           finalWidth = canvasWidth;
           finalHeight = canvasWidth / imgRatio;
           finalX = 0;
           finalY = (canvasHeight - finalHeight) / 2;
         } else {
-          // Image is taller than or same ratio as canvas, fit to height
           finalHeight = canvasHeight;
           finalWidth = canvasHeight * imgRatio;
           finalY = 0;
