@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
@@ -236,23 +236,26 @@ export default function DesignCanvas({
     const stageRef = getStageRef();
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 700, height: 700 });
     const containerRef = useRef<HTMLDivElement>(null);
-    const [backgroundImage] = useImage(activeView.imageUrl);
+    const [backgroundImage, backgroundImageLoadStatus] = useImage(activeView.imageUrl);
     const [renderedImageRect, setRenderedImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
     useEffect(() => {
-        const checkSize = () => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const resizeObserver = new ResizeObserver(() => {
             if (containerRef.current) {
                 const { width } = containerRef.current.getBoundingClientRect();
                 setCanvasDimensions({ width: width, height: width });
             }
-        };
-        checkSize();
-        window.addEventListener("resize", checkSize);
-        return () => window.removeEventListener("resize", checkSize);
+        });
+
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
     }, []);
 
     useEffect(() => {
-        if (backgroundImage) {
+        if (backgroundImage && backgroundImageLoadStatus === 'loaded') {
             const canvasWidth = canvasDimensions.width;
             const canvasHeight = canvasDimensions.height;
             const imgWidth = backgroundImage.naturalWidth;
@@ -276,7 +279,7 @@ export default function DesignCanvas({
             }
             setRenderedImageRect({ x: finalX, y: finalY, width: finalWidth, height: finalHeight });
         }
-    }, [backgroundImage, canvasDimensions]);
+    }, [backgroundImage, backgroundImageLoadStatus, canvasDimensions]);
     
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -312,30 +315,36 @@ export default function DesignCanvas({
 
     const dragBoundFunc = useMemo(() => (pos: {x: number, y: number}) => {
         if (!activeView.boundaryBoxes || activeView.boundaryBoxes.length === 0) {
-            return pos; // No boundaries, no constraint
+            return pos;
         }
         
-        const node = stageRef.current?.findOne(`#${selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId}`);
+        const selectedId = selectedCanvasImageId || selectedCanvasTextId || selectedCanvasShapeId;
+        if (!selectedId) return pos;
+
+        const node = stageRef.current?.findOne(`#${selectedId}`);
         if (!node) return pos;
 
-        const box = node.getClientRect();
-
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const nodeBox = node.getClientRect();
         
+        let unionBox = {
+            x1: Infinity, y1: Infinity,
+            x2: -Infinity, y2: -Infinity,
+        };
+
         activeView.boundaryBoxes.forEach(b => {
             const boxLeftPx = (b.x / 100) * renderedImageRect.width + renderedImageRect.x;
             const boxTopPx = (b.y / 100) * renderedImageRect.height + renderedImageRect.y;
-            const boxRightPx = boxLeftPx + (b.width / 100) * renderedImageRect.width;
-            const boxBottomPx = boxTopPx + (b.height / 100) * renderedImageRect.height;
+            const boxWidthPx = (b.width / 100) * renderedImageRect.width;
+            const boxHeightPx = (b.height / 100) * renderedImageRect.height;
             
-            minX = Math.min(minX, boxLeftPx);
-            minY = Math.min(minY, boxTopPx);
-            maxX = Math.max(maxX, boxRightPx);
-            maxY = Math.max(maxY, boxBottomPx);
+            unionBox.x1 = Math.min(unionBox.x1, boxLeftPx);
+            unionBox.y1 = Math.min(unionBox.y1, boxTopPx);
+            unionBox.x2 = Math.max(unionBox.x2, boxLeftPx + boxWidthPx);
+            unionBox.y2 = Math.max(unionBox.y2, boxTopPx + boxHeightPx);
         });
 
-        const newX = Math.max(minX, Math.min(pos.x, maxX - box.width));
-        const newY = Math.max(minY, Math.min(pos.y, maxY - box.height));
+        const newX = Math.max(unionBox.x1, Math.min(pos.x, unionBox.x2 - nodeBox.width));
+        const newY = Math.max(unionBox.y1, Math.min(pos.y, unionBox.y2 - nodeBox.height));
 
         return { x: newX, y: newY };
     }, [activeView.boundaryBoxes, renderedImageRect, stageRef, selectedCanvasImageId, selectedCanvasTextId, selectedCanvasShapeId]);
@@ -357,10 +366,10 @@ export default function DesignCanvas({
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
                     const style: React.CSSProperties = {
                         position: 'absolute',
-                        left: `${box.x}%`,
-                        top: `${box.y}%`,
-                        width: `${box.width}%`,
-                        height: `${box.height}%`,
+                        left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
+                        top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
+                        width: `${(box.width / 100) * renderedImageRect.width}px`,
+                        height: `${(box.height / 100) * renderedImageRect.height}px`,
                     };
                     return (
                         <div
@@ -390,6 +399,7 @@ export default function DesignCanvas({
                             isSelected={img.id === selectedCanvasImageId && !img.isLocked}
                             onSelect={() => selectCanvasImage(img.id)}
                             onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                            onDragEnd={(e) => handleTransformEnd(e, 'image')}
                             dragBoundFunc={dragBoundFunc}
                         />
                     ))}
@@ -400,6 +410,7 @@ export default function DesignCanvas({
                             isSelected={text.id === selectedCanvasTextId && !text.isLocked}
                             onSelect={() => selectCanvasText(text.id)}
                             onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                            onDragEnd={(e) => handleTransformEnd(e, 'text')}
                             dragBoundFunc={dragBoundFunc}
                         />
                     ))}
@@ -410,6 +421,7 @@ export default function DesignCanvas({
                             isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
                             onSelect={() => selectCanvasShape(shape.id)}
                             onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                            onDragEnd={(e) => handleTransformEnd(e, 'shape')}
                             dragBoundFunc={dragBoundFunc}
                         />
                     ))}
@@ -431,3 +443,5 @@ export default function DesignCanvas({
         </div>
     );
 }
+
+    
