@@ -188,7 +188,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onClick: onSelect,
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
-    onDragEnd: onDragEnd,
+    onDragEnd: onTransformEnd,
     zIndex: shapeProps.zIndex,
     dragBoundFunc: dragBoundFunc,
   };
@@ -347,15 +347,12 @@ export default function DesignCanvas({
 
     return (
         <div ref={containerRef} className="relative w-full aspect-square bg-muted/20 rounded-lg overflow-hidden border">
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                 <img
-                    src={activeView.imageUrl}
-                    alt={activeView.name}
-                    className="object-contain w-full h-full"
-                 />
-             </div>
+            <img
+                src={activeView.imageUrl}
+                alt={activeView.name}
+                className="absolute inset-0 object-contain w-full h-full pointer-events-none"
+             />
              
-             {/* This div is now ONLY for VISUALLY showing the boundary boxes */}
              <div className="absolute inset-0 pointer-events-none">
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
                     const style: React.CSSProperties = {
