@@ -211,22 +211,8 @@ export default function DesignCanvas({
     const [backgroundImage, bgImageLoadingStatus] = useImage(activeView.imageUrl, 'anonymous');
     
     const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+    const [dragBounds, setDragBounds] = useState<{minX: number, maxX: number, minY: number, maxY: number} | null>(null);
 
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        const observer = new ResizeObserver(() => {
-            setStageSize({
-                width: container.offsetWidth,
-                height: container.offsetHeight,
-            });
-        });
-        observer.observe(container);
-        
-        return () => observer.disconnect();
-    }, []);
-    
     const imageRect = useMemo(() => {
         if (!backgroundImage || stageSize.width === 0 || stageSize.height === 0) {
             return { x: 0, y: 0, width: 0, height: 0 };
@@ -251,6 +237,64 @@ export default function DesignCanvas({
         return { x, y, width, height };
     }, [backgroundImage, stageSize]);
 
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const observer = new ResizeObserver(() => {
+            setStageSize({
+                width: container.offsetWidth,
+                height: container.offsetHeight,
+            });
+            
+            // Recalculate Drag Bounds on resize
+            const { boundaryBoxes } = activeView;
+             if (!boundaryBoxes || boundaryBoxes.length === 0 || imageRect.width === 0) {
+                setDragBounds(null);
+                return;
+            }
+
+            const unionBox = boundaryBoxes.reduce((acc, box) => ({
+                x1: Math.min(acc.x1, box.x),
+                y1: Math.min(acc.y1, box.y),
+                x2: Math.max(acc.x2, box.x + box.width),
+                y2: Math.max(acc.y2, box.y + box.height),
+            }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
+
+            setDragBounds({
+                minX: imageRect.x + (unionBox.x1 / 100) * imageRect.width,
+                maxX: imageRect.x + (unionBox.x2 / 100) * imageRect.width,
+                minY: imageRect.y + (unionBox.y1 / 100) * imageRect.height,
+                maxY: imageRect.y + (unionBox.y2 / 100) * imageRect.height,
+            });
+
+        });
+        observer.observe(container);
+        
+        return () => observer.disconnect();
+    }, [activeView, imageRect]);
+    
+    const dragBoundFunc = useMemo(() => {
+        return function(this: Konva.Node, pos: { x: number; y: number }) {
+            const { boundaryBoxes } = activeView;
+            if (!boundaryBoxes || boundaryBoxes.length === 0 || !dragBounds) return pos;
+
+            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+            const offsetX = selfRect.width / 2;
+            const offsetY = selfRect.height / 2;
+            
+            const minX = dragBounds.minX;
+            const maxX = dragBounds.maxX;
+            const minY = dragBounds.minY;
+            const maxY = dragBounds.maxY;
+
+            return {
+                x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
+                y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
+            };
+        };
+    }, [activeView, dragBounds]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage() || e.target.attrs.id === 'background-image') {
@@ -284,35 +328,6 @@ export default function DesignCanvas({
         }
     };
     
-    const dragBoundFunc = useMemo(() => {
-        return function(this: Konva.Node, pos: { x: number; y: number }) {
-            const { boundaryBoxes } = activeView;
-            if (!boundaryBoxes || boundaryBoxes.length === 0 || imageRect.width === 0) return pos;
-
-            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-            
-            const unionBox = boundaryBoxes.reduce((acc, box) => ({
-                x1: Math.min(acc.x1, box.x),
-                y1: Math.min(acc.y1, box.y),
-                x2: Math.max(acc.x2, box.x + box.width),
-                y2: Math.max(acc.y2, box.y + box.height),
-            }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-
-            const minX = imageRect.x + (unionBox.x1 / 100) * imageRect.width;
-            const maxX = imageRect.x + (unionBox.x2 / 100) * imageRect.width;
-            const minY = imageRect.y + (unionBox.y1 / 100) * imageRect.height;
-            const maxY = imageRect.y + (unionBox.y2 / 100) * imageRect.height;
-            
-            const halfWidth = selfRect.width / 2;
-            const halfHeight = selfRect.height / 2;
-
-            return {
-                x: Math.max(minX + halfWidth, Math.min(pos.x, maxX - halfWidth)),
-                y: Math.max(minY + halfHeight, Math.min(pos.y, maxY - halfHeight)),
-            };
-        };
-    }, [activeView, imageRect]);
-
     const visibleImages = canvasImages.filter(img => img.viewId === activeView.id);
     const visibleTexts = canvasTexts.filter(txt => txt.viewId === activeView.id);
     const visibleShapes = canvasShapes.filter(shp => shp.viewId === activeView.id);
@@ -401,3 +416,5 @@ export default function DesignCanvas({
         </div>
     );
 }
+
+    
