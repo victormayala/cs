@@ -6,9 +6,7 @@ import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
-import Image from 'next/image';
 import useImage from 'use-image';
-import { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 // --- Inner Canvas Components ---
 
@@ -190,7 +188,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onClick: onSelect,
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
-    onDragEnd: onTransformEnd,
+    onDragEnd: onDragEnd,
     zIndex: shapeProps.zIndex,
     dragBoundFunc: dragBoundFunc,
   };
@@ -356,21 +354,16 @@ export default function DesignCanvas({
                     className="object-contain w-full h-full"
                  />
              </div>
-
-            <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                    width: `${canvasDimensions.width}px`,
-                    height: `${canvasDimensions.height}px`,
-                }}
-            >
+             
+             {/* This div is now ONLY for VISUALLY showing the boundary boxes */}
+             <div className="absolute inset-0 pointer-events-none">
                 {showBoundaryBoxes && activeView.boundaryBoxes.map(box => {
                     const style: React.CSSProperties = {
                         position: 'absolute',
-                        left: `${renderedImageRect.x + (box.x / 100) * renderedImageRect.width}px`,
-                        top: `${renderedImageRect.y + (box.y / 100) * renderedImageRect.height}px`,
-                        width: `${(box.width / 100) * renderedImageRect.width}px`,
-                        height: `${(box.height / 100) * renderedImageRect.height}px`,
+                        left: `${box.x}%`,
+                        top: `${box.y}%`,
+                        width: `${box.width}%`,
+                        height: `${box.height}%`,
                     };
                     return (
                         <div
