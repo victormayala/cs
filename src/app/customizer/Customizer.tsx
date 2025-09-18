@@ -223,7 +223,7 @@ export function Customizer() {
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
-  const [onConfirmLeaveAction, setOnConfirmLeaveAction = useState<(() => void) | null>(null);
+  const [onConfirmLeaveAction, setOnConfirmLeaveAction] = useState<(() => void) | null>(null);
 
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -336,7 +336,7 @@ export function Customizer() {
       try {
           if (sourceFromUrl === 'shopify') {
               if (!userIdForFirestoreOptions) throw new Error("User credentials required for Shopify.");
-              const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
+              const credDocRef = doc(db, 'userShopifyCredentials', userIdForOptions);
               const credDocSnap = await getDoc(credDocRef);
               if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
               const creds = credDocSnap.data() as UserShopifyCredentials;
