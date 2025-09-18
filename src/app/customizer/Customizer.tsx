@@ -336,7 +336,7 @@ export function Customizer() {
       try {
           if (sourceFromUrl === 'shopify') {
               if (!userIdForFirestoreOptions) throw new Error("User credentials required for Shopify.");
-              const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
+              const credDocRef = doc(db, 'userShopifyCredentials', userIdForOptions);
               const credDocSnap = await getDoc(credDocRef);
               if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
               const creds = credDocSnap.data() as UserShopifyCredentials;
@@ -634,8 +634,8 @@ useEffect(() => {
     // Original width in pixels
     const baseWidth = stageDimensions.width * box.width / 100;
 
-    // New width (20% wider)
-    const calculatedWidth = baseWidth * 1.2;
+    // New width (10% wider)
+    const calculatedWidth = baseWidth * 1.1;
 
     // Shift X so it expands evenly left + right
     const extraWidth = calculatedWidth - baseWidth;
@@ -1055,3 +1055,5 @@ useEffect(() => {
     </div>
   );
 }
+
+    
