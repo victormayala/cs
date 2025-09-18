@@ -266,7 +266,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
 
                 setDragBounds({
                     minX: x + (unionBox.x1 / 100) * renderWidth,
-                    maxX: x + (unionBox.x2 / 100) * renderWidth, // CORRECTED
+                    maxX: x + (unionBox.x2 / 100) * renderWidth,
                     minY: y + (unionBox.y1 / 100) * renderHeight,
                     maxY: y + (unionBox.y2 / 100) * renderHeight,
                 });
@@ -378,15 +378,15 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 {showBoundaryBoxes && (
                     <div className="absolute inset-0 pointer-events-none w-full h-full">
                         {boundaryBoxes.map(box => {
-                            // --- DELETED ORIGINAL FORMULA AND REPLACED WITH TEST CASE ---
+                            const aspectRatio = overlayRect.width / overlayRect.height || 1;
                             const testHeight = box.height;
-                            const testWidth = testHeight * 2; // Width is 2x the height
+                            const testWidth = (testHeight * 2) / aspectRatio;
                             return (
                                 <div key={box.id} className="absolute border-2 border-dashed border-red-500" style={{
                                     left: `${box.x}%`,
                                     top: `${box.y}%`,
-                                    width: `${testWidth}%`, // Applying test width
-                                    height: `${testHeight}%`, // Applying test height
+                                    width: `${testWidth}%`,
+                                    height: `${testHeight}%`,
                                 }} />
                             );
                         })}
