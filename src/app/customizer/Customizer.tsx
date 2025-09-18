@@ -701,7 +701,7 @@ useEffect(() => {
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
       case "ai-assistant": return <AiAssistant activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
@@ -1055,5 +1055,3 @@ useEffect(() => {
     </div>
   );
 }
-
-    
