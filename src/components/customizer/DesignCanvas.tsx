@@ -221,7 +221,6 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
 
-    const [imageRect, setImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [isImageLoading, setIsImageLoading] = useState(true);
 
     useEffect(() => {
@@ -256,7 +255,6 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
             }
             
             const newRect = { width: renderWidth, height: renderHeight, x, y };
-            setImageRect(newRect);
             onStageRectChange(newRect);
         };
         
@@ -359,14 +357,14 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
             />
             
             <div className="absolute inset-0">
-                {showGrid && (
+                {showGrid && stageDimensions && (
                     <div 
                         className="absolute grid-pattern pointer-events-none" 
                         style={{
-                            top: `${imageRect.y}px`,
-                            left: `${imageRect.x}px`,
-                            width: `${imageRect.width}px`,
-                            height: `${imageRect.height}px`,
+                            top: `${stageDimensions.y}px`,
+                            left: `${stageDimensions.x}px`,
+                            width: `${stageDimensions.width}px`,
+                            height: `${stageDimensions.height}px`,
                         }}
                     />
                 )}
