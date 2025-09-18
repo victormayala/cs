@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -764,36 +763,46 @@ function ProductOptionsPage() {
     useEffect(() => {
       const container = imageWrapperRef.current;
       const image = imageRef.current;
-      if (!isViewEditorOpen || !container || !image) return;
+      if (!isViewEditorOpen || !container) return;
 
       const calculateRect = () => {
-        if (!container || !image) return;
-        const containerRatio = container.offsetWidth / container.offsetHeight;
-        const imageRatio = image.naturalWidth / image.naturalHeight;
+        if (!container || !image?.complete || image.naturalWidth === 0) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const imageAspectRatio = image.naturalWidth / image.naturalHeight;
+        const containerAspectRatio = containerRect.width / containerRect.height;
         
         let width, height, x, y;
-        if (containerRatio > imageRatio) {
-            height = container.offsetHeight;
-            width = height * imageRatio;
-            x = (container.offsetWidth - width) / 2;
+
+        if (containerAspectRatio > imageAspectRatio) {
+            height = containerRect.height;
+            width = height * imageAspectRatio;
+            x = (containerRect.width - width) / 2;
             y = 0;
         } else {
-            width = container.offsetWidth;
-            height = width / imageRatio;
+            width = containerRect.width;
+            height = width / imageAspectRatio;
             x = 0;
-            y = (container.offsetHeight - height) / 2;
+            y = (containerRect.height - height) / 2;
         }
         setImageRect(new DOMRect(x, y, width, height));
       };
 
       const observer = new ResizeObserver(calculateRect);
       observer.observe(container);
-      image.addEventListener('load', calculateRect);
-      if (image.complete) calculateRect();
 
+      if (image) {
+        image.addEventListener('load', calculateRect);
+        if (image.complete) {
+            calculateRect(); // If image is already loaded (e.g., from cache)
+        }
+      }
+      
       return () => {
         observer.disconnect();
-        image.removeEventListener('load', calculateRect);
+        if (image) {
+            image.removeEventListener('load', calculateRect);
+        }
       }
     }, [isViewEditorOpen]);
 
@@ -1104,10 +1113,10 @@ function ProductOptionsPage() {
                                               activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ 
-                                    left: `calc(${imageRect.x}px + ${box.x}%)`, 
-                                    top: `calc(${imageRect.y}px + ${box.y}%)`, 
-                                    width: `${(box.width / 100) * imageRect.width}px`, 
-                                    height: `${(box.height / 100) * imageRect.height}px`,
+                                    left: `calc(${imageRect.x}px + (${imageRect.width}px * ${box.x} / 100))`,
+                                    top: `calc(${imageRect.y}px + (${imageRect.height}px * ${box.y} / 100))`,
+                                    width: `calc(${imageRect.width}px * ${box.width} / 100)`,
+                                    height: `calc(${imageRect.height}px * ${box.height} / 100)`,
                                     zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 
                                 }}
                                 onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
