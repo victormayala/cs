@@ -747,7 +747,7 @@ function ProductOptionsPage() {
             case 'resize_br': newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight + dyPercent; break;
             case 'resize_bl': newX = initialBoxX + dxPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight + dyPercent; break;
             case 'resize_tr': newY = initialBoxY + dyPercent; newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight - dyPercent; break;
-            case 'resize_tl': newX = initialBoxX + dxPercent; newY = initialBoxY + dyPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight - dyPercent; break;
+            case 'resize_tl': newX = initialBoxX + dyPercent; newY = initialBoxY + dyPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight - dyPercent; break;
         }
 
         newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
@@ -764,7 +764,7 @@ function ProductOptionsPage() {
     const handleInteractionEnd = useCallback(() => {
         if (!activeDragRef.current || !imageRect) return;
         
-        const { boxId, type, pointerStartX, pointerStartY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+        const { boxId } = activeDragRef.current;
         
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         const finalRect = boxEl?.getBoundingClientRect();
@@ -1301,3 +1301,5 @@ export default function ProductOptions() {
   );
 }
 
+
+    
