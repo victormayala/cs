@@ -165,13 +165,14 @@ function ProductOptionsPage() {
   type ActiveDragState = {
     type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl';
     boxId: string;
-    startX: number;
-    startY: number;
-    startWidth: number;
-    startHeight: number;
-    startMouseX: number;
-    startMouseY: number;
+    startBoxX: number; // in percent
+    startBoxY: number; // in percent
+    startBoxWidth: number; // in percent
+    startBoxHeight: number; // in percent
+    startMouseX: number; // in percent
+    startMouseY: number; // in percent
   };
+
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -705,116 +706,108 @@ function ProductOptionsPage() {
     };
 
     const handleInteractionStart = useCallback((
-      e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-      box: BoundaryBox,
-      interactionType: ActiveDragState['type']
+        e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
+        box: BoundaryBox,
+        interactionType: ActiveDragState['type']
     ) => {
-      e.preventDefault();
-      e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
+        if (!imageRect) return;
 
-      if (!imageRect) return;
+        const coords = getMouseOrTouchCoords(e);
 
-      const coords = getMouseOrTouchCoords(e);
-      
-      activeDragRef.current = {
-          type: interactionType,
-          boxId: box.id,
-          startX: box.x,
-          startY: box.y,
-          startWidth: box.width,
-          startHeight: box.height,
-          startMouseX: (coords.x - imageRect.left) / imageRect.width * 100,
-          startMouseY: (coords.y - imageRect.top) / imageRect.height * 100,
-      };
+        activeDragRef.current = {
+            type: interactionType,
+            boxId: box.id,
+            startBoxX: box.x,
+            startBoxY: box.y,
+            startBoxWidth: box.width,
+            startBoxHeight: box.height,
+            startMouseX: (coords.x - imageRect.left) / imageRect.width * 100,
+            startMouseY: (coords.y - imageRect.top) / imageRect.height * 100,
+        };
 
-      document.addEventListener('mousemove', handleInteractionMove);
-      document.addEventListener('touchmove', handleInteractionMove, { passive: false });
-      document.addEventListener('mouseup', handleInteractionEnd);
-      document.addEventListener('touchend', handleInteractionEnd);
-  }, [imageRect]);
-  
+        document.addEventListener('mousemove', handleInteractionMove);
+        document.addEventListener('touchmove', handleInteractionMove, { passive: false });
+        document.addEventListener('mouseup', handleInteractionEnd);
+        document.addEventListener('touchend', handleInteractionEnd);
+    }, [imageRect]);
 
-  const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-      if (!activeDragRef.current || !imageRect) return;
-      e.preventDefault();
+    const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!activeDragRef.current || !imageRect) return;
+        e.preventDefault();
 
-      const { type, boxId, startX, startY, startWidth, startHeight, startMouseX, startMouseY } = activeDragRef.current;
-      const coords = getMouseOrTouchCoords(e as any);
-      
-      const currentMouseX = (coords.x - imageRect.left) / imageRect.width * 100;
-      const currentMouseY = (coords.y - imageRect.top) / imageRect.height * 100;
+        const { type, boxId, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startMouseX, startMouseY } = activeDragRef.current;
+        const coords = getMouseOrTouchCoords(e as any);
+        
+        const currentMouseX = (coords.x - imageRect.left) / imageRect.width * 100;
+        const currentMouseY = (coords.y - imageRect.top) / imageRect.height * 100;
 
-      const deltaX = currentMouseX - startMouseX;
-      const deltaY = currentMouseY - startMouseY;
-      
-      let newX = startX, newY = startY, newWidth = startWidth, newHeight = startHeight;
-      
-      if (type === 'move') {
-          newX = startX + deltaX;
-          newY = startY + deltaY;
-      } else {
-          if (type.includes('r')) newWidth = startWidth + deltaX;
-          if (type.includes('l')) {
-              newX = startX + deltaX;
-              newWidth = startWidth - deltaX;
-          }
-          if (type.includes('b')) newHeight = startHeight + deltaY;
-          if (type.includes('t')) {
-              newY = startY + deltaY;
-              newHeight = startHeight - deltaY;
-          }
-      }
+        const deltaX = currentMouseX - startMouseX;
+        const deltaY = currentMouseY - startMouseY;
+        
+        let newX = startBoxX, newY = startBoxY, newWidth = startBoxWidth, newHeight = startBoxHeight;
+        
+        if (type === 'move') {
+            newX = startBoxX + deltaX;
+            newY = startBoxY + deltaY;
+        } else { // Resizing
+            if (type.includes('r')) newWidth = startBoxWidth + deltaX;
+            if (type.includes('l')) { newX = startBoxX + deltaX; newWidth = startBoxWidth - deltaX; }
+            if (type.includes('b')) newHeight = startBoxHeight + deltaY;
+            if (type.includes('t')) { newY = startBoxY + deltaY; newHeight = startBoxHeight - deltaY; }
+        }
 
-      newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
-      newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
-      newX = Math.max(0, Math.min(newX, 100 - newWidth));
-      newY = Math.max(0, Math.min(newY, 100 - newHeight));
-  
-      const boxEl = document.getElementById(`boundary-box-${boxId}`);
-      if (boxEl) {
-        boxEl.style.left = `${newX}%`;
-        boxEl.style.top = `${newY}%`;
-        boxEl.style.width = `${newWidth}%`;
-        boxEl.style.height = `${newHeight}%`;
-      }
-  }, [imageRect]);
-  
-  const handleInteractionEnd = useCallback(() => {
-    if (!activeDragRef.current) return;
+        newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
+        newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
+        newX = Math.max(0, Math.min(newX, 100 - newWidth));
+        newY = Math.max(0, Math.min(newY, 100 - newHeight));
     
-    const { boxId } = activeDragRef.current;
-    const boxEl = document.getElementById(`boundary-box-${boxId}`);
-    if (!boxEl) {
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (boxEl) {
+          boxEl.style.left = `${newX}%`;
+          boxEl.style.top = `${newY}%`;
+          boxEl.style.width = `${newWidth * 1.025}%`;
+          boxEl.style.height = `${newHeight}%`;
+        }
+    }, [imageRect]);
+  
+    const handleInteractionEnd = useCallback(() => {
+        if (!activeDragRef.current) return;
+        
+        const { boxId } = activeDragRef.current;
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (!boxEl) {
+            document.removeEventListener('mousemove', handleInteractionMove);
+            document.removeEventListener('touchmove', handleInteractionMove);
+            document.removeEventListener('mouseup', handleInteractionEnd);
+            document.removeEventListener('touchend', handleInteractionEnd);
+            activeDragRef.current = null;
+            return;
+        };
+        
+        const newX = parseFloat(boxEl.style.left);
+        const newY = parseFloat(boxEl.style.top);
+        const newWidth = parseFloat(boxEl.style.width) / 1.025;
+        const newHeight = parseFloat(boxEl.style.height);
+
+        setHasUnsavedChanges(true);
+        setEditorViews(currentViews => currentViews.map(view => {
+            if (view.id !== activeViewIdInEditor) return view;
+            return {
+                ...view,
+                boundaryBoxes: view.boundaryBoxes.map(box => 
+                    box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+                ),
+            };
+        }));
+        
+        activeDragRef.current = null;
         document.removeEventListener('mousemove', handleInteractionMove);
         document.removeEventListener('touchmove', handleInteractionMove);
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
-        activeDragRef.current = null;
-        return;
-    };
-    
-    const newX = parseFloat(boxEl.style.left);
-    const newY = parseFloat(boxEl.style.top);
-    const newWidth = parseFloat(boxEl.style.width);
-    const newHeight = parseFloat(boxEl.style.height);
-
-    setHasUnsavedChanges(true);
-    setEditorViews(currentViews => currentViews.map(view => {
-        if (view.id !== activeViewIdInEditor) return view;
-        return {
-            ...view,
-            boundaryBoxes: view.boundaryBoxes.map(box => 
-                box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
-            ),
-        };
-    }));
-    
-    activeDragRef.current = null;
-    document.removeEventListener('mousemove', handleInteractionMove);
-    document.removeEventListener('touchmove', handleInteractionMove);
-    document.removeEventListener('mouseup', handleInteractionEnd);
-    document.removeEventListener('touchend', handleInteractionEnd);
-}, [activeViewIdInEditor, handleInteractionMove]);
+    }, [activeViewIdInEditor, handleInteractionMove]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -1169,34 +1162,37 @@ function ProductOptionsPage() {
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<img key={currentViewInEditor.imageUrl} ref={imageRef} src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" crossOrigin="anonymous"/>) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box) => (
-                             <div
+                            <div
                                 key={box.id}
                                 id={`boundary-box-${box.id}`}
-                                className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
-                                    selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70'
-                                )} 
-                                style={{ 
+                                className={cn(
+                                    "absolute group/box",
+                                    selectedBoundaryBoxId === box.id
+                                        ? 'border-primary ring-2 ring-primary ring-offset-background bg-primary/10'
+                                        : 'border-2 border-dashed border-accent/70'
+                                )}
+                                style={{
                                     left: `${box.x}%`,
                                     top: `${box.y}%`,
-                                    width: `${box.width}%`,
+                                    width: `${box.width * 1.025}%`,
                                     height: `${box.height}%`,
-                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1,
+                                    transform: 'translateX(-1.25%)', // Offset to keep it centered
                                 }}
-                              >
-                               <div
-                                 className="absolute inset-0 cursor-move hover:bg-primary/10"
-                                 onMouseDown={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
-                                 onTouchStart={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                            >
+                                <div
+                                    className="absolute inset-0 cursor-move hover:bg-primary/10"
+                                    onMouseDown={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                    onTouchStart={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                 />
                                 {selectedBoundaryBoxId === box.id && (
-                                  <>
-                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                  </>
+                                    <>
+                                        <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    </>
                                 )}
-                             </div>
+                            </div>
                            ))}
                         </div>
                         <div className="overflow-y-auto">
