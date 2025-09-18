@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -166,13 +165,13 @@ function ProductOptionsPage() {
     type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl';
     boxId: string;
     // For move
-    startX: number;
-    startY: number;
+    startXPercent: number;
+    startYPercent: number;
     // For resize
-    initialBoxX: number;
-    initialBoxY: number;
-    initialBoxWidth: number;
-    initialBoxHeight: number;
+    initialBoxXPercent: number;
+    initialBoxYPercent: number;
+    initialBoxWidthPercent: number;
+    initialBoxHeightPercent: number;
   };
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -710,7 +709,7 @@ function ProductOptionsPage() {
         if (!activeDragRef.current || !imageRect) return;
         e.preventDefault();
         
-        const { type, boxId, startX, startY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+        const { type, boxId, startXPercent, startYPercent, initialBoxXPercent, initialBoxYPercent, initialBoxWidthPercent, initialBoxHeightPercent } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         if (!boxEl) return;
         
@@ -718,22 +717,22 @@ function ProductOptionsPage() {
         const currentXPercent = (coords.x - imageRect.left) / imageRect.width * 100;
         const currentYPercent = (coords.y - imageRect.top) / imageRect.height * 100;
         
-        let newX = initialBoxX, newY = initialBoxY, newWidth = initialBoxWidth, newHeight = initialBoxHeight;
+        let newX = initialBoxXPercent, newY = initialBoxYPercent, newWidth = initialBoxWidthPercent, newHeight = initialBoxHeightPercent;
         
         if (type === 'move') {
-            newX = currentXPercent - startX;
-            newY = currentYPercent - startY;
+            newX = currentXPercent - startXPercent;
+            newY = currentYPercent - startYPercent;
         } else {
-            const rightEdge = initialBoxX + initialBoxWidth;
-            const bottomEdge = initialBoxY + initialBoxHeight;
+            const rightEdgePercent = initialBoxXPercent + initialBoxWidthPercent;
+            const bottomEdgePercent = initialBoxYPercent + initialBoxHeightPercent;
             if (type.includes('r')) newWidth = currentXPercent - newX;
             if (type.includes('l')) {
-                newWidth = rightEdge - currentXPercent;
+                newWidth = rightEdgePercent - currentXPercent;
                 newX = currentXPercent;
             }
             if (type.includes('b')) newHeight = currentYPercent - newY;
             if (type.includes('t')) {
-                newHeight = bottomEdge - currentYPercent;
+                newHeight = bottomEdgePercent - currentYPercent;
                 newY = currentYPercent;
             }
         }
@@ -790,18 +789,18 @@ function ProductOptionsPage() {
         if (!imageRect) return;
         
         const coords = getMouseOrTouchCoords(e);
-        const startX = (coords.x - imageRect.left) / imageRect.width * 100;
-        const startY = (coords.y - imageRect.top) / imageRect.height * 100;
+        const startXPercent = (coords.x - imageRect.left) / imageRect.width * 100;
+        const startYPercent = (coords.y - imageRect.top) / imageRect.height * 100;
 
         activeDragRef.current = {
             type: interactionType,
             boxId: box.id,
-            startX: startX - box.x,
-            startY: startY - box.y,
-            initialBoxX: box.x,
-            initialBoxY: box.y,
-            initialBoxWidth: box.width,
-            initialBoxHeight: box.height,
+            startXPercent: startXPercent - box.x,
+            startYPercent: startYPercent - box.y,
+            initialBoxXPercent: box.x,
+            initialBoxYPercent: box.y,
+            initialBoxWidthPercent: box.width,
+            initialBoxHeightPercent: box.height,
         };
         
         document.addEventListener('mousemove', handleInteractionMove);
@@ -1166,7 +1165,7 @@ function ProductOptionsPage() {
                              <div
                                 key={box.id}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
-                                    selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10'
+                                    selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70'
                                 )} 
                                 style={{ 
                                     left: `${box.x}%`,
@@ -1177,7 +1176,7 @@ function ProductOptionsPage() {
                                 }}
                               >
                                <div
-                                 className="absolute inset-0 cursor-move"
+                                 className="absolute inset-0 cursor-move hover:bg-primary/10"
                                  onMouseDown={(e) => {
                                    setSelectedBoundaryBoxId(box.id);
                                    handleInteractionStart(e, box, 'move');
@@ -1318,4 +1317,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
