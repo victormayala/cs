@@ -14,7 +14,7 @@ import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
 import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
@@ -695,7 +695,7 @@ function ProductOptionsPage() {
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
     };
 
-    const handleInteractionStart = (
+    const handleInteractionStart = useCallback((
         e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
         box: BoundaryBox,
         interactionType: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'
@@ -721,7 +721,7 @@ function ProductOptionsPage() {
         document.addEventListener('touchmove', handleInteractionMove, { passive: false });
         document.addEventListener('mouseup', handleInteractionEnd);
         document.addEventListener('touchend', handleInteractionEnd);
-    };
+    }, [imageRect]);
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
         if (!activeDragRef.current || !imageRect) return;
@@ -1153,21 +1153,21 @@ function ProductOptionsPage() {
                                               activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
                                             )} 
                                 style={{ 
-                                    left: `calc(${imageRect.x}px + (${imageRect.width}px * ${box.x} / 100))`,
-                                    top: `calc(${imageRect.y}px + (${imageRect.height}px * ${box.y} / 100))`,
-                                    width: `calc(${imageRect.width}px * ${box.width} / 100)`,
-                                    height: `calc(${imageRect.height}px * ${box.height} / 100)`,
+                                    left: `${imageRect.x + (imageRect.width * box.x / 100)}px`,
+                                    top: `${imageRect.y + (imageRect.height * box.y / 100)}px`,
+                                    width: `${imageRect.width * box.width / 100}px`,
+                                    height: `${imageRect.height * box.height / 100}px`,
                                     zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 
                                 }}
-                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
-                                onTouchStart={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                               >
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
-                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tl')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tl')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tr')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tr')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_bl')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_bl')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_br')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_br')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                   </>
                                 )}
                              </div>
