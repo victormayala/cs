@@ -789,7 +789,7 @@ function ProductOptionsPage() {
         document.removeEventListener('touchmove', handleInteractionMove);
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
-    }, [activeViewIdInEditor, handleInteractionMove]);
+    }, [activeViewIdInEditor]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -836,7 +836,7 @@ function ProductOptionsPage() {
             image.removeEventListener('load', calculateRect);
         }
       }
-    }, [isViewEditorOpen, activeViewIdInEditor, editorViews, selectedBoundaryBoxId]);
+    }, [isViewEditorOpen, activeViewIdInEditor, editorViews]);
 
 
       const categoryTree = useMemo(() => {
@@ -1148,6 +1148,8 @@ function ProductOptionsPage() {
                              <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
+                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
                                               selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10',
                                               activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
@@ -1159,8 +1161,6 @@ function ProductOptionsPage() {
                                     height: `${imageRect.height * box.height / 100}px`,
                                     zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 
                                 }}
-                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
-                                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                               >
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
@@ -1294,3 +1294,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
+    
