@@ -755,22 +755,26 @@ function ProductOptionsPage() {
         newX = Math.max(0, Math.min(newX, 100 - newWidth));
         newY = Math.max(0, Math.min(newY, 100 - newHeight));
     
-        boxEl.style.left = `${newX}%`;
-        boxEl.style.top = `${newY}%`;
-        boxEl.style.width = `${newWidth}%`;
-        boxEl.style.height = `${newHeight}%`;
+        boxEl.style.left = `${imageRect.x + (imageRect.width * newX / 100)}px`;
+        boxEl.style.top = `${imageRect.y + (imageRect.height * newY / 100)}px`;
+        boxEl.style.width = `${imageRect.width * newWidth / 100}px`;
+        boxEl.style.height = `${imageRect.height * newHeight / 100}px`;
     }, [imageRect]);
     
     const handleInteractionEnd = useCallback(() => {
-        if (!activeDragRef.current) return;
-        const { boxId } = activeDragRef.current;
-        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        if (!activeDragRef.current || !imageRect) return;
         
-        if (boxEl) {
-            const newX = parseFloat(boxEl.style.left);
-            const newY = parseFloat(boxEl.style.top);
-            const newWidth = parseFloat(boxEl.style.width);
-            const newHeight = parseFloat(boxEl.style.height);
+        const { boxId, type, pointerStartX, pointerStartY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+        
+        const boxEl = document.getElementById(`boundary-box-${boxId}`);
+        const finalRect = boxEl?.getBoundingClientRect();
+        const containerRect = imageWrapperRef.current?.getBoundingClientRect();
+        
+        if (finalRect && containerRect && imageRect.width > 0 && imageRect.height > 0) {
+            const finalXPercent = ((finalRect.left - containerRect.left - imageRect.x) / imageRect.width) * 100;
+            const finalYPercent = ((finalRect.top - containerRect.top - imageRect.y) / imageRect.height) * 100;
+            const finalWidthPercent = (finalRect.width / imageRect.width) * 100;
+            const finalHeightPercent = (finalRect.height / imageRect.height) * 100;
 
             setHasUnsavedChanges(true);
             setEditorViews(currentViews => currentViews.map(view => {
@@ -778,7 +782,7 @@ function ProductOptionsPage() {
                 return {
                     ...view,
                     boundaryBoxes: view.boundaryBoxes.map(box => 
-                        box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+                        box.id === boxId ? { ...box, x: finalXPercent, y: finalYPercent, width: finalWidthPercent, height: finalHeightPercent } : box
                     ),
                 };
             }));
@@ -789,7 +793,7 @@ function ProductOptionsPage() {
         document.removeEventListener('touchmove', handleInteractionMove);
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
-    }, [activeViewIdInEditor]);
+    }, [activeViewIdInEditor, imageRect, handleInteractionMove]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -1010,7 +1014,6 @@ function ProductOptionsPage() {
                                           fill
                                           sizes="(max-width: 768px) 10vw, 5vw"
                                           data-ai-hint="product photo"
-                                          className="object-contain"
                                           key={defaultProductImage}
                                         />
                                     </div>
@@ -1148,26 +1151,30 @@ function ProductOptionsPage() {
                              <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
-                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
-                                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
-                                              selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10',
-                                              activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'cursor-grabbing' : 'cursor-grab'
-                                            )} 
+                                    selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10'
+                                )} 
                                 style={{ 
                                     left: `${imageRect.x + (imageRect.width * box.x / 100)}px`,
                                     top: `${imageRect.y + (imageRect.height * box.y / 100)}px`,
                                     width: `${imageRect.width * box.width / 100}px`,
                                     height: `${imageRect.height * box.height / 100}px`,
-                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1 
+                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1,
+                                    cursor: activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'grabbing' : 'grab'
                                 }}
                               >
+                                <div 
+                                    className="absolute inset-0"
+                                    onMouseDown={(e) => handleInteractionStart(e, box, 'move')}
+                                    onTouchStart={(e) => handleInteractionStart(e, box, 'move')}
+                                ></div>
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
-                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tl')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tl')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tr')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_tr')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_bl')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_bl')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_br')}} onTouchStart={(e) => {e.preventDefault(); e.stopPropagation(); handleInteractionStart(e, box, 'resize_br')}}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                   </>
                                 )}
                              </div>
@@ -1212,7 +1219,6 @@ function ProductOptionsPage() {
                                                   fill
                                                   sizes="(max-width: 768px) 10vw, 5vw"
                                                   data-ai-hint={view.aiHint || "product view"}
-                                                  className="object-contain"
                                                   key={view.imageUrl}
                                                 />
                                             </div>
@@ -1295,4 +1301,3 @@ export default function ProductOptions() {
   );
 }
 
-    
