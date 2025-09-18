@@ -771,8 +771,8 @@ function ProductOptionsPage() {
         const containerRect = imageWrapperRef.current?.getBoundingClientRect();
         
         if (finalRect && containerRect && imageRect.width > 0 && imageRect.height > 0) {
-            const finalXPercent = ((finalRect.left - containerRect.left - imageRect.x) / imageRect.width) * 100;
-            const finalYPercent = ((finalRect.top - containerRect.top - imageRect.y) / imageRect.height) * 100;
+            const finalXPercent = ((finalRect.left - containerRect.left) / imageRect.width) * 100;
+            const finalYPercent = ((finalRect.top - containerRect.top) / imageRect.height) * 100;
             const finalWidthPercent = (finalRect.width / imageRect.width) * 100;
             const finalHeightPercent = (finalRect.height / imageRect.height) * 100;
 
@@ -840,7 +840,7 @@ function ProductOptionsPage() {
             image.removeEventListener('load', calculateRect);
         }
       }
-    }, [isViewEditorOpen, activeViewIdInEditor, editorViews]);
+    }, [isViewEditorOpen, activeViewIdInEditor, editorViews, selectedBoundaryBoxId]);
 
 
       const categoryTree = useMemo(() => {
@@ -1151,7 +1151,6 @@ function ProductOptionsPage() {
                              <div
                                 key={`box-key-${box.id}-${index}`}
                                 id={`boundary-box-${box.id}`}
-                                onMouseDown={(e) => { e.stopPropagation(); setSelectedBoundaryBoxId(box.id); }}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
                                     selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10'
                                 )} 
@@ -1160,14 +1159,21 @@ function ProductOptionsPage() {
                                     top: `${imageRect.y + (imageRect.height * box.y / 100)}px`,
                                     width: `${imageRect.width * box.width / 100}px`,
                                     height: `${imageRect.height * box.height / 100}px`,
-                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1,
-                                    cursor: activeDragRef.current?.boxId === box.id && activeDragRef.current.type === 'move' ? 'grabbing' : 'grab'
+                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1
                                 }}
                               >
                                 <div 
-                                    className="absolute inset-0"
-                                    onMouseDown={(e) => handleInteractionStart(e, box, 'move')}
-                                    onTouchStart={(e) => handleInteractionStart(e, box, 'move')}
+                                    className="absolute inset-0 cursor-grab"
+                                    onMouseDown={(e) => {
+                                      e.stopPropagation(); 
+                                      setSelectedBoundaryBoxId(box.id);
+                                      handleInteractionStart(e, box, 'move');
+                                    }}
+                                    onTouchStart={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedBoundaryBoxId(box.id);
+                                      handleInteractionStart(e, box, 'move');
+                                    }}
                                 ></div>
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
