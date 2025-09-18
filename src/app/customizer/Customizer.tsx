@@ -614,7 +614,7 @@ export function Customizer() {
     loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails
 ]);
 
-  // This `useEffect` hook recalculates the pixel boundaries whenever the active view or stage dimensions change.
+  // This useEffect hook recalculates the pixel boundaries whenever the active view or stage dimensions change.
 useEffect(() => {
   // 1. Check if we have the necessary data to perform calculations.
   if (!stageDimensions || !productDetails || !activeViewId) {
@@ -634,8 +634,8 @@ useEffect(() => {
     // Original width in pixels
     const baseWidth = stageDimensions.width * box.width / 100;
 
-    // New width (2.5% wider)
-    const calculatedWidth = baseWidth * 1.025;
+    // New width (30% wider)
+    const calculatedWidth = baseWidth * 1.3;
 
     // Shift X so it expands evenly left + right
     const extraWidth = calculatedWidth - baseWidth;
@@ -1056,4 +1056,3 @@ useEffect(() => {
   );
 }
 
-    
