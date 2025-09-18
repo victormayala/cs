@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -164,14 +165,12 @@ function ProductOptionsPage() {
   type ActiveDragState = {
     type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl';
     boxId: string;
-    // For move
-    startXPercent: number;
-    startYPercent: number;
-    // For resize
-    initialBoxXPercent: number;
-    initialBoxYPercent: number;
-    initialBoxWidthPercent: number;
-    initialBoxHeightPercent: number;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    startMouseX: number;
+    startMouseY: number;
   };
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -705,109 +704,117 @@ function ProductOptionsPage() {
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
     };
 
-    const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-        if (!activeDragRef.current || !imageRect) return;
-        e.preventDefault();
-        
-        const { type, boxId, startXPercent, startYPercent, initialBoxXPercent, initialBoxYPercent, initialBoxWidthPercent, initialBoxHeightPercent } = activeDragRef.current;
-        const boxEl = document.getElementById(`boundary-box-${boxId}`);
-        if (!boxEl) return;
-        
-        const coords = getMouseOrTouchCoords(e as any);
-        const currentXPercent = (coords.x - imageRect.left) / imageRect.width * 100;
-        const currentYPercent = (coords.y - imageRect.top) / imageRect.height * 100;
-        
-        let newX = initialBoxXPercent, newY = initialBoxYPercent, newWidth = initialBoxWidthPercent, newHeight = initialBoxHeightPercent;
-        
-        if (type === 'move') {
-            newX = currentXPercent - startXPercent;
-            newY = currentYPercent - startYPercent;
-        } else {
-            const rightEdgePercent = initialBoxXPercent + initialBoxWidthPercent;
-            const bottomEdgePercent = initialBoxYPercent + initialBoxHeightPercent;
-            if (type.includes('r')) newWidth = currentXPercent - newX;
-            if (type.includes('l')) {
-                newWidth = rightEdgePercent - currentXPercent;
-                newX = currentXPercent;
-            }
-            if (type.includes('b')) newHeight = currentYPercent - newY;
-            if (type.includes('t')) {
-                newHeight = bottomEdgePercent - currentYPercent;
-                newY = currentYPercent;
-            }
-        }
+    const handleInteractionStart = useCallback((
+      e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
+      box: BoundaryBox,
+      interactionType: ActiveDragState['type']
+    ) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-        newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
-        newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
-        newX = Math.max(0, Math.min(newX, 100 - newWidth));
-        newY = Math.max(0, Math.min(newY, 100 - newHeight));
-    
+      if (!imageRect) return;
+
+      const coords = getMouseOrTouchCoords(e);
+      
+      activeDragRef.current = {
+          type: interactionType,
+          boxId: box.id,
+          startX: box.x,
+          startY: box.y,
+          startWidth: box.width,
+          startHeight: box.height,
+          startMouseX: (coords.x - imageRect.left) / imageRect.width * 100,
+          startMouseY: (coords.y - imageRect.top) / imageRect.height * 100,
+      };
+
+      document.addEventListener('mousemove', handleInteractionMove);
+      document.addEventListener('touchmove', handleInteractionMove, { passive: false });
+      document.addEventListener('mouseup', handleInteractionEnd);
+      document.addEventListener('touchend', handleInteractionEnd);
+  }, [imageRect]);
+  
+
+  const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+      if (!activeDragRef.current || !imageRect) return;
+      e.preventDefault();
+
+      const { type, boxId, startX, startY, startWidth, startHeight, startMouseX, startMouseY } = activeDragRef.current;
+      const coords = getMouseOrTouchCoords(e as any);
+      
+      const currentMouseX = (coords.x - imageRect.left) / imageRect.width * 100;
+      const currentMouseY = (coords.y - imageRect.top) / imageRect.height * 100;
+
+      const deltaX = currentMouseX - startMouseX;
+      const deltaY = currentMouseY - startMouseY;
+      
+      let newX = startX, newY = startY, newWidth = startWidth, newHeight = startHeight;
+      
+      if (type === 'move') {
+          newX = startX + deltaX;
+          newY = startY + deltaY;
+      } else {
+          if (type.includes('r')) newWidth = startWidth + deltaX;
+          if (type.includes('l')) {
+              newX = startX + deltaX;
+              newWidth = startWidth - deltaX;
+          }
+          if (type.includes('b')) newHeight = startHeight + deltaY;
+          if (type.includes('t')) {
+              newY = startY + deltaY;
+              newHeight = startHeight - deltaY;
+          }
+      }
+
+      newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
+      newHeight = Math.max(MIN_BOX_SIZE_PERCENT, newHeight);
+      newX = Math.max(0, Math.min(newX, 100 - newWidth));
+      newY = Math.max(0, Math.min(newY, 100 - newHeight));
+  
+      const boxEl = document.getElementById(`boundary-box-${boxId}`);
+      if (boxEl) {
         boxEl.style.left = `${newX}%`;
         boxEl.style.top = `${newY}%`;
         boxEl.style.width = `${newWidth}%`;
         boxEl.style.height = `${newHeight}%`;
-    }, [imageRect]);
+      }
+  }, [imageRect]);
+  
+  const handleInteractionEnd = useCallback(() => {
+    if (!activeDragRef.current) return;
     
-    const handleInteractionEnd = useCallback(() => {
-        if (!activeDragRef.current) return;
-        
-        const { boxId } = activeDragRef.current;
-        const boxEl = document.getElementById(`boundary-box-${boxId}`);
-        if (!boxEl) return;
-        
-        const newX = parseFloat(boxEl.style.left);
-        const newY = parseFloat(boxEl.style.top);
-        const newWidth = parseFloat(boxEl.style.width);
-        const newHeight = parseFloat(boxEl.style.height);
-
-        setHasUnsavedChanges(true);
-        setEditorViews(currentViews => currentViews.map(view => {
-            if (view.id !== activeViewIdInEditor) return view;
-            return {
-                ...view,
-                boundaryBoxes: view.boundaryBoxes.map(box => 
-                    box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
-                ),
-            };
-        }));
-        
-        activeDragRef.current = null;
+    const { boxId } = activeDragRef.current;
+    const boxEl = document.getElementById(`boundary-box-${boxId}`);
+    if (!boxEl) {
         document.removeEventListener('mousemove', handleInteractionMove);
         document.removeEventListener('touchmove', handleInteractionMove);
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
-    }, [activeViewIdInEditor, handleInteractionMove]);
+        activeDragRef.current = null;
+        return;
+    };
     
-    const handleInteractionStart = useCallback((
-        e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-        box: BoundaryBox,
-        interactionType: ActiveDragState['type']
-    ) => {
-        e.preventDefault();
-        e.stopPropagation();
+    const newX = parseFloat(boxEl.style.left);
+    const newY = parseFloat(boxEl.style.top);
+    const newWidth = parseFloat(boxEl.style.width);
+    const newHeight = parseFloat(boxEl.style.height);
 
-        if (!imageRect) return;
-        
-        const coords = getMouseOrTouchCoords(e);
-        const startXPercent = (coords.x - imageRect.left) / imageRect.width * 100;
-        const startYPercent = (coords.y - imageRect.top) / imageRect.height * 100;
-
-        activeDragRef.current = {
-            type: interactionType,
-            boxId: box.id,
-            startXPercent: startXPercent - box.x,
-            startYPercent: startYPercent - box.y,
-            initialBoxXPercent: box.x,
-            initialBoxYPercent: box.y,
-            initialBoxWidthPercent: box.width,
-            initialBoxHeightPercent: box.height,
+    setHasUnsavedChanges(true);
+    setEditorViews(currentViews => currentViews.map(view => {
+        if (view.id !== activeViewIdInEditor) return view;
+        return {
+            ...view,
+            boundaryBoxes: view.boundaryBoxes.map(box => 
+                box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+            ),
         };
-        
-        document.addEventListener('mousemove', handleInteractionMove);
-        document.addEventListener('touchmove', handleInteractionMove, { passive: false });
-        document.addEventListener('mouseup', handleInteractionEnd);
-        document.addEventListener('touchend', handleInteractionEnd);
-    }, [imageRect, handleInteractionMove, handleInteractionEnd]);
+    }));
+    
+    activeDragRef.current = null;
+    document.removeEventListener('mousemove', handleInteractionMove);
+    document.removeEventListener('touchmove', handleInteractionMove);
+    document.removeEventListener('mouseup', handleInteractionEnd);
+    document.removeEventListener('touchend', handleInteractionEnd);
+}, [activeViewIdInEditor, handleInteractionMove]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -1164,6 +1171,7 @@ function ProductOptionsPage() {
                            {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box) => (
                              <div
                                 key={box.id}
+                                id={`boundary-box-${box.id}`}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
                                     selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70'
                                 )} 
@@ -1177,14 +1185,8 @@ function ProductOptionsPage() {
                               >
                                <div
                                  className="absolute inset-0 cursor-move hover:bg-primary/10"
-                                 onMouseDown={(e) => {
-                                   setSelectedBoundaryBoxId(box.id);
-                                   handleInteractionStart(e, box, 'move');
-                                 }}
-                                 onTouchStart={(e) => {
-                                   setSelectedBoundaryBoxId(box.id);
-                                   handleInteractionStart(e, box, 'move');
-                                 }}
+                                 onMouseDown={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
+                                 onTouchStart={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                 />
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
@@ -1317,3 +1319,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
