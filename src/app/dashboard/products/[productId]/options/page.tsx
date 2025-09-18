@@ -1209,7 +1209,7 @@ function ProductOptionsPage() {
                                       className={cn(
                                           "p-3 rounded-md w-full text-left cursor-pointer",
                                           activeViewIdInEditor === view.id
-                                            ? 'border-transparent ring-2 ring-primary bg-accent/10'
+                                            ? 'border-2 border-primary bg-accent/10'
                                             : 'border bg-background hover:bg-muted/50'
                                       )}
                                       role="button"
