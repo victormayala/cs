@@ -1206,7 +1206,12 @@ function ProductOptionsPage() {
                                     <div
                                       key={`${view.id}-${index}`}
                                       onClick={() => setActiveViewIdInEditor(view.id)}
-                                      className={cn("p-3 border rounded-md w-full text-left cursor-pointer", activeViewIdInEditor === view.id ? 'border-primary ring-2 ring-primary' : 'bg-background hover:bg-muted/50')}
+                                      className={cn(
+                                          "p-3 rounded-md w-full text-left cursor-pointer",
+                                          activeViewIdInEditor === view.id
+                                            ? 'border-transparent ring-2 ring-primary bg-accent/10'
+                                            : 'border bg-background hover:bg-muted/50'
+                                      )}
                                       role="button"
                                       tabIndex={0}
                                       onKeyDown={(e) => e.key === 'Enter' && setActiveViewIdInEditor(view.id)}
