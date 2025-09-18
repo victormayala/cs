@@ -223,7 +223,7 @@ export function Customizer() {
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
-  const [onConfirmLeaveAction, setOnConfirmLeaveAction] = useState<(() => void) | null>(null);
+  const [onConfirmLeaveAction, setOnConfirmLeaveAction = useState<(() => void) | null>(null);
 
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1055,3 +1055,5 @@ useEffect(() => {
     </div>
   );
 }
+
+    
