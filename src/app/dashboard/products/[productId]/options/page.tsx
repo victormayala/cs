@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -972,7 +973,14 @@ function ProductOptionsPage() {
                                 <p className="text-xs text-muted-foreground mb-3">This is the main image that will show on the product listing page.</p>
                                 <div className="mt-2 flex items-center gap-4">
                                      <div className="relative w-24 h-24 rounded-md border bg-background overflow-hidden flex-shrink-0">
-                                        <Image src={defaultProductImage} alt="Default product image" fill className="object-contain" />
+                                        <Image
+                                          src={defaultProductImage}
+                                          alt="Default product image"
+                                          fill
+                                          sizes="(max-width: 768px) 10vw, 5vw"
+                                          data-ai-hint="product photo"
+                                          className="object-contain"
+                                        />
                                     </div>
                                     <div className="flex-grow">
                                         <Button
@@ -1103,7 +1111,7 @@ function ProductOptionsPage() {
                       </CardHeader>
                       <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
-                           {currentViewInEditor?.imageUrl ? (<img ref={imageRef} src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" crossOrigin="anonymous"/>) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
+                           {currentViewInEditor?.imageUrl ? (<img key={currentViewInEditor.imageUrl} ref={imageRef} src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" crossOrigin="anonymous"/>) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
                            {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box, index) => (
                              <div
                                 key={`box-key-${box.id}-${index}`}
@@ -1166,7 +1174,14 @@ function ProductOptionsPage() {
                                         <Label htmlFor={`viewImageUrl-${view.id}`} className="mt-2 block text-xs">View Image</Label>
                                         <div className="mt-1 flex items-center gap-2">
                                             <div className="relative w-16 h-16 rounded-md border bg-muted/30 overflow-hidden flex-shrink-0">
-                                                <Image src={view.imageUrl} alt={view.name || 'View preview'} fill className="object-contain" />
+                                                <Image
+                                                  src={view.imageUrl}
+                                                  alt={view.name || 'View preview'}
+                                                  fill
+                                                  sizes="(max-width: 768px) 10vw, 5vw"
+                                                  data-ai-hint={view.aiHint || "product view"}
+                                                  className="object-contain"
+                                                />
                                             </div>
                                             <div className="flex-grow space-y-2">
                                                 <Button type="button" size="sm" variant="outline" className="w-full" onClick={(e) => { e.stopPropagation(); fileInputRef.current[view.id]?.click();}}>
