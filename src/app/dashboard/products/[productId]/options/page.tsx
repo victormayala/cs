@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -162,7 +162,18 @@ function ProductOptionsPage() {
   const imageWrapperRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageRect, setImageRect] = useState<DOMRect | null>(null);
-  type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; initialMouseX: number; initialMouseY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; };
+  type ActiveDragState = {
+    type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl';
+    boxId: string;
+    // For move
+    startX: number;
+    startY: number;
+    // For resize
+    initialBoxX: number;
+    initialBoxY: number;
+    initialBoxWidth: number;
+    initialBoxHeight: number;
+  };
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -689,7 +700,7 @@ function ProductOptionsPage() {
     };
 
     const getMouseOrTouchCoords = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
-        if ('touches' in e && e.touches.length > 0) {
+        if ('touches' in e && e.touches[0]) {
             return { x: e.touches[0].clientX, y: e.touches[0].clientY };
         }
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
@@ -698,7 +709,7 @@ function ProductOptionsPage() {
     const handleInteractionStart = useCallback((
         e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
         box: BoundaryBox,
-        interactionType: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'
+        interactionType: ActiveDragState['type']
     ) => {
         e.preventDefault();
         e.stopPropagation();
@@ -706,11 +717,14 @@ function ProductOptionsPage() {
         if (!imageRect) return;
         
         const coords = getMouseOrTouchCoords(e);
+        const startX = (coords.x - imageRect.left) / imageRect.width * 100;
+        const startY = (coords.y - imageRect.top) / imageRect.height * 100;
+
         activeDragRef.current = {
             type: interactionType,
             boxId: box.id,
-            initialMouseX: coords.x,
-            initialMouseY: coords.y,
+            startX: startX - box.x,
+            startY: startY - box.y,
             initialBoxX: box.x,
             initialBoxY: box.y,
             initialBoxWidth: box.width,
@@ -725,29 +739,34 @@ function ProductOptionsPage() {
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
         if (!activeDragRef.current || !imageRect) return;
-        
         e.preventDefault();
         
-        const { type, boxId, initialMouseX, initialMouseY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+        const { type, boxId, startX, startY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         if (!boxEl) return;
         
-        const coords = getMouseOrTouchCoords(e);
-        if (imageRect.width === 0 || imageRect.height === 0) return;
-        
-        const dx = coords.x - initialMouseX;
-        const dy = coords.y - initialMouseY;
-        const dxPercent = (dx / imageRect.width) * 100;
-        const dyPercent = (dy / imageRect.height) * 100;
+        const coords = getMouseOrTouchCoords(e as any);
+        const currentXPercent = (coords.x - imageRect.left) / imageRect.width * 100;
+        const currentYPercent = (coords.y - imageRect.top) / imageRect.height * 100;
         
         let newX = initialBoxX, newY = initialBoxY, newWidth = initialBoxWidth, newHeight = initialBoxHeight;
         
-        switch (type) {
-            case 'move': newX = initialBoxX + dxPercent; newY = initialBoxY + dyPercent; break;
-            case 'resize_br': newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight + dyPercent; break;
-            case 'resize_bl': newX = initialBoxX + dxPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight + dyPercent; break;
-            case 'resize_tr': newY = initialBoxY + dyPercent; newWidth = initialBoxWidth + dxPercent; newHeight = initialBoxHeight - dyPercent; break;
-            case 'resize_tl': newX = initialBoxX + dyPercent; newY = initialBoxY + dyPercent; newWidth = initialBoxWidth - dxPercent; newHeight = initialBoxHeight - dyPercent; break;
+        if (type === 'move') {
+            newX = currentXPercent - startX;
+            newY = currentYPercent - startY;
+        } else {
+            const rightEdge = initialBoxX + initialBoxWidth;
+            const bottomEdge = initialBoxY + initialBoxHeight;
+            if (type.includes('r')) newWidth = currentXPercent - newX;
+            if (type.includes('l')) {
+                newWidth = rightEdge - currentXPercent;
+                newX = currentXPercent;
+            }
+            if (type.includes('b')) newHeight = currentYPercent - newY;
+            if (type.includes('t')) {
+                newHeight = bottomEdge - currentYPercent;
+                newY = currentYPercent;
+            }
         }
 
         newWidth = Math.max(MIN_BOX_SIZE_PERCENT, newWidth);
@@ -755,44 +774,41 @@ function ProductOptionsPage() {
         newX = Math.max(0, Math.min(newX, 100 - newWidth));
         newY = Math.max(0, Math.min(newY, 100 - newHeight));
     
-        boxEl.style.left = `${imageRect.x + (imageRect.width * newX / 100)}px`;
-        boxEl.style.top = `${imageRect.y + (imageRect.height * newY / 100)}px`;
-        boxEl.style.width = `${imageRect.width * newWidth / 100}px`;
-        boxEl.style.height = `${imageRect.height * newHeight / 100}px`;
+        boxEl.style.left = `${newX}%`;
+        boxEl.style.top = `${newY}%`;
+        boxEl.style.width = `${newWidth}%`;
+        boxEl.style.height = `${newHeight}%`;
     }, [imageRect]);
     
     const handleInteractionEnd = useCallback(() => {
-        if (!activeDragRef.current || !imageRect) return;
+        if (!activeDragRef.current) return;
         
         const { boxId } = activeDragRef.current;
-        
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
-        const finalRect = boxEl?.getBoundingClientRect();
+        if (!boxEl) return;
         
-        if (finalRect && imageRect.width > 0 && imageRect.height > 0) {
-            const finalXPercent = ((finalRect.left - imageRect.left) / imageRect.width) * 100;
-            const finalYPercent = ((finalRect.top - imageRect.top) / imageRect.height) * 100;
-            const finalWidthPercent = (finalRect.width / imageRect.width) * 100;
-            const finalHeightPercent = (finalRect.height / imageRect.height) * 100;
+        const newX = parseFloat(boxEl.style.left);
+        const newY = parseFloat(boxEl.style.top);
+        const newWidth = parseFloat(boxEl.style.width);
+        const newHeight = parseFloat(boxEl.style.height);
 
-            setHasUnsavedChanges(true);
-            setEditorViews(currentViews => currentViews.map(view => {
-                if (view.id !== activeViewIdInEditor) return view;
-                return {
-                    ...view,
-                    boundaryBoxes: view.boundaryBoxes.map(box => 
-                        box.id === boxId ? { ...box, x: finalXPercent, y: finalYPercent, width: finalWidthPercent, height: finalHeightPercent } : box
-                    ),
-                };
-            }));
-        }
+        setHasUnsavedChanges(true);
+        setEditorViews(currentViews => currentViews.map(view => {
+            if (view.id !== activeViewIdInEditor) return view;
+            return {
+                ...view,
+                boundaryBoxes: view.boundaryBoxes.map(box => 
+                    box.id === boxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+                ),
+            };
+        }));
         
         activeDragRef.current = null;
         document.removeEventListener('mousemove', handleInteractionMove);
         document.removeEventListener('touchmove', handleInteractionMove);
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
-    }, [activeViewIdInEditor, imageRect, handleInteractionMove]);
+    }, [activeViewIdInEditor, handleInteractionMove]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -811,13 +827,13 @@ function ProductOptionsPage() {
         if (containerAspectRatio > imageAspectRatio) {
             height = containerRect.height;
             width = height * imageAspectRatio;
-            x = (containerRect.width - width) / 2;
-            y = 0;
+            x = (containerRect.width - width) / 2 + containerRect.left;
+            y = containerRect.top;
         } else {
             width = containerRect.width;
             height = width / imageAspectRatio;
-            x = 0;
-            y = (containerRect.height - height) / 2;
+            x = containerRect.left;
+            y = (containerRect.height - height) / 2 + containerRect.top;
         }
         setImageRect(new DOMRect(x, y, width, height));
       };
@@ -1146,32 +1162,29 @@ function ProductOptionsPage() {
                       <CardContent className="flex-1 grid md:grid-cols-2 gap-6 overflow-y-auto min-h-0">
                         <div ref={imageWrapperRef} className="relative w-full aspect-square border rounded-md overflow-hidden group bg-muted/20 select-none">
                            {currentViewInEditor?.imageUrl ? (<img key={currentViewInEditor.imageUrl} ref={imageRef} src={currentViewInEditor.imageUrl} alt={currentViewInEditor.name || 'Product View'} className="object-contain pointer-events-none w-full h-full" crossOrigin="anonymous"/>) : (<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><LayersIcon className="w-16 h-16 text-muted-foreground" /><p className="text-sm text-muted-foreground mt-2 text-center">No view selected or image missing.</p></div>)}
-                           {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box, index) => (
+                           {imageRect && (currentViewInEditor?.boundaryBoxes || []).map((box) => (
                              <div
-                                key={`box-key-${box.id}-${index}`}
-                                id={`boundary-box-${box.id}`}
+                                key={box.id}
                                 className={cn("absolute transition-colors duration-100 ease-in-out group/box", 
                                     selectedBoundaryBoxId === box.id ? 'border-primary ring-2 ring-primary ring-offset-1 bg-primary/10' : 'border-2 border-dashed border-accent/70 hover:border-primary hover:bg-primary/10'
                                 )} 
                                 style={{ 
-                                    left: `${imageRect.x + (imageRect.width * box.x / 100)}px`,
-                                    top: `${imageRect.y + (imageRect.height * box.y / 100)}px`,
-                                    width: `${imageRect.width * box.width / 100}px`,
-                                    height: `${imageRect.height * box.height / 100}px`,
-                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1
+                                    left: `${box.x}%`,
+                                    top: `${box.y}%`,
+                                    width: `${box.width}%`,
+                                    height: `${box.height}%`,
+                                    zIndex: selectedBoundaryBoxId === box.id ? 10 : 1,
+                                    transform: 'translate(-50%, -50%)',
+                                }}
+                                onMouseDown={(e) => {
+                                  setSelectedBoundaryBoxId(box.id);
+                                  handleInteractionStart(e, box, 'move');
+                                }}
+                                onTouchStart={(e) => {
+                                  setSelectedBoundaryBoxId(box.id);
+                                  handleInteractionStart(e, box, 'move');
                                 }}
                               >
-                                <div 
-                                    className="absolute inset-0 cursor-grab"
-                                    onMouseDown={(e) => {
-                                      setSelectedBoundaryBoxId(box.id);
-                                      handleInteractionStart(e, box, 'move');
-                                    }}
-                                    onTouchStart={(e) => {
-                                      setSelectedBoundaryBoxId(box.id);
-                                      handleInteractionStart(e, box, 'move');
-                                    }}
-                                ></div>
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
                                     <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
@@ -1303,7 +1316,5 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
-
 
     
