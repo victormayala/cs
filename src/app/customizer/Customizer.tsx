@@ -141,7 +141,7 @@ async function loadProductOptionsFromFirestore(
 ): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userIdForOptions || !productId || !db) {
     const message = 'User/Config ID, Product ID, or DB service is missing for loading options.';
-    console.warn(`loadProductOptionsFromFirestore: ${message}`);
+    console.warn(`loadProductOptionsFromFirestore: ${'${message}'}`);
     return { error: message };
   }
   const firestoreDocId = productId.split('/').pop() || productId;
@@ -153,11 +153,11 @@ async function loadProductOptionsFromFirestore(
     }
     return { options: undefined }; 
   } catch (error: any) {
-    let detailedError = `Failed to load options from cloud: ${'error.message'}`;
+    let detailedError = `Failed to load options from cloud: ${'${'error.message'}'}`;
     if (error.code === 'permission-denied' || error.message?.includes('Missing or insufficient permissions')) {
         detailedError += " This is likely a Firestore security rule issue. Ensure public read access is configured for userProductOptions/{configUserId}/products/{productId} if using configUserId, or that the current user has permission.";
     }
-    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${userIdForOptions}, product ${firestoreDocId}:`, error);
+    console.error(`loadProductOptionsFromFirestore: Error loading product options from Firestore for user/config ${'${userIdForOptions}'}, product ${'${firestoreDocId}'}:`, error);
     return { error: detailedError };
   }
 }
@@ -174,13 +174,13 @@ async function proxyImageUrl(url: string): Promise<string> {
       body: JSON.stringify({ url }),
     });
     if (!response.ok) {
-      console.error(`Proxy failed for ${url}. Status: ${response.status}`);
+      console.error(`Proxy failed for ${'${url}'}. Status: ${'${response.status}'}`);
       return url; // Fallback to original URL on error
     }
     const { dataUrl } = await response.json();
     return dataUrl;
   } catch (error) {
-    console.error(`Error proxying image URL ${url}:`, error);
+    console.error(`Error proxying image URL ${'${url}'}:`, error);
     return url; // Fallback to original URL on error
   }
 }
@@ -373,10 +373,10 @@ export function Customizer() {
               }
           } else { // 'customizer-studio'
               if (!userIdForFirestoreOptions) throw new Error("User credentials required for native product.");
-              const productDocRef = doc(db, `users/${userIdForFirestoreOptions}/products`, productIdFromUrl);
+              const productDocRef = doc(db, `users/${'${userIdForFirestoreOptions}'}/products`, productIdFromUrl);
               const productDocSnap = await getDoc(productDocRef);
               if (!productDocSnap.exists()) {
-                throw new Error(`Failed to fetch product ${productIdFromUrl}. Status: 404.`);
+                throw new Error(`Failed to fetch product ${'${productIdFromUrl}'}. Status: 404.`);
               }
               const nativeProduct = productDocSnap.data() as NativeProduct;
               baseProductDetails = {
@@ -397,7 +397,7 @@ export function Customizer() {
           
           const finalAllowCustomization = firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
           if (!finalAllowCustomization) {
-              setError(`Customization for product "${baseProductDetails.name}" is disabled.`);
+              setError(`Customization for product "${'${baseProductDetails.name}'}" is disabled.`);
               setProductDetails({ ...baseProductDetails, views: [], allowCustomization: false, meta: metaForProduct });
               setIsLoading(false);
               return;
@@ -407,7 +407,7 @@ export function Customizer() {
           if (finalDefaultViews.length === 0) {
               const defaultImageUrl = 'https://placehold.co/700x700.png';
               finalDefaultViews = [{
-                  id: `default_view_${baseProductDetails.id}`, name: "Front View",
+                  id: `default_view_${'${baseProductDetails.id}'}`, name: "Front View",
                   imageUrl: defaultImageUrl,
                   aiHint: defaultFallbackProduct.views[0].aiHint,
                   boundaryBoxes: defaultFallbackProduct.views[0].boundaryBoxes,
@@ -494,7 +494,7 @@ export function Customizer() {
           }
 
           if (editCartItemId && userIdForFirestoreOptions) {
-              const cartKey = `cs_cart_${userIdForFirestoreOptions}`;
+              const cartKey = `cs_cart_${'${userIdForFirestoreOptions}'}`;
               try {
                   const cartData = JSON.parse(localStorage.getItem(cartKey) || '[]');
                   const itemToEdit = cartData.find((item: any) => item.id === editCartItemId);
@@ -570,7 +570,7 @@ export function Customizer() {
         finalViews = await processAndProxyViews(colorSpecificViews);
       } else if (matchingWcVariation?.image?.src) {
         finalViews = [{
-          id: `wc_variation_view_${matchingWcVariation.id}`,
+          id: `wc_variation_view_${'${matchingWcVariation.id}'}`,
           name: matchingWcVariation.attributes.map(a => a.option).join(' '),
           imageUrl: await proxyImageUrl(matchingWcVariation.image.src),
           aiHint: matchingWcVariation.image.alt || 'product variation',
@@ -580,7 +580,7 @@ export function Customizer() {
       } else {
         const baseViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
           id,
-          name: productDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
+          name: productDetails.views.find(v => v.id === id)?.name || `View ${'${index + 1}'}`,
           imageUrl: base.url, // Already proxied
           aiHint: base.aiHint,
           price: productDetails.views.find(v => v.id === id)?.price,
@@ -634,8 +634,8 @@ useEffect(() => {
     // Original width in pixels
     const baseWidth = stageDimensions.width * box.width / 100;
 
-    // New width (1.02 = 2% wider)
-    const calculatedWidth = baseWidth * 1.02;
+    // New width (1.9% wider)
+    const calculatedWidth = baseWidth * 1.019;
 
     // Shift X so it expands evenly left + right
     const extraWidth = calculatedWidth - baseWidth;
@@ -777,7 +777,7 @@ useEffect(() => {
                       itemWidth = node.width() * node.scaleX();
                       itemHeight = node.height() * node.scaleY();
                   } else {
-                      throw new Error(`Canvas node with id #${item.id} not found.`);
+                      throw new Error(`Canvas node with id #${'${item.id}'} not found.`);
                   }
               }
               
@@ -808,12 +808,12 @@ useEffect(() => {
 
             if (!response.ok) {
                 const errorResult = await response.json();
-                throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
+                throw new Error(errorResult.details || `Preview generation failed for view "${'${view.name}'}".`);
             }
             
             const result = await response.json();
             
-            const sRef = storageRef(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
+            const sRef = storageRef(storage, `previews/${'${user?.uid || 'anonymous'}'}/${'${Date.now()}'}_${'${view.name.replace(/\\s+/g, '_')}'}.png`);
             const uploadStringResult = await uploadString(sRef, result.compositeImageUrl, 'data_url');
             const downloadURL = await getDownloadURL(uploadStringResult.ref);
 
@@ -858,7 +858,7 @@ useEffect(() => {
           }
         };
 
-        const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+        const cartKey = `cs_cart_${'${storeIdFromUrl || user?.uid}'}`;
         let cartData = [];
         const storedCart = localStorage.getItem(cartKey);
         if (storedCart) {
@@ -871,9 +871,9 @@ useEffect(() => {
           cartData.push(newCartItem);
         }
         localStorage.setItem(cartKey, JSON.stringify(cartData));
-        toast({ title: "Success!", description: `${productDetails.name} has been added to your cart.` });
+        toast({ title: "Success!", description: `${'${productDetails.name}'} has been added to your cart.` });
         if (storeIdFromUrl) {
-          router.push(`/store/${storeIdFromUrl}/cart`);
+          router.push(`/store/${'${storeIdFromUrl}'}/cart`);
         }
 
     } catch (err: any) {
@@ -907,7 +907,7 @@ useEffect(() => {
             <p className="text-muted-foreground text-center mb-6">This product has no views configured. Please add a view in the product options.</p>
             {!isEmbedded && user && (
               <Button variant="outline" asChild>
-                  <Link href={`/dashboard/products/${productIdFromUrl}/options?source=${sourceFromUrl}`}>
+                  <Link href={`/dashboard/products/${'${productIdFromUrl}'}/options?source=${'${sourceFromUrl}'}`}>
                       <SettingsIcon className="mr-2 h-4 w-4" /> Go to Product Options
                   </Link>
               </Button>
@@ -928,7 +928,7 @@ useEffect(() => {
           </p>
           {!isEmbedded && user && (
             <Button variant="outline" asChild>
-              <Link href={`/dashboard/products/${productDetails.id}/options?source=${productDetails.meta?.source}`}>
+              <Link href={`/dashboard/products/${'${productDetails.id}'}/options?source=${'${productDetails.meta?.source}'}`}>
                 <SettingsIcon className="mr-2 h-4 w-4" /> Go to Product Options
               </Link>
             </Button>
@@ -946,7 +946,7 @@ useEffect(() => {
   const currentProductName = productDetails?.name || defaultFallbackProduct.name;
   const isNativeStoreContext = sourceFromUrl === 'customizer-studio';
   const pdpLink = isNativeStoreContext && storeIdFromUrl && productIdFromUrl
-    ? `/store/${storeIdFromUrl}/shop/${productIdFromUrl}`
+    ? `/store/${'${storeIdFromUrl}'}/shop/${'${productIdFromUrl}'}`
     : `/dashboard`;
 
   if (error && !productDetails) { 
@@ -1031,7 +1031,7 @@ useEffect(() => {
               <div className="text-lg font-semibold text-foreground hidden sm:block">Total: ${totalCustomizationPrice.toFixed(2)}</div>
               {isNativeStoreContext && storeIdFromUrl && (
                   <Button variant="outline" size="sm" asChild>
-                  <Link href={`/store/${storeIdFromUrl}/cart`}>
+                  <Link href={`/store/${'${storeIdFromUrl}'}/cart`}>
                       <ShoppingCart className="mr-0 sm:mr-2 h-5 w-5" />
                       <span className="hidden sm:inline">View Cart</span>
                   </Link>
@@ -1055,3 +1055,4 @@ useEffect(() => {
     </div>
   );
 }
+
