@@ -836,7 +836,7 @@ function ProductOptionsPage() {
             image.removeEventListener('load', calculateRect);
         }
       }
-    }, [isViewEditorOpen, activeViewIdInEditor, editorViews]);
+    }, [isViewEditorOpen, activeViewIdInEditor, editorViews, selectedBoundaryBoxId]);
 
 
       const categoryTree = useMemo(() => {
