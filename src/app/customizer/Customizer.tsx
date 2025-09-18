@@ -614,27 +614,43 @@ export function Customizer() {
     loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails
 ]);
 
-  // Recalculate pixel boundaries when activeView or stageDimensions change
-  useEffect(() => {
-    if (!stageDimensions || !productDetails || !activeViewId) {
-      setPixelBoundaryBoxes([]);
-      return;
-    }
+  // This `useEffect` hook recalculates the pixel boundaries whenever the active view or stage dimensions change.
+useEffect(() => {
+  // 1. Check if we have the necessary data to perform calculations.
+  if (!stageDimensions || !productDetails || !activeViewId) {
+    setPixelBoundaryBoxes([]); // If not, clear any existing boxes.
+    return;
+  }
 
-    const currentView = productDetails.views.find(v => v.id === activeViewId);
-    if (!currentView || !currentView.boundaryBoxes) {
-      setPixelBoundaryBoxes([]);
-      return;
-    }
+  // 2. Find the currently active view from the product details.
+  const currentView = productDetails.views.find(v => v.id === activeViewId);
+  if (!currentView || !currentView.boundaryBoxes) {
+    setPixelBoundaryBoxes([]); // If the view has no boxes, clear any existing ones.
+    return;
+  }
 
-    const newPixelBoxes = currentView.boundaryBoxes.map(box => ({
-      x: stageDimensions.x + (stageDimensions.width * box.x / 100),
+  // 3. THE CALCULATION LOGIC:
+  const newPixelBoxes = currentView.boundaryBoxes.map(box => {
+    // Original width in pixels
+    const baseWidth = stageDimensions.width * box.width / 100;
+
+    // New width (30% wider)
+    const calculatedWidth = baseWidth * 1.3;
+
+    // Shift X so it expands evenly left + right
+    const extraWidth = calculatedWidth - baseWidth;
+    const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+
+    return {
+      x: calculatedX,
       y: stageDimensions.y + (stageDimensions.height * box.y / 100),
-      width: stageDimensions.width * box.width / 100,
+      width: calculatedWidth,
       height: stageDimensions.height * box.height / 100,
-    }));
-    setPixelBoundaryBoxes(newPixelBoxes);
-  }, [activeViewId, productDetails, stageDimensions]);
+    };
+  });
+
+  setPixelBoundaryBoxes(newPixelBoxes);
+}, [activeViewId, productDetails, stageDimensions]);
 
 
   useEffect(() => {
