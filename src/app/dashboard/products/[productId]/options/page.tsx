@@ -162,7 +162,7 @@ function ProductOptionsPage() {
   const imageWrapperRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageRect, setImageRect] = useState<DOMRect | null>(null);
-  type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; pointerStartX: number; pointerStartY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; };
+  type ActiveDragState = { type: 'move' | 'resize_br' | 'resize_bl' | 'resize_tr' | 'resize_tl'; boxId: string; initialMouseX: number; initialMouseY: number; initialBoxX: number; initialBoxY: number; initialBoxWidth: number; initialBoxHeight: number; };
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -709,8 +709,8 @@ function ProductOptionsPage() {
         activeDragRef.current = {
             type: interactionType,
             boxId: box.id,
-            pointerStartX: coords.x,
-            pointerStartY: coords.y,
+            initialMouseX: coords.x,
+            initialMouseY: coords.y,
             initialBoxX: box.x,
             initialBoxY: box.y,
             initialBoxWidth: box.width,
@@ -728,15 +728,15 @@ function ProductOptionsPage() {
         
         e.preventDefault();
         
-        const { type, boxId, pointerStartX, pointerStartY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
+        const { type, boxId, initialMouseX, initialMouseY, initialBoxX, initialBoxY, initialBoxWidth, initialBoxHeight } = activeDragRef.current;
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         if (!boxEl) return;
         
         const coords = getMouseOrTouchCoords(e);
         if (imageRect.width === 0 || imageRect.height === 0) return;
         
-        const dx = coords.x - pointerStartX;
-        const dy = coords.y - pointerStartY;
+        const dx = coords.x - initialMouseX;
+        const dy = coords.y - initialMouseY;
         const dxPercent = (dx / imageRect.width) * 100;
         const dyPercent = (dy / imageRect.height) * 100;
         
@@ -768,11 +768,10 @@ function ProductOptionsPage() {
         
         const boxEl = document.getElementById(`boundary-box-${boxId}`);
         const finalRect = boxEl?.getBoundingClientRect();
-        const containerRect = imageWrapperRef.current?.getBoundingClientRect();
         
-        if (finalRect && containerRect && imageRect.width > 0 && imageRect.height > 0) {
-            const finalXPercent = ((finalRect.left - containerRect.left) / imageRect.width) * 100;
-            const finalYPercent = ((finalRect.top - containerRect.top) / imageRect.height) * 100;
+        if (finalRect && imageRect.width > 0 && imageRect.height > 0) {
+            const finalXPercent = ((finalRect.left - imageRect.left) / imageRect.width) * 100;
+            const finalYPercent = ((finalRect.top - imageRect.top) / imageRect.height) * 100;
             const finalWidthPercent = (finalRect.width / imageRect.width) * 100;
             const finalHeightPercent = (finalRect.height / imageRect.height) * 100;
 
@@ -840,7 +839,7 @@ function ProductOptionsPage() {
             image.removeEventListener('load', calculateRect);
         }
       }
-    }, [isViewEditorOpen, activeViewIdInEditor, editorViews, selectedBoundaryBoxId]);
+    }, [isViewEditorOpen, activeViewIdInEditor, editorViews]);
 
 
       const categoryTree = useMemo(() => {
@@ -1165,12 +1164,10 @@ function ProductOptionsPage() {
                                 <div 
                                     className="absolute inset-0 cursor-grab"
                                     onMouseDown={(e) => {
-                                      e.stopPropagation(); 
                                       setSelectedBoundaryBoxId(box.id);
                                       handleInteractionStart(e, box, 'move');
                                     }}
                                     onTouchStart={(e) => {
-                                      e.stopPropagation();
                                       setSelectedBoundaryBoxId(box.id);
                                       handleInteractionStart(e, box, 'move');
                                     }}
@@ -1306,6 +1303,7 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
 
 
     
