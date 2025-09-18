@@ -14,7 +14,7 @@ import { ArrowLeft, RefreshCcw, ExternalLink, Loader2, AlertTriangle, LayersIcon
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { fetchWooCommerceProductById } from '@/app/actions/woocommerceActions';
 import type { WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
