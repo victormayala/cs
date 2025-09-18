@@ -80,6 +80,29 @@ interface ProductOptionsData {
 const MAX_PRODUCT_VIEWS = 5;
 const MIN_BOX_SIZE_PERCENT = 5;
 
+// Function to proxy image URL and get a data URI
+async function proxyImageUrl(url: string): Promise<string> {
+  if (!url || url.startsWith('data:')) {
+    return url;
+  }
+  try {
+    const response = await fetch('/api/proxy-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!response.ok) {
+      console.error(`Proxy failed for ${url}. Status: ${response.status}`);
+      return url; // Fallback to original URL on error
+    }
+    const { dataUrl } = await response.json();
+    return dataUrl;
+  } catch (error) {
+    console.error(`Error proxying image URL ${url}:`, error);
+    return url; // Fallback to original URL on error
+  }
+}
+
 async function loadProductOptionsFromFirestoreClient(userId: string, productId: string): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userId || !productId || !db) {
     return { error: "User, Product ID, or DB service is missing." };
@@ -551,15 +574,22 @@ function ProductOptionsPage() {
         else { setProductOptions({ ...productOptions, [field]: numValue }); }
     };
     
-    const handleOpenViewEditor = useCallback((color: string) => {
+    const handleOpenViewEditor = useCallback(async (color: string) => {
       if (!productOptions) return;
       setActiveEditingColor(color);
-      const initialViews = (productOptions.optionsByColor[color]?.views || productOptions.defaultViews).map(v => ({
+      
+      const viewsToProcess = productOptions.optionsByColor[color]?.views || productOptions.defaultViews;
+      
+      const proxiedViews = await Promise.all(
+        viewsToProcess.map(async (v) => ({
           ...v,
+          imageUrl: await proxyImageUrl(v.imageUrl),
           boundaryBoxes: v.boundaryBoxes || [] 
-      }));
-      setEditorViews(initialViews);
-      setActiveViewIdInEditor(initialViews[0]?.id || null);
+        }))
+      );
+      
+      setEditorViews(proxiedViews);
+      setActiveViewIdInEditor(proxiedViews[0]?.id || null);
       setIsViewEditorOpen(true);
     }, [productOptions]);
 
@@ -763,10 +793,10 @@ function ProductOptionsPage() {
 
     useEffect(() => {
       const container = imageWrapperRef.current;
-      const image = imageRef.current;
       if (!isViewEditorOpen || !container) return;
 
       const calculateRect = () => {
+        const image = imageRef.current;
         if (!container || !image?.complete || image.naturalWidth === 0) return;
 
         const containerRect = container.getBoundingClientRect();
@@ -792,6 +822,7 @@ function ProductOptionsPage() {
       const observer = new ResizeObserver(calculateRect);
       observer.observe(container);
 
+      const image = imageRef.current;
       if (image) {
         image.addEventListener('load', calculateRect);
         if (image.complete) {
@@ -805,7 +836,7 @@ function ProductOptionsPage() {
             image.removeEventListener('load', calculateRect);
         }
       }
-    }, [isViewEditorOpen]);
+    }, [isViewEditorOpen, activeViewIdInEditor, editorViews]);
 
 
       const categoryTree = useMemo(() => {
@@ -865,7 +896,7 @@ function ProductOptionsPage() {
         </div>
     );
 
-    const isPriceDisabled = productOptions.source === 'customizer-studio' && productOptions.type === 'variable';
+    const isPriceDisabled = productOptions.type === 'variable' && productOptions.source === 'customizer-studio';
     const currentViewInEditor = editorViews.find(v => v.id === activeViewIdInEditor);
     const defaultProductImage = productOptions.defaultViews[0]?.imageUrl || 'https://placehold.co/600x600/eee/ccc?text=Default';
     const defaultProductViewId = productOptions.defaultViews[0]?.id || 'default_plp_view';
@@ -980,6 +1011,7 @@ function ProductOptionsPage() {
                                           sizes="(max-width: 768px) 10vw, 5vw"
                                           data-ai-hint="product photo"
                                           className="object-contain"
+                                          key={defaultProductImage}
                                         />
                                     </div>
                                     <div className="flex-grow">
@@ -1181,6 +1213,7 @@ function ProductOptionsPage() {
                                                   sizes="(max-width: 768px) 10vw, 5vw"
                                                   data-ai-hint={view.aiHint || "product view"}
                                                   className="object-contain"
+                                                  key={view.imageUrl}
                                                 />
                                             </div>
                                             <div className="flex-grow space-y-2">
