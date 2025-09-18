@@ -706,37 +706,6 @@ function ProductOptionsPage() {
         return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
     };
 
-    const handleInteractionStart = useCallback((
-        e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-        box: BoundaryBox,
-        interactionType: ActiveDragState['type']
-    ) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (!imageRect) return;
-        
-        const coords = getMouseOrTouchCoords(e);
-        const startX = (coords.x - imageRect.left) / imageRect.width * 100;
-        const startY = (coords.y - imageRect.top) / imageRect.height * 100;
-
-        activeDragRef.current = {
-            type: interactionType,
-            boxId: box.id,
-            startX: startX - box.x,
-            startY: startY - box.y,
-            initialBoxX: box.x,
-            initialBoxY: box.y,
-            initialBoxWidth: box.width,
-            initialBoxHeight: box.height,
-        };
-        
-        document.addEventListener('mousemove', handleInteractionMove);
-        document.addEventListener('touchmove', handleInteractionMove, { passive: false });
-        document.addEventListener('mouseup', handleInteractionEnd);
-        document.addEventListener('touchend', handleInteractionEnd);
-    }, [imageRect]);
-    
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
         if (!activeDragRef.current || !imageRect) return;
         e.preventDefault();
@@ -809,6 +778,37 @@ function ProductOptionsPage() {
         document.removeEventListener('mouseup', handleInteractionEnd);
         document.removeEventListener('touchend', handleInteractionEnd);
     }, [activeViewIdInEditor, handleInteractionMove]);
+    
+    const handleInteractionStart = useCallback((
+        e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
+        box: BoundaryBox,
+        interactionType: ActiveDragState['type']
+    ) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!imageRect) return;
+        
+        const coords = getMouseOrTouchCoords(e);
+        const startX = (coords.x - imageRect.left) / imageRect.width * 100;
+        const startY = (coords.y - imageRect.top) / imageRect.height * 100;
+
+        activeDragRef.current = {
+            type: interactionType,
+            boxId: box.id,
+            startX: startX - box.x,
+            startY: startY - box.y,
+            initialBoxX: box.x,
+            initialBoxY: box.y,
+            initialBoxWidth: box.width,
+            initialBoxHeight: box.height,
+        };
+        
+        document.addEventListener('mousemove', handleInteractionMove);
+        document.addEventListener('touchmove', handleInteractionMove, { passive: false });
+        document.addEventListener('mouseup', handleInteractionEnd);
+        document.addEventListener('touchend', handleInteractionEnd);
+    }, [imageRect, handleInteractionMove, handleInteractionEnd]);
 
     useEffect(() => {
       const container = imageWrapperRef.current;
@@ -1174,17 +1174,19 @@ function ProductOptionsPage() {
                                     width: `${box.width}%`,
                                     height: `${box.height}%`,
                                     zIndex: selectedBoundaryBoxId === box.id ? 10 : 1,
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                                onMouseDown={(e) => {
-                                  setSelectedBoundaryBoxId(box.id);
-                                  handleInteractionStart(e, box, 'move');
-                                }}
-                                onTouchStart={(e) => {
-                                  setSelectedBoundaryBoxId(box.id);
-                                  handleInteractionStart(e, box, 'move');
                                 }}
                               >
+                               <div
+                                 className="absolute inset-0 cursor-move"
+                                 onMouseDown={(e) => {
+                                   setSelectedBoundaryBoxId(box.id);
+                                   handleInteractionStart(e, box, 'move');
+                                 }}
+                                 onTouchStart={(e) => {
+                                   setSelectedBoundaryBoxId(box.id);
+                                   handleInteractionStart(e, box, 'move');
+                                 }}
+                                />
                                 {selectedBoundaryBoxId === box.id && (
                                   <>
                                     <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
@@ -1317,4 +1319,3 @@ export default function ProductOptions() {
   );
 }
 
-    
