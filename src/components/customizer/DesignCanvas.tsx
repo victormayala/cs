@@ -8,6 +8,8 @@ import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { IRect } from 'konva/lib/types';
+
 
 // --- Inner Canvas Components ---
 
@@ -203,9 +205,11 @@ interface DesignCanvasProps {
   activeView: ProductView;
   showGrid: boolean;
   showBoundaryBoxes: boolean;
+  onStageRectChange: (rect: { width: number; height: number; x: number; y: number }) => void;
+  pixelBoundaryBoxes: IRect[];
 }
 
-export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }: DesignCanvasProps) {
+export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, onStageRectChange, pixelBoundaryBoxes }: DesignCanvasProps) {
     const {
         canvasImages, selectedCanvasImageId, selectCanvasImage, updateCanvasImage,
         canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText,
@@ -220,8 +224,6 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
     const [imageRect, setImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [isImageLoading, setIsImageLoading] = useState(true);
 
-    const { boundaryBoxes } = activeView;
-    
     useEffect(() => {
         const container = containerRef.current;
         const image = imageRef.current;
@@ -253,7 +255,9 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 y = (containerRect.height - renderHeight) / 2;
             }
             
-            setImageRect({ width: renderWidth, height: renderHeight, x, y });
+            const newRect = { width: renderWidth, height: renderHeight, x, y };
+            setImageRect(newRect);
+            onStageRectChange(newRect);
         };
         
         const resizeObserver = new ResizeObserver(calculateRect);
@@ -273,33 +277,38 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
           resizeObserver.disconnect();
           image.removeEventListener('load', handleImageLoad);
         };
-    }, [activeView.imageUrl]);
+    }, [activeView.imageUrl, onStageRectChange]);
 
 
     const dragBoundFunc = useMemo(() => {
-        const unionBox = boundaryBoxes.reduce((acc, box) => ({
-            x1: Math.min(acc.x1, box.x),
-            y1: Math.min(acc.y1, box.y),
-            x2: Math.max(acc.x2, box.x + box.width),
-            y2: Math.max(acc.y2, box.y + box.height),
-        }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-
-        const minX = imageRect.width * (unionBox.x1 / 100);
-        const maxX = imageRect.width * (unionBox.x2 / 100);
-        const minY = imageRect.height * (unionBox.y1 / 100);
-        const maxY = imageRect.height * (unionBox.y2 / 100);
-
+        if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0) {
+          // No boundaries defined, allow free dragging within the canvas
+          return function(this: Konva.Node, pos: { x: number; y: number }) {
+            return pos;
+          };
+        }
+    
+        // Calculate the union of all boundary boxes
+        const unionBox = pixelBoundaryBoxes.reduce((acc, box) => {
+          return {
+            minX: Math.min(acc.minX, box.x),
+            minY: Math.min(acc.minY, box.y),
+            maxX: Math.max(acc.maxX, box.x + box.width),
+            maxY: Math.max(acc.maxY, box.y + box.height),
+          };
+        }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    
         return function(this: Konva.Node, pos: { x: number; y: number }) {
-            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-            const offsetX = selfRect.width / 2;
-            const offsetY = selfRect.height / 2;
-
-            return {
-                x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
-                y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
-            };
+          const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+          const offsetX = selfRect.width / 2;
+          const offsetY = selfRect.height / 2;
+    
+          return {
+            x: Math.max(unionBox.minX + offsetX, Math.min(pos.x, unionBox.maxX - offsetX)),
+            y: Math.max(unionBox.minY + offsetY, Math.min(pos.y, unionBox.maxY - offsetY)),
+          };
         };
-    }, [boundaryBoxes, imageRect]);
+      }, [pixelBoundaryBoxes]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -349,42 +358,36 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 crossOrigin="anonymous"
             />
             
-            <div 
-                className="absolute"
-                style={{
-                  top: `${imageRect.y}px`,
-                  left: `${imageRect.x}px`,
-                  width: `${imageRect.width}px`,
-                  height: `${imageRect.height}px`,
-                }}
-            >
+            <div className="absolute inset-0">
                 {showGrid && (
                     <div 
-                        className="absolute grid-pattern pointer-events-none w-full h-full" 
+                        className="absolute grid-pattern pointer-events-none" 
+                        style={{
+                            top: `${imageRect.y}px`,
+                            left: `${imageRect.x}px`,
+                            width: `${imageRect.width}px`,
+                            height: `${imageRect.height}px`,
+                        }}
                     />
                 )}
 
-                {showBoundaryBoxes && (
-                    <div className="absolute inset-0 pointer-events-none w-full h-full">
-                        {boundaryBoxes.map(box => (
-                            <div 
-                                key={box.id} 
-                                className="absolute border-2 border-dashed border-red-500" 
-                                style={{
-                                    left: `calc(${box.x}%)`,
-                                    top: `calc(${box.y}%)`,
-                                    width: `calc(${box.width}%)`,
-                                    height: `calc(${box.height}%)`,
-                                }} 
-                            />
-                        ))}
-                    </div>
-                )}
+                {showBoundaryBoxes && pixelBoundaryBoxes.map((box, index) => (
+                    <div 
+                        key={`box-${index}`} 
+                        className="absolute border-2 border-dashed border-red-500 pointer-events-none" 
+                        style={{
+                            left: `${box.x}px`,
+                            top: `${box.y}px`,
+                            width: `${box.width}px`,
+                            height: `${box.height}px`,
+                        }}
+                    />
+                ))}
 
                 <Stage
                     ref={stageRef}
-                    width={imageRect.width}
-                    height={imageRect.height}
+                    width={containerRef.current?.offsetWidth}
+                    height={containerRef.current?.offsetHeight}
                     className="absolute top-0 left-0"
                     onClick={handleStageClick}
                     onTap={handleStageClick}
@@ -426,5 +429,3 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
         </div>
     );
 }
-
-    

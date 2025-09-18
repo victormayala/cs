@@ -50,6 +50,8 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import AiAssistant from '@/components/customizer/AiAssistant';
 import RightPanel from '@/components/customizer/RightPanel';
+import type { IRect } from 'konva/lib/types';
+
 
 const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'), {
   ssr: false,
@@ -248,6 +250,10 @@ export function Customizer() {
   const lastLoadedProductIdRef = useRef<string | null | undefined>(undefined);
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
+
+  const [pixelBoundaryBoxes, setPixelBoundaryBoxes] = useState<IRect[]>([]);
+  const [stageDimensions, setStageDimensions] = useState<{ width: number, height: number, x: number, y: number } | null>(null);
+
 
   const handleViewChange = useCallback((newViewId: string) => {
     setActiveViewId(newViewId);
@@ -608,6 +614,28 @@ export function Customizer() {
     loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails
 ]);
 
+  // Recalculate pixel boundaries when activeView or stageDimensions change
+  useEffect(() => {
+    if (!stageDimensions || !productDetails || !activeViewId) {
+      setPixelBoundaryBoxes([]);
+      return;
+    }
+
+    const currentView = productDetails.views.find(v => v.id === activeViewId);
+    if (!currentView || !currentView.boundaryBoxes) {
+      setPixelBoundaryBoxes([]);
+      return;
+    }
+
+    const newPixelBoxes = currentView.boundaryBoxes.map(box => ({
+      x: stageDimensions.x + (stageDimensions.width * box.x / 100),
+      y: stageDimensions.y + (stageDimensions.height * box.y / 100),
+      width: stageDimensions.width * box.width / 100,
+      height: stageDimensions.height * box.height / 100,
+    }));
+    setPixelBoundaryBoxes(newPixelBoxes);
+  }, [activeViewId, productDetails, stageDimensions]);
+
 
   useEffect(() => {
     const usedViewIdsWithElements = new Set<string>();
@@ -657,7 +685,7 @@ export function Customizer() {
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
       case "ai-assistant": return <AiAssistant activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
@@ -940,7 +968,9 @@ export function Customizer() {
               <DesignCanvas 
                 activeView={activeView}
                 showGrid={showGrid} 
-                showBoundaryBoxes={showBoundaryBoxes} 
+                showBoundaryBoxes={showBoundaryBoxes}
+                onStageRectChange={setStageDimensions}
+                pixelBoundaryBoxes={pixelBoundaryBoxes}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
