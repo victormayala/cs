@@ -217,11 +217,10 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
 
-    const [overlayRect, setOverlayRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
+    const [imageRect, setImageRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
     const [isImageLoading, setIsImageLoading] = useState(true);
 
     const { boundaryBoxes } = activeView;
-    const [dragBounds, setDragBounds] = useState({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
     
     useEffect(() => {
         const container = containerRef.current;
@@ -254,26 +253,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
                 y = (containerRect.height - renderHeight) / 2;
             }
             
-            setOverlayRect({ width: renderWidth, height: renderHeight, x, y });
-
-            if (boundaryBoxes && boundaryBoxes.length > 0) {
-                const unionBox = boundaryBoxes.reduce((acc, box) => ({
-                    x1: Math.min(acc.x1, box.x),
-                    y1: Math.min(acc.y1, box.y),
-                    x2: Math.max(acc.x2, box.x + box.width),
-                    y2: Math.max(acc.y2, box.y + box.height),
-                }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
-
-                setDragBounds({
-                    minX: x + (unionBox.x1 / 100) * renderWidth,
-                    maxX: x + (unionBox.x2 / 100) * renderWidth, // <-- Corrected
-                    minY: y + (unionBox.y1 / 100) * renderHeight,
-                    maxY: y + (unionBox.y2 / 100) * renderHeight,
-                });
-            } else {
-                // If no boundary boxes, allow dragging anywhere on the image
-                setDragBounds({ minX: x, maxX: x + renderWidth, minY: y, maxY: y + renderHeight });
-            }
+            setImageRect({ width: renderWidth, height: renderHeight, x, y });
         };
         
         const resizeObserver = new ResizeObserver(calculateRect);
@@ -293,23 +273,33 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
           resizeObserver.disconnect();
           image.removeEventListener('load', handleImageLoad);
         };
-    }, [activeView.imageUrl, boundaryBoxes]);
+    }, [activeView.imageUrl]);
 
 
     const dragBoundFunc = useMemo(() => {
-      return function(this: Konva.Node, pos: { x: number; y: number }) {
-        const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-        const offsetX = selfRect.width / 2;
-        const offsetY = selfRect.height / 2;
+        const unionBox = boundaryBoxes.reduce((acc, box) => ({
+            x1: Math.min(acc.x1, box.x),
+            y1: Math.min(acc.y1, box.y),
+            x2: Math.max(acc.x2, box.x + box.width),
+            y2: Math.max(acc.y2, box.y + box.height),
+        }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity });
 
-        const { minX, maxX, minY, maxY } = dragBounds;
-        
-        return {
-            x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
-            y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
+        const minX = imageRect.width * (unionBox.x1 / 100);
+        const maxX = imageRect.width * (unionBox.x2 / 100);
+        const minY = imageRect.height * (unionBox.y1 / 100);
+        const maxY = imageRect.height * (unionBox.y2 / 100);
+
+        return function(this: Konva.Node, pos: { x: number; y: number }) {
+            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+            const offsetX = selfRect.width / 2;
+            const offsetY = selfRect.height / 2;
+
+            return {
+                x: Math.max(minX + offsetX, Math.min(pos.x, maxX - offsetX)),
+                y: Math.max(minY + offsetY, Math.min(pos.y, maxY - offsetY)),
+            };
         };
-      };
-    }, [dragBounds]);
+    }, [boundaryBoxes, imageRect]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
@@ -362,10 +352,10 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
             <div 
                 className="absolute"
                 style={{
-                  top: `${overlayRect.y}px`,
-                  left: `${overlayRect.x}px`,
-                  width: `${overlayRect.width}px`,
-                  height: `${overlayRect.height}px`,
+                  top: `${imageRect.y}px`,
+                  left: `${imageRect.x}px`,
+                  width: `${imageRect.width}px`,
+                  height: `${imageRect.height}px`,
                 }}
             >
                 {showGrid && (
@@ -376,27 +366,25 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
 
                 {showBoundaryBoxes && (
                     <div className="absolute inset-0 pointer-events-none w-full h-full">
-                        {boundaryBoxes.map(box => {
-                            return (
-                                <div 
-                                    key={box.id} 
-                                    className="absolute border-2 border-dashed border-red-500" 
-                                    style={{
-                                        left: `${box.x}%`,
-                                        top: `${box.y}%`,
-                                        width: `${box.width}%`,
-                                        height: `${box.height}%`,
-                                    }} 
-                                />
-                            );
-                        })}
+                        {boundaryBoxes.map(box => (
+                            <div 
+                                key={box.id} 
+                                className="absolute border-2 border-dashed border-red-500" 
+                                style={{
+                                    left: `calc(${box.x}%)`,
+                                    top: `calc(${box.y}%)`,
+                                    width: `calc(${box.width}%)`,
+                                    height: `calc(${box.height}%)`,
+                                }} 
+                            />
+                        ))}
                     </div>
                 )}
 
                 <Stage
                     ref={stageRef}
-                    width={overlayRect.width}
-                    height={overlayRect.height}
+                    width={imageRect.width}
+                    height={imageRect.height}
                     className="absolute top-0 left-0"
                     onClick={handleStageClick}
                     onTap={handleStageClick}
@@ -438,3 +426,5 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes }
         </div>
     );
 }
+
+    
