@@ -8,61 +8,99 @@
     @apply scroll-smooth;
   }
   :root {
-    --background: 200 33.3% 96.9%; /* Very light cyan - #E0F4F1 */
-    --foreground: 194 30% 25%; /* Darker cyan for text */
-    --card: 200 33.3% 99%;
-    --card-foreground: 194 30% 25%;
-    --popover: 200 33.3% 99%;
-    --popover-foreground: 194 30% 25%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --primary: 194 30.1% 41%; /* Moderate cyan - #468189 */
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 279 33.3% 50.6%; /* Muted violet for accents - #8A56AC */
-    --secondary-foreground: 0 0% 100%;
-    
-    --muted: 200 25% 90%;
-    --muted-foreground: 194 20% 40%;
-    
-    --accent: 279 33.3% 50.6%; /* Muted violet for accents - #8A56AC */
-    --accent-foreground: 0 0% 100%;
-    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    
-    --border: 200 20% 85%;
-    --input: 200 20% 88%;
-    --ring: 194 30.1% 41%; 
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
+
+    /* Custom Sidebar Colors */
+    --sidebar-background: 222.2 47.4% 11.2%; /* Same as primary */
+    --sidebar-foreground: 210 40% 98%; /* Same as primary-foreground */
+    --sidebar-primary: 210 40% 98%; /* e.g., White */
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%; /* e.g., Dark Blue */
+    --sidebar-accent: 210 40% 96.1%; /* A light gray, same as secondary */
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%; /* Dark blue text on light gray */
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 222.2 84% 4.9%;
+
+    /* Custom Chart Colors */
+    --chart-1: 222.2 47.4% 11.2%;
+    --chart-2: 210 40% 96.1%;
+    --chart-3: 215.4 16.3% 56.9%;
+    --chart-4: 215.4 16.3% 46.9%;
+    --chart-5: 215.4 16.3% 36.9%;
   }
 
   .dark {
-    --background: 194 30% 10%;
-    --foreground: 200 33.3% 96.9%;
-    --card: 194 30% 15%;
-    --card-foreground: 200 33.3% 96.9%;
-    --popover: 194 30% 12%;
-    --popover-foreground: 200 33.3% 96.9%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --primary: 194 30.1% 51%; /* Lighter cyan for dark mode */
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 279 33.3% 60.6%; /* Lighter violet for dark mode */
-    --secondary-foreground: 0 0% 100%;
-    
-    --muted: 194 20% 20%;
-    --muted-foreground: 200 25% 70%;
-    
-    --accent: 279 33.3% 60.6%;
-    --accent-foreground: 0 0% 100%;
-    
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 194 20% 25%;
-    --input: 194 20% 25%;
-    --ring: 194 30.1% 51%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 210 40% 98%;
+
+    /* Custom Sidebar Colors */
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 210 40% 98%;
+
+    /* Custom Chart Colors */
+    --chart-1: 210 40% 98%;
+    --chart-2: 217.2 32.6% 17.5%;
+    --chart-3: 215 20.2% 55.1%;
+    --chart-4: 215 20.2% 65.1%;
+    --chart-5: 215 20.2% 75.1%;
   }
 }
 

@@ -12,8 +12,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Roboto', ...defaultTheme.fontFamily.sans],
-        // headline and code families removed as their CSS variables are no longer set in layout.tsx
+        sans: ['var(--font-inter)', ...defaultTheme.fontFamily.sans],
+        headline: ['var(--font-space-grotesk)', ...defaultTheme.fontFamily.sans],
+        code: ['var(--font-source-code-pro)', ...defaultTheme.fontFamily.mono],
       },
       colors: {
         background: 'hsl(var(--background))',
