@@ -634,8 +634,8 @@ useEffect(() => {
     // Original width in pixels
     const baseWidth = stageDimensions.width * box.width / 100;
 
-    // New width (30% wider)
-    const calculatedWidth = baseWidth * 1.0;
+    // New width (20% wider)
+    const calculatedWidth = baseWidth * 1.2;
 
     // Shift X so it expands evenly left + right
     const extraWidth = calculatedWidth - baseWidth;
