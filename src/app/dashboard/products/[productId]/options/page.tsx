@@ -1029,6 +1029,7 @@ function ProductOptionsPage() {
                                           sizes="(max-width: 768px) 10vw, 5vw"
                                           data-ai-hint="product photo"
                                           key={defaultProductImage}
+                                          className="object-contain"
                                         />
                                     </div>
                                     <div className="flex-grow">
@@ -1235,6 +1236,7 @@ function ProductOptionsPage() {
                                                   sizes="(max-width: 768px) 10vw, 5vw"
                                                   data-ai-hint={view.aiHint || "product view"}
                                                   key={view.imageUrl}
+                                                  className="object-contain"
                                                 />
                                             </div>
                                             <div className="flex-grow space-y-2">
