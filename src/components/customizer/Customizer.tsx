@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
-import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
+import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredpixelBoundaryBoxesentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import type { ProductOptionsFirestoreData, NativeProductVariation, BoundaryBox } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';

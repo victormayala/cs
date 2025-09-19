@@ -17,7 +17,7 @@ import dynamic from 'next/dynamic';
 
 
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
-import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
+import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentials';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
   PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Ban, ArrowLeft
@@ -617,28 +617,36 @@ export function Customizer() {
   useEffect(() => {
     // 1. Check if we have the necessary data to perform calculations.
     if (!stageDimensions || !productDetails || !activeViewId) {
-      setPixelBoundaryBoxes([]); // If not, clear any existing boxes.
-      return;
+        setPixelBoundaryBoxes([]); // If not, clear any existing boxes.
+        return;
     }
 
     // 2. Find the currently active view from the product details.
     const currentView = productDetails.views.find(v => v.id === activeViewId);
     if (!currentView || !currentView.boundaryBoxes) {
-      setPixelBoundaryBoxes([]); // If the view has no boxes, clear any existing ones.
-      return;
+        setPixelBoundaryBoxes([]); // If the view has no boxes, clear any existing ones.
+        return;
     }
 
     // 3. THE CALCULATION LOGIC:
     const newPixelBoxes = currentView.boundaryBoxes.map(box => {
-      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100);
-      const calculatedWidth = stageDimensions.width * box.width / 100;
-  
-      return {
-        x: calculatedX,
-        y: stageDimensions.y + (stageDimensions.height * box.y / 100),
-        width: calculatedWidth,
-        height: stageDimensions.height * box.height / 100,
-      };
+        // Original width in pixels
+        const baseWidth = stageDimensions.width * box.width / 100;
+
+        // New width (60% wider)
+        const calculatedWidth = baseWidth * 1.6;
+
+        // Shift X so it expands evenly left + right
+        const extraWidth = calculatedWidth - baseWidth;
+        const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+
+        return {
+            x: calculatedX,
+            y: stageDimensions.y + (stageDimensions.height * box.y / 100),
+            width: calculatedWidth,
+            height: stageDimensions.height * box.height / 100,
+        };
+
     });
 
     setPixelBoundaryBoxes(newPixelBoxes);
@@ -979,3 +987,5 @@ export function Customizer() {
     </div>
   );
 }
+
+    
