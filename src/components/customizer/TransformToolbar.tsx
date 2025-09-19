@@ -2,29 +2,36 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useUploads } from '@/contexts/UploadContext';
+import { useUploads, type CanvasText, type CanvasImage, type CanvasShape } from '@/contexts/UploadContext';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Trash2, RotateCw, Maximize } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { IRect } from 'konva/lib/types';
 
-export default function TransformToolbar() {
+
+interface TransformToolbarProps {
+  pixelBoundaryBoxes: IRect[];
+  stageDimensions: { width: number; height: number; x: number; y: number } | null;
+}
+
+export default function TransformToolbar({ pixelBoundaryBoxes, stageDimensions }: TransformToolbarProps) {
   const {
     selectedCanvasImageId, canvasImages, updateCanvasImage, removeCanvasImage,
     selectedCanvasTextId, canvasTexts, updateCanvasText, removeCanvasText,
     selectedCanvasShapeId, canvasShapes, updateCanvasShape, removeCanvasShape,
   } = useUploads();
 
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [selectedItem, setSelectedItem] = useState<CanvasImage | CanvasText | CanvasShape | null>(null);
   
   useEffect(() => {
     if (selectedCanvasImageId) {
-      setSelectedItem(canvasImages.find(item => item.id === selectedCanvasImageId));
+      setSelectedItem(canvasImages.find(item => item.id === selectedCanvasImageId) || null);
     } else if (selectedCanvasTextId) {
-      setSelectedItem(canvasTexts.find(item => item.id === selectedCanvasTextId));
+      setSelectedItem(canvasTexts.find(item => item.id === selectedCanvasTextId) || null);
     } else if (selectedCanvasShapeId) {
-      setSelectedItem(canvasShapes.find(item => item.id === selectedCanvasShapeId));
+      setSelectedItem(canvasShapes.find(item => item.id === selectedCanvasShapeId) || null);
     } else {
       setSelectedItem(null);
     }
@@ -40,13 +47,35 @@ export default function TransformToolbar() {
   
   const handleScaleChange = (value: number[]) => {
     if (!selectedItem) return;
-    const scale = value[0];
+    const newScale = value[0];
+
+    // --- Boundary Check Logic ---
+    const node = selectedItem;
+    const originalWidth = 'width' in node ? node.width : (node as CanvasText).fontSize * (node as CanvasText).content.length * 0.6;
+    const potentialWidth = originalWidth * newScale;
+
+    if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0 && stageDimensions) {
+        const nodeCenter = { x: node.x, y: node.y };
+        const containingBox = pixelBoundaryBoxes.find(box => 
+            nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+            nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+        ) || pixelBoundaryBoxes[0];
+        
+        if (potentialWidth > containingBox.width) {
+            // Do not apply the update if it exceeds the boundary
+            return; 
+        }
+    } else if (stageDimensions && potentialWidth > stageDimensions.width) {
+        // Fallback to stage width if no boundaries
+        return;
+    }
+    // --- End Boundary Check ---
+
     if (selectedItem.itemType === 'image') {
-      updateCanvasImage(selectedItem.id, { scaleX: scale, scaleY: scale });
+      updateCanvasImage(selectedItem.id, { scaleX: newScale, scaleY: newScale });
     } else {
-      // For text and shapes, we use a single 'scale' property
-      if (selectedItem.itemType === 'text') updateCanvasText(selectedItem.id, { scale });
-      else if (selectedItem.itemType === 'shape') updateCanvasShape(selectedItem.id, { scale });
+      if (selectedItem.itemType === 'text') updateCanvasText(selectedItem.id, { scale: newScale });
+      else if (selectedItem.itemType === 'shape') updateCanvasShape(selectedItem.id, { scale: newScale });
     }
   };
 
@@ -59,7 +88,6 @@ export default function TransformToolbar() {
   
   const getScaleValue = () => {
     if (!selectedItem) return 1;
-    // For images, scaleX and scaleY can differ. We'll use scaleX as the representative value.
     if (selectedItem.itemType === 'image') return selectedItem.scaleX;
     return selectedItem.scale;
   }

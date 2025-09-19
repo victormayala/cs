@@ -630,15 +630,8 @@ export function Customizer() {
 
     // 3. THE CALCULATION LOGIC:
     const newPixelBoxes = currentView.boundaryBoxes.map(box => {
-      // Original width in pixels
-      const baseWidth = stageDimensions.width * box.width / 100;
-
-      // New width (30% wider)
-      const calculatedWidth = baseWidth * 1.6;
-
-      // Shift X so it expands evenly left + right
-      const extraWidth = calculatedWidth - baseWidth;
-      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100);
+      const calculatedWidth = stageDimensions.width * box.width / 100;
   
       return {
         x: calculatedX,
@@ -696,15 +689,16 @@ export function Customizer() {
     }
 
     const boundaryBoxes = activeView?.boundaryBoxes || [];
+    const canvasDims = { width: stageDimensions?.width || 0, height: stageDimensions?.height || 0 };
 
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
       default:
         return (
           <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
@@ -903,7 +897,10 @@ export function Customizer() {
         </Button>
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
-          <TransformToolbar />
+          <TransformToolbar
+            pixelBoundaryBoxes={pixelBoundaryBoxes}
+            stageDimensions={stageDimensions}
+          />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
