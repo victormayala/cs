@@ -427,7 +427,7 @@ export default function ProductDetailPage() {
                                             <InfoIcon className="h-5 w-5 !text-blue-600 mr-2" />
                                             Embroidery Fee
                                         </h4>
-                                        <p className="text-sm text-blue-700 pl-7">
+                                        <p className="text-sm text-blue-700">
                                             A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
                                             <TooltipProvider delayDuration={100}>
                                                 <Tooltip>
