@@ -423,28 +423,31 @@ export default function ProductDetailPage() {
                              {showEmbroideryFeeMessage && (
                                 <Alert className="bg-blue-50 border-blue-200 text-blue-800">
                                   <div className="flex items-start">
-                                    <InfoIcon className="h-4 w-4 !text-blue-600 mt-0.5" />
-                                    <AlertDescription className="text-sm text-blue-700 ml-2">
-                                        A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
-                                        <TooltipProvider delayDuration={100}>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <a href="#" className="font-semibold underline hover:text-blue-800 ml-1" onClick={(e) => e.preventDefault()}>Learn more.</a>
-                                                </TooltipTrigger>
-                                                <TooltipContent className="max-w-xs p-3" side="top" align="center">
-                                                    <div className="space-y-2">
-                                                        <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
-                                                          <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" layout="fill" objectFit="cover"/>
+                                    <InfoIcon className="h-4 w-4 !text-blue-600 mt-0.5 shrink-0" />
+                                    <div className="ml-3 flex-1">
+                                        <AlertTitle className="text-blue-900">Embroidery Fee</AlertTitle>
+                                        <AlertDescription className="text-sm text-blue-700">
+                                            A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
+                                            <TooltipProvider delayDuration={100}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <a href="#" className="font-semibold underline hover:text-blue-800 ml-1" onClick={(e) => e.preventDefault()}>Learn more.</a>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent className="max-w-xs p-3" side="top" align="center">
+                                                        <div className="space-y-2">
+                                                            <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
+                                                            <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" fill className="object-cover"/>
+                                                            </div>
+                                                            <p className="text-xs font-bold">One-Time Digitization Fee</p>
+                                                            <p className="text-xs">
+                                                                {storeConfig.embroidery?.setupFeeDescription || 'This is a one-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.'}
+                                                            </p>
                                                         </div>
-                                                        <p className="text-xs font-bold">One-Time Digitization Fee</p>
-                                                        <p className="text-xs">
-                                                            This is a one-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.
-                                                        </p>
-                                                    </div>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    </AlertDescription>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </AlertDescription>
+                                    </div>
                                   </div>
                                 </Alert>
                             )}
@@ -508,26 +511,26 @@ export default function ProductDetailPage() {
                         </div>
                         <div>
                             {storeConfig.volumeDiscounts?.enabled && storeConfig.volumeDiscounts.tiers.length > 0 && (
-                                <Card className="bg-muted/30" id="volume-discounts-chart">
+                                <Card className="bg-blue-50 border-blue-200" id="volume-discounts-chart">
                                     <CardContent className="p-6">
-                                        <h3 className="text-lg font-semibold flex items-center mb-4 text-foreground">
-                                            <InfoIcon className="h-5 w-5 mr-2 text-primary" />
+                                        <h3 className="text-lg font-semibold flex items-center mb-4 text-blue-900">
+                                            <InfoIcon className="h-5 w-5 mr-2 text-blue-600" />
                                             Volume Discounts
                                         </h3>
                                         <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between font-medium text-muted-foreground">
+                                            <div className="flex justify-between font-medium text-blue-800/80">
                                                 <span>Quantity</span>
                                                 <span>Discount</span>
                                             </div>
-                                            <Separator />
+                                            <Separator className="bg-blue-200" />
                                             {storeConfig.volumeDiscounts.tiers.map((tier, index) => (
-                                                <div key={index} className="flex justify-between items-center">
+                                                <div key={index} className="flex justify-between items-center text-blue-800/90">
                                                     <span>{tier.quantity}+ units</span>
                                                     <span className="font-bold text-green-600">{tier.percentage}% Off</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-4">*Discount is applied to the subtotal in your cart.</p>
+                                        <p className="text-xs text-blue-700/80 mt-4">*Discount is applied to the subtotal in your cart.</p>
                                     </CardContent>
                                 </Card>
                             )}
