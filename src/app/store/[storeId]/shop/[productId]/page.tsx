@@ -421,13 +421,13 @@ export default function ProductDetailPage() {
                             )}
 
                              {showEmbroideryFeeMessage && (
-                                <Card className="bg-blue-50 border-blue-200">
+                               <Card className="bg-blue-50 border-blue-200">
                                     <CardContent className="p-4 flex items-start">
                                         <InfoIcon className="h-5 w-5 text-blue-600 mr-3 mt-0.5 shrink-0" />
                                         <div>
                                             <h4 className="font-semibold text-blue-900">Embroidery Fee</h4>
                                             <p className="text-sm text-blue-700">
-                                                A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
+                                                A one-time setup fee of ${storeConfig.embroidery?.setupFeeAmount.toFixed(2)} applies for new logo uploads.
                                                 <TooltipProvider delayDuration={100}>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -554,5 +554,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-
-    
