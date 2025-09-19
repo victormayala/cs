@@ -1180,7 +1180,7 @@ function ProductOptionsPage() {
                                     top: `${box.y}%`,
                                     width: `${box.width * 1.025}%`,
                                     height: `${box.height}%`,
-                                    transform: 'translateX(-1.25%)', // Offset to keep it centered
+                                    transform: 'translateX(-1.25%)',
                                 }}
                             >
                                 <div
