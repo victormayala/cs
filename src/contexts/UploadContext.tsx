@@ -74,7 +74,7 @@ export interface CanvasText {
 }
 
 // Represents an instance of a shape on the canvas
-export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'star'; // Add more as needed
+export type ShapeType = 'rectangle' | 'circle' | 'triangle' | 'star' | 'heart';
 
 export interface CanvasShape {
   id: string;

@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useUploads, type ShapeType, type CanvasShape } from '@/contexts/UploadContext';
-import { Square, Circle, Shapes as ShapesIconLucide, Palette, PenLine } from 'lucide-react';
+import { Square, Circle, Triangle, Heart, Star, Shapes as ShapesIconLucide, Palette, PenLine } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -21,6 +22,9 @@ interface ShapeOption {
 const shapeOptions: ShapeOption[] = [
   { type: 'rectangle', label: 'Rectangle', icon: Square },
   { type: 'circle', label: 'Circle', icon: Circle },
+  { type: 'triangle', label: 'Triangle', icon: Triangle },
+  { type: 'star', label: 'Star', icon: Star },
+  { type: 'heart', label: 'Heart', icon: Heart },
 ];
 
 const sanitizeHex = (hex: string): string => {
@@ -118,16 +122,16 @@ export default function ShapesPanel({ activeViewId, boundaryBoxes, stageDimensio
       <div>
         <p className="text-xs text-muted-foreground mb-3">Click a shape to add it to the canvas.</p>
         {shapeOptions.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {shapeOptions.map((shape) => (
                 <Button
                   key={shape.type}
                   variant="outline"
-                  className="h-auto flex flex-col items-center justify-center p-3 space-y-1 aspect-square hover:bg-accent/10"
+                  className="h-auto flex flex-col items-center justify-center p-3 space-y-2 aspect-square hover:bg-accent/10"
                   onClick={() => handleAddShape(shape.type)}
                   title={`Add ${shape.label}`}
                 >
-                  <shape.icon className="w-8 h-8 text-secondary" />
+                  <shape.icon className="w-10 h-10 text-muted-foreground" />
                   <span className="text-xs text-foreground">{shape.label}</span>
                 </Button>
               ))}
