@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
@@ -88,11 +87,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes, stageDimension
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
-      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
-      return;
-    }
-    addCanvasImage(image.id, activeViewId, stageDimensions.width, stageDimensions.height);
+    addCanvasImage(image.id, activeViewId, stageDimensions?.width, stageDimensions?.height);
   };
   
   const handleApprovedFileClick = (file: ApprovedFile) => {
@@ -100,11 +95,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes, stageDimension
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
-      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
-      return;
-    }
-    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, stageDimensions.width, stageDimensions.height, file.id);
+    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, stageDimensions?.width, stageDimensions?.height, file.id);
   };
 
   return (

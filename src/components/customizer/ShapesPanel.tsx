@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -73,11 +72,8 @@ export default function ShapesPanel({ activeViewId, boundaryBoxes, stageDimensio
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
-      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
-      return;
-    }
-    addCanvasShape(shapeType, activeViewId, stageDimensions.width, stageDimensions.height, {
+    
+    addCanvasShape(shapeType, activeViewId, stageDimensions?.width, stageDimensions?.height, {
       color: fillColorHex, 
       strokeColor: strokeColorHex,
       strokeWidth: Number(currentStrokeWidth),
