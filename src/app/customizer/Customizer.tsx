@@ -698,7 +698,6 @@ export function Customizer() {
 
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
-      
       case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
