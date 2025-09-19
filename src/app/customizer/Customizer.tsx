@@ -633,7 +633,7 @@ export function Customizer() {
       const baseWidth = stageDimensions.width * box.width / 100;
 
       // New width (30% wider)
-      const calculatedWidth = baseWidth * 2.2;
+      const calculatedWidth = baseWidth * 1.6;
 
       // Shift X so it expands evenly left + right
       const extraWidth = calculatedWidth - baseWidth;
@@ -980,3 +980,5 @@ export function Customizer() {
     </div>
   );
 }
+
+    
