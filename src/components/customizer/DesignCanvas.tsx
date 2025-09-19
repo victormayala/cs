@@ -71,14 +71,16 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          anchorFill="hsl(var(--primary))"
-          anchorStroke="hsl(var(--primary-foreground))"
+          anchorFill="#000"
+          anchorStroke="#000"
           anchorSize={10}
           anchorCornerRadius={5}
-          borderStroke="hsl(var(--primary))"
+          borderDash={[6, 2]}
           borderStrokeWidth={1.5}
-          borderDash={[4, 4]}
+          borderStroke="#000"
           rotateEnabled={true}
+          rotateAnchorOffset={30}
+          rotateAnchor="top"
         />
       )}
     </>
@@ -144,14 +146,16 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          anchorFill="hsl(var(--primary))"
-          anchorStroke="hsl(var(--primary-foreground))"
+          anchorFill="#000"
+          anchorStroke="#000"
           anchorSize={10}
           anchorCornerRadius={5}
-          borderStroke="hsl(var(--primary))"
+          borderDash={[6, 2]}
           borderStrokeWidth={1.5}
-          borderDash={[4, 4]}
+          borderStroke="#000"
           rotateEnabled={true}
+          rotateAnchorOffset={30}
+          rotateAnchor="top"
         />
       )}
     </>
@@ -215,14 +219,16 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          anchorFill="hsl(var(--primary))"
-          anchorStroke="hsl(var(--primary-foreground))"
+          anchorFill="#000"
+          anchorStroke="#000"
           anchorSize={10}
           anchorCornerRadius={5}
-          borderStroke="hsl(var(--primary))"
+          borderDash={[6, 2]}
           borderStrokeWidth={1.5}
-          borderDash={[4, 4]}
+          borderStroke="#000"
           rotateEnabled={true}
+          rotateAnchorOffset={30}
+          rotateAnchor="top"
         />
       )}
     </>
