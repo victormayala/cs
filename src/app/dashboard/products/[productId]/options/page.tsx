@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -1170,7 +1171,7 @@ function ProductOptionsPage() {
                                     "absolute group/box",
                                     selectedBoundaryBoxId === box.id
                                         ? 'border-primary ring-2 ring-primary ring-offset-background bg-primary/10'
-                                        : 'border-2 border-dashed border-accent/70'
+                                        : 'border-2 border-dashed border-red-500'
                                 )}
                                 style={{
                                     left: `${box.x}%`,
