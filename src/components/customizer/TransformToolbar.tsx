@@ -104,8 +104,8 @@ export default function TransformToolbar() {
             <div className="space-y-4">
               <label className="text-sm font-medium">Rotate</label>
               <Slider
-                min={0}
-                max={360}
+                min={-180}
+                max={180}
                 step={1}
                 value={[selectedItem.rotation || 0]}
                 onValueChange={handleRotationChange}
