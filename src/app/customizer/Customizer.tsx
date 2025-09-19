@@ -20,7 +20,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Ban, ArrowLeft
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -48,7 +48,6 @@ import ClipartPanel from '@/components/customizer/ClipartPanel';
 import FreeDesignsPanel from '@/components/customizer/FreeDesignsPanel';
 import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
-import AiAssistant from '@/components/customizer/AiAssistant';
 import RightPanel from '@/components/customizer/RightPanel';
 import type { IRect } from 'konva/lib/types';
 
@@ -126,7 +125,6 @@ const defaultFallbackProduct: ProductForCustomizer = {
 
 const toolItems: CustomizerTool[] = [
   { id: "layers", label: "Layers", icon: Layers },
-  { id: "ai-assistant", label: "AI Assistant", icon: Sparkles },
   { id: "uploads", label: "Uploads", icon: UploadCloud },
   { id: "text", label: "Text", icon: Type },
   { id: "shapes", label: "Shapes", icon: ShapesIconLucide },
@@ -700,7 +698,6 @@ export function Customizer() {
 
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
-      case "ai-assistant": return <AiAssistant activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
       case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
@@ -749,78 +746,6 @@ export function Customizer() {
         }
 
         const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-        const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-
-        for (const view of viewsToProcess) {
-            const allItemsForView = [
-                ...canvasImages.filter(item => item.viewId === view.id),
-                ...canvasTexts.filter(item => item.viewId === view.id),
-                ...canvasShapes.filter(item => item.viewId === view.id),
-            ];
-
-            const overlaysForView = await Promise.all(allItemsForView.map(async (item): Promise<ImageTransform> => {
-              let itemDataUrl = '';
-              let itemMimeType = 'image/png';
-              let itemWidth = 150;
-              let itemHeight = 150;
-
-              if (item.itemType === 'image') {
-                  const canvasImg = item as CanvasImage;
-                  itemDataUrl = canvasImg.dataUrl;
-                  itemMimeType = canvasImg.type;
-                  itemWidth = 'width' in canvasImg ? canvasImg.width : 150;
-                  itemHeight = 'height' in canvasImg ? canvasImg.height : 150;
-              } else {
-                  const node = stage.findOne(`#${item.id}`);
-                  if (node) {
-                      itemDataUrl = node.toDataURL();
-                      itemWidth = node.width() * node.scaleX();
-                      itemHeight = node.height() * node.scaleY();
-                  } else {
-                      throw new Error(`Canvas node with id #${item.id} not found.`);
-                  }
-              }
-              
-              return {
-                  imageDataUri: itemDataUrl,
-                  mimeType: itemMimeType,
-                  x: (item.x / 100) * 600,
-                  y: (item.y / 100) * 600,
-                  width: item.itemType === 'image' ? itemWidth * item.scaleX : itemWidth,
-                  height: item.itemType === 'image' ? itemHeight * item.scaleY : itemHeight,
-                  rotation: item.rotation || 0,
-                  zIndex: item.zIndex || 0,
-              };
-            }));
-
-            const payload = {
-                baseImageUrl: view.imageUrl, // This is already the proxied data URI
-                baseImageWidthPx: 600,
-                baseImageHeightPx: 600,
-                overlays: overlaysForView,
-            };
-            
-            const response = await fetch('/api/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errorResult = await response.json();
-                throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
-            }
-            
-            const result = await response.json();
-            
-            const sRef = storageRef(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
-            const uploadStringResult = await uploadString(sRef, result.compositeImageUrl, 'data_url');
-            const downloadURL = await getDownloadURL(uploadStringResult.ref);
-
-            finalThumbnails.push({
-              viewId: view.id, viewName: view.name, url: downloadURL
-            });
-        }
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
@@ -877,9 +802,9 @@ export function Customizer() {
         }
 
     } catch (err: any) {
-      console.error("Error generating thumbnails:", err);
+      console.error("Error adding to cart:", err);
       toast({
-        title: "Preview Generation Failed",
+        title: "Add to Cart Failed",
         description: err.message,
         variant: "destructive"
       });
@@ -1055,5 +980,3 @@ export function Customizer() {
     </div>
   );
 }
-
-    

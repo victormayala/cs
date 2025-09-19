@@ -5,7 +5,6 @@ import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
 import { useUploads, type UploadedImage } from '@/contexts/UploadContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
 import { UploadCloud, PlusCircle, FileCheck, Loader2, AlertCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -118,7 +117,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
       </div>
 
       {uploadedImages.length > 0 && (
-        <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto">
+        <div className="flex-grow border rounded-md bg-background overflow-y-auto">
           <div className="p-2 space-y-2">
             <p className="text-xs text-muted-foreground px-1 pb-1">Your Uploads:</p>
             {uploadedImages.map((image) => (
@@ -140,7 +139,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       )}
 
       {storeId && (
@@ -159,7 +158,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
                         {errorApproved}
                     </div>
                 ) : approvedFiles.length > 0 ? (
-                    <ScrollArea className="flex-grow border rounded-md bg-background overflow-y-auto max-h-48">
+                    <div className="flex-grow border rounded-md bg-background overflow-y-auto">
                         <div className="grid grid-cols-3 gap-2 p-2">
                              {approvedFiles.map((file) => (
                                 <div
@@ -182,7 +181,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
                                 </div>
                             ))}
                         </div>
-                    </ScrollArea>
+                    </div>
                 ) : (
                     <p className="text-xs text-muted-foreground p-2">No approved files for this store.</p>
                 )}

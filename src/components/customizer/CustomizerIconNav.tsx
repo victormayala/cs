@@ -4,7 +4,6 @@
 import React, { useCallback } from 'react'; // Added useCallback
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
@@ -50,12 +49,7 @@ const ToolButton = React.memo<ToolButtonProps>(({ tool, activeTool, setActiveToo
         </Button>
       </TooltipTrigger>
       <TooltipContent side="right" align="center">
-        <div className="flex items-center space-x-2">
-          <p>{tool.label}</p>
-          {tool.id === 'ai-assistant' && (
-            <Badge variant="secondary" className="px-1.5 py-0.5 text-xs h-fit">Beta</Badge>
-          )}
-        </div>
+        <p>{tool.label}</p>
       </TooltipContent>
     </Tooltip>
   );
