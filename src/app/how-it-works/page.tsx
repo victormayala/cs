@@ -16,35 +16,35 @@ const steps = [
     icon: Link2,
     title: "Sign Up & Connect Your Store",
     description: "Create your Customizer Studio account in minutes. Then, seamlessly connect your Shopify or WooCommerce store using our guided setup. Product synchronization starts immediately, importing your catalog into Customizer Studio.",
-    imagePlaceholder: "https://picsum.photos/seed/connect/500/350",
+    imagePlaceholder: "/log.png",
     aiHint: "store connection"
   },
   {
     icon: Settings2,
     title: "Configure Customization Options",
     description: "From your Customizer Studio dashboard, select products you want to make customizable. Define available colors, sizes, text input fields, image upload zones, and set up design boundaries directly on your product images using our intuitive editor.",
-    imagePlaceholder: "https://picsum.photos/seed/configure/500/350",
+    imagePlaceholder: "/set.png",
     aiHint: "product configuration"
   },
   {
     icon: Code,
     title: "Embed the Customizer",
     description: "Add Customizer Studio to your product pages by simply copying a lightweight JavaScript snippet. For Shopify and WooCommerce, our dedicated apps/plugins will make this even easier, often just a few clicks to integrate.",
-    imagePlaceholder: "https://picsum.photos/seed/embed/500/350",
+    imagePlaceholder: "/add.png",
     aiHint: "code embedding"
   },
   {
     icon: Palette,
     title: "Customers Design & Personalize",
     description: "Your customers will now see the Customizer Studio tool on your product pages. They can add text, upload images, choose colors, and see a live preview of their unique creation, leading to higher engagement and satisfaction.",
-    imagePlaceholder: "https://picsum.photos/seed/design/500/350",
+    imagePlaceholder: "/custom.png",
     aiHint: "customer design"
   },
   {
     icon: PackageCheck,
     title: "Receive & Fulfill Custom Orders",
     description: "When a customer places an order, all customization details (text, image URLs, chosen options) are seamlessly passed to your e-commerce platform with the order. Fulfill custom orders accurately and efficiently.",
-    imagePlaceholder: "https://picsum.photos/seed/fulfill/500/350",
+    imagePlaceholder: "/online.png",
     aiHint: "order fulfillment"
   }
 ];
@@ -143,5 +143,3 @@ export default function HowItWorksPage() {
     </div>
   );
 }
-
-    
