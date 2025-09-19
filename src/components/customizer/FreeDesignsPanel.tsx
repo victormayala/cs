@@ -8,14 +8,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
 import { Palette, PlusCircle } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
-import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 interface FreeDesignsPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
-export default function FreeDesignsPanel({ activeViewId, boundaryBoxes }: FreeDesignsPanelProps) {
+export default function FreeDesignsPanel({ activeViewId, boundaryBoxes, stageDimensions }: FreeDesignsPanelProps) {
   const { addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
 
@@ -24,7 +25,11 @@ export default function FreeDesignsPanel({ activeViewId, boundaryBoxes }: FreeDe
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, boundaryBoxes, design.id);
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, stageDimensions.width, stageDimensions.height, design.id);
   };
 
   return (

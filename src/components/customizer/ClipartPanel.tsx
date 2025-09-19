@@ -8,14 +8,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
 import { Smile, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 interface ClipartPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
-export default function ClipartPanel({ activeViewId, boundaryBoxes }: ClipartPanelProps) {
+export default function ClipartPanel({ activeViewId, boundaryBoxes, stageDimensions }: ClipartPanelProps) {
   const { addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
 
@@ -24,7 +25,11 @@ export default function ClipartPanel({ activeViewId, boundaryBoxes }: ClipartPan
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(clipart.name, clipart.imageUrl, clipart.type, activeViewId, boundaryBoxes, clipart.id);
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasImageFromUrl(clipart.name, clipart.imageUrl, clipart.type, activeViewId, stageDimensions.width, stageDimensions.height, clipart.id);
   };
 
   return (

@@ -41,9 +41,10 @@ const sanitizeHex = (hex: string): string => {
 interface ShapesPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
-export default function ShapesPanel({ activeViewId, boundaryBoxes }: ShapesPanelProps) {
+export default function ShapesPanel({ activeViewId, boundaryBoxes, stageDimensions }: ShapesPanelProps) {
   const { 
     addCanvasShape, 
     selectedCanvasShapeId, 
@@ -72,7 +73,11 @@ export default function ShapesPanel({ activeViewId, boundaryBoxes }: ShapesPanel
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasShape(shapeType, activeViewId, boundaryBoxes, {
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasShape(shapeType, activeViewId, stageDimensions.width, stageDimensions.height, {
       color: fillColorHex, 
       strokeColor: strokeColorHex,
       strokeWidth: Number(currentStrokeWidth),

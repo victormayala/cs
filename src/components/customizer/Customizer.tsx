@@ -20,7 +20,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Ban, ArrowLeft
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -48,8 +48,10 @@ import ClipartPanel from '@/components/customizer/ClipartPanel';
 import FreeDesignsPanel from '@/components/customizer/FreeDesignsPanel';
 import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
-import AiAssistant from '@/components/customizer/AiAssistant';
 import RightPanel from '@/components/customizer/RightPanel';
+import type { IRect } from 'konva/lib/types';
+import TransformToolbar from '@/components/customizer/TransformToolbar';
+
 
 const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'), {
   ssr: false,
@@ -124,7 +126,6 @@ const defaultFallbackProduct: ProductForCustomizer = {
 
 const toolItems: CustomizerTool[] = [
   { id: "layers", label: "Layers", icon: Layers },
-  { id: "ai-assistant", label: "AI Assistant", icon: Sparkles },
   { id: "uploads", label: "Uploads", icon: UploadCloud },
   { id: "text", label: "Text", icon: Type },
   { id: "shapes", label: "Shapes", icon: ShapesIconLucide },
@@ -139,7 +140,7 @@ async function loadProductOptionsFromFirestore(
 ): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userIdForOptions || !productId || !db) {
     const message = 'User/Config ID, Product ID, or DB service is missing for loading options.';
-    console.warn(`loadProductOptionsFromFirestore: ${message}`);
+    console.warn(`loadProductOptionsFromFirestore: ${'message'}`);
     return { error: message };
   }
   const firestoreDocId = productId.split('/').pop() || productId;
@@ -183,7 +184,7 @@ async function proxyImageUrl(url: string): Promise<string> {
   }
 }
 
-export default function Customizer() {
+export function Customizer() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -248,6 +249,10 @@ export default function Customizer() {
   const lastLoadedProductIdRef = useRef<string | null | undefined>(undefined);
   const lastLoadedProxyUrlRef = useRef<string | null | undefined>(undefined);
   const lastLoadedConfigUserIdRef = useRef<string | null | undefined>(undefined);
+
+  const [pixelBoundaryBoxes, setPixelBoundaryBoxes] = useState<IRect[]>([]);
+  const [stageDimensions, setStageDimensions] = useState<{ width: number, height: number, x: number, y: number } | null>(null);
+
 
   const handleViewChange = useCallback((newViewId: string) => {
     setActiveViewId(newViewId);
@@ -608,6 +613,44 @@ export default function Customizer() {
     loadedOptionsByColor, loadedGroupingAttributeName, activeViewId, productDetails
 ]);
 
+  // This useEffect hook recalculates the pixel boundaries whenever the active view or stage dimensions change.
+  useEffect(() => {
+    // 1. Check if we have the necessary data to perform calculations.
+    if (!stageDimensions || !productDetails || !activeViewId) {
+      setPixelBoundaryBoxes([]); // If not, clear any existing boxes.
+      return;
+    }
+
+    // 2. Find the currently active view from the product details.
+    const currentView = productDetails.views.find(v => v.id === activeViewId);
+    if (!currentView || !currentView.boundaryBoxes) {
+      setPixelBoundaryBoxes([]); // If the view has no boxes, clear any existing ones.
+      return;
+    }
+
+    // 3. THE CALCULATION LOGIC:
+    const newPixelBoxes = currentView.boundaryBoxes.map(box => {
+      // Original width in pixels
+      const baseWidth = stageDimensions.width * box.width / 100;
+
+      // New width (30% wider)
+      const calculatedWidth = baseWidth * 1.6;
+
+      // Shift X so it expands evenly left + right
+      const extraWidth = calculatedWidth - baseWidth;
+      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+  
+      return {
+        x: calculatedX,
+        y: stageDimensions.y + (stageDimensions.height * box.y / 100),
+        width: calculatedWidth,
+        height: stageDimensions.height * box.height / 100,
+      };
+    });
+
+    setPixelBoundaryBoxes(newPixelBoxes);
+  }, [activeViewId, productDetails, stageDimensions]);
+
 
   useEffect(() => {
     const usedViewIdsWithElements = new Set<string>();
@@ -653,16 +696,16 @@ export default function Customizer() {
     }
 
     const boundaryBoxes = activeView?.boundaryBoxes || [];
+    const canvasDims = { width: stageDimensions?.width || 0, height: stageDimensions?.height || 0 };
 
     switch (activeTool) {
       case "layers": return <LayersPanel activeViewId={activeViewId} />;
-      case "ai-assistant": return <AiAssistant activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} configUserId={productDetails?.meta?.configUserIdUsed || user?.uid} />;
-      case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
-      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} />;
+      case "uploads": return <UploadArea activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "text": return <TextToolPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "shapes": return <ShapesPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "clipart": return <ClipartPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "free-designs": return <FreeDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
+      case "premium-designs": return <PremiumDesignsPanel activeViewId={activeViewId} boundaryBoxes={boundaryBoxes} stageDimensions={canvasDims} />;
       default:
         return (
           <div className="p-4 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
@@ -705,78 +748,6 @@ export default function Customizer() {
         }
 
         const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-        const viewsToProcess = productDetails.views.filter(v => customizedViewIds.has(v.id));
-
-        for (const view of viewsToProcess) {
-            const allItemsForView = [
-                ...canvasImages.filter(item => item.viewId === view.id),
-                ...canvasTexts.filter(item => item.viewId === view.id),
-                ...canvasShapes.filter(item => item.viewId === view.id),
-            ];
-
-            const overlaysForView = await Promise.all(allItemsForView.map(async (item): Promise<ImageTransform> => {
-              let itemDataUrl = '';
-              let itemMimeType = 'image/png';
-              let itemWidth = 150;
-              let itemHeight = 150;
-
-              if (item.itemType === 'image') {
-                  const canvasImg = item as CanvasImage;
-                  itemDataUrl = canvasImg.dataUrl;
-                  itemMimeType = canvasImg.type;
-                  itemWidth = 'width' in canvasImg ? canvasImg.width : 150;
-                  itemHeight = 'height' in canvasImg ? canvasImg.height : 150;
-              } else {
-                  const node = stage.findOne(`#${'#'+item.id}`);
-                  if (node) {
-                      itemDataUrl = node.toDataURL();
-                      itemWidth = node.width() * node.scaleX();
-                      itemHeight = node.height() * node.scaleY();
-                  } else {
-                      throw new Error(`Canvas node with id #${item.id} not found.`);
-                  }
-              }
-              
-              return {
-                  imageDataUri: itemDataUrl,
-                  mimeType: itemMimeType,
-                  x: (item.x / 100) * 600,
-                  y: (item.y / 100) * 600,
-                  width: item.itemType === 'image' ? itemWidth * item.scaleX : itemWidth,
-                  height: item.itemType === 'image' ? itemHeight * item.scaleY : itemHeight,
-                  rotation: item.rotation || 0,
-                  zIndex: item.zIndex || 0,
-              };
-            }));
-
-            const payload = {
-                baseImageUrl: view.imageUrl, // This is already the proxied data URI
-                baseImageWidthPx: 600,
-                baseImageHeightPx: 600,
-                overlays: overlaysForView,
-            };
-            
-            const response = await fetch('/api/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errorResult = await response.json();
-                throw new Error(errorResult.details || `Preview generation failed for view "${view.name}".`);
-            }
-            
-            const result = await response.json();
-            
-            const sRef = storageRef(storage, `previews/${user?.uid || 'anonymous'}/${Date.now()}_${view.name.replace(/\s+/g, '_')}.png`);
-            const uploadStringResult = await uploadString(sRef, result.compositeImageUrl, 'data_url');
-            const downloadURL = await getDownloadURL(uploadStringResult.ref);
-
-            finalThumbnails.push({
-              viewId: view.id, viewName: view.name, url: downloadURL
-            });
-        }
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
@@ -833,9 +804,9 @@ export default function Customizer() {
         }
 
     } catch (err: any) {
-      console.error("Error generating thumbnails:", err);
+      console.error("Error adding to cart:", err);
       toast({
-        title: "Preview Generation Failed",
+        title: "Add to Cart Failed",
         description: err.message,
         variant: "destructive"
       });
@@ -933,6 +904,7 @@ export default function Customizer() {
         </Button>
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
+          <TransformToolbar />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
@@ -940,7 +912,9 @@ export default function Customizer() {
               <DesignCanvas 
                 activeView={activeView}
                 showGrid={showGrid} 
-                showBoundaryBoxes={showBoundaryBoxes} 
+                showBoundaryBoxes={showBoundaryBoxes}
+                onStageRectChange={setStageDimensions}
+                pixelBoundaryBoxes={pixelBoundaryBoxes}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">

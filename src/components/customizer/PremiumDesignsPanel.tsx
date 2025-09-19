@@ -10,14 +10,15 @@ import { Gem, PlusCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 interface PremiumDesignsPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
-export default function PremiumDesignsPanel({ activeViewId, boundaryBoxes }: PremiumDesignsPanelProps) {
+export default function PremiumDesignsPanel({ activeViewId, boundaryBoxes, stageDimensions }: PremiumDesignsPanelProps) {
   const { addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
 
@@ -26,7 +27,11 @@ export default function PremiumDesignsPanel({ activeViewId, boundaryBoxes }: Pre
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, boundaryBoxes, design.id);
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasImageFromUrl(design.name, design.imageUrl, design.type, activeViewId, stageDimensions.width, stageDimensions.height, design.id);
   };
 
   return (

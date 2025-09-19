@@ -41,6 +41,7 @@ const sanitizeHex = (hex: string): string => {
 interface TextToolPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
 const DEFAULT_FONT_FAMILY = googleFonts.find(f => f.name === 'Arial')?.family || 'Arial, sans-serif';
@@ -67,7 +68,7 @@ const initialTextToolPanelDefaultStyle: Omit<CanvasText, 'id' | 'viewId' | 'zInd
 };
 
 
-export default function TextToolPanel({ activeViewId, boundaryBoxes }: TextToolPanelProps) {
+export default function TextToolPanel({ activeViewId, boundaryBoxes, stageDimensions }: TextToolPanelProps) {
   const {
     addCanvasText,
     selectedCanvasTextId,
@@ -159,13 +160,17 @@ export default function TextToolPanel({ activeViewId, boundaryBoxes }: TextToolP
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
     const contentToAdd = textValue.trim() || "Your Text"; 
     const styleForNewText: Partial<CanvasText> = {
       ...currentStyle, 
       content: contentToAdd,
       archAmount: currentStyle.archAmount, // Ensure archAmount is passed
     };
-    addCanvasText(contentToAdd, activeViewId, boundaryBoxes, styleForNewText);
+    addCanvasText(contentToAdd, activeViewId, stageDimensions.width, stageDimensions.height, styleForNewText);
     
     if (!selectedText) { 
         setTextValue(''); 

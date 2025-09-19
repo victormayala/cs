@@ -17,10 +17,11 @@ import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Impor
 
 interface UploadAreaProps {
   activeViewId: string | null;
-  boundaryBoxes: BoundaryBox[]; // Add boundaryBoxes to props
+  boundaryBoxes: BoundaryBox[];
+  stageDimensions: { width: number; height: number };
 }
 
-export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaProps) {
+export default function UploadArea({ activeViewId, boundaryBoxes, stageDimensions }: UploadAreaProps) {
   const { uploadedImages, addUploadedImage, addCanvasImage, addCanvasImageFromUrl } = useUploads();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,7 +88,11 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImage(image.id, activeViewId, boundaryBoxes);
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasImage(image.id, activeViewId, stageDimensions.width, stageDimensions.height);
   };
   
   const handleApprovedFileClick = (file: ApprovedFile) => {
@@ -95,7 +100,11 @@ export default function UploadArea({ activeViewId, boundaryBoxes }: UploadAreaPr
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, boundaryBoxes, file.id);
+    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+      toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
+      return;
+    }
+    addCanvasImageFromUrl(file.name, file.url, file.type, activeViewId, stageDimensions.width, stageDimensions.height, file.id);
   };
 
   return (
