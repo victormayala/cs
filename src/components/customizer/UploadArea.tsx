@@ -18,7 +18,7 @@ import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Impor
 interface UploadAreaProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
-  stageDimensions: { width: number; height: number };
+  stageDimensions?: { width: number; height: number } | null;
 }
 
 export default function UploadArea({ activeViewId, boundaryBoxes, stageDimensions }: UploadAreaProps) {
@@ -88,7 +88,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes, stageDimension
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
       toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
       return;
     }
@@ -100,7 +100,7 @@ export default function UploadArea({ activeViewId, boundaryBoxes, stageDimension
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
       toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
       return;
     }

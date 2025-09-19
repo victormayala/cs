@@ -41,7 +41,7 @@ const sanitizeHex = (hex: string): string => {
 interface TextToolPanelProps {
   activeViewId: string | null;
   boundaryBoxes: BoundaryBox[];
-  stageDimensions: { width: number; height: number };
+  stageDimensions?: { width: number; height: number } | null;
 }
 
 const DEFAULT_FONT_FAMILY = googleFonts.find(f => f.name === 'Arial')?.family || 'Arial, sans-serif';
@@ -160,7 +160,7 @@ export default function TextToolPanel({ activeViewId, boundaryBoxes, stageDimens
       toast({ title: "No Active View", description: "Please select a product view first.", variant: "default" });
       return;
     }
-    if (stageDimensions.width === 0 || stageDimensions.height === 0) {
+    if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) {
       toast({ title: "Canvas Not Ready", description: "Please wait for the canvas to load before adding elements.", variant: "default" });
       return;
     }
