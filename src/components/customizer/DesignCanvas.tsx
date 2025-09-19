@@ -262,6 +262,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const [stageDimensions, setStageDimensions] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
+    const hasCenteredRef = useRef(false); // Flag to prevent re-centering
 
     const [isImageLoading, setIsImageLoading] = useState(true);
 
@@ -288,6 +289,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         const container = containerRef.current;
         const image = imageRef.current;
         if (!container || !image) return;
+        
+        hasCenteredRef.current = false; // Reset on view change
 
         const calculateRect = () => {
             const containerRect = container.getBoundingClientRect();
@@ -341,31 +344,34 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     }, [activeView.imageUrl, handleStageRectChange]);
 
     useEffect(() => {
-        if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) return;
+        if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0 || hasCenteredRef.current) return;
     
         const center = { x: stageDimensions.width / 2, y: stageDimensions.height / 2 };
         
-        // Reposition images that haven't been moved
-        canvasImages.forEach(img => {
-          if (!img.movedFromDefault) {
-            updateCanvasImage(img.id, { x: center.x, y: center.y, movedFromDefault: true });
-          }
+        const uncenteredImages = canvasImages.filter(img => !img.movedFromDefault && img.viewId === activeView.id);
+        const uncenteredTexts = canvasTexts.filter(txt => !txt.movedFromDefault && txt.viewId === activeView.id);
+        const uncenteredShapes = canvasShapes.filter(shp => !shp.movedFromDefault && shp.viewId === activeView.id);
+
+        if (uncenteredImages.length === 0 && uncenteredTexts.length === 0 && uncenteredShapes.length === 0) {
+            return;
+        }
+
+        // Use a microtask to batch updates
+        queueMicrotask(() => {
+            uncenteredImages.forEach(img => {
+              updateCanvasImage(img.id, { x: center.x, y: center.y, movedFromDefault: true });
+            });
+            uncenteredTexts.forEach(txt => {
+              updateCanvasText(txt.id, { x: center.x, y: center.y, movedFromDefault: true });
+            });
+            uncenteredShapes.forEach(shp => {
+              updateCanvasShape(shp.id, { x: center.x, y: center.y, movedFromDefault: true });
+            });
         });
-        
-        // Reposition texts that haven't been moved
-        canvasTexts.forEach(txt => {
-          if (!txt.movedFromDefault) {
-            updateCanvasText(txt.id, { x: center.x, y: center.y, movedFromDefault: true });
-          }
-        });
-        
-        // Reposition shapes that haven't been moved
-        canvasShapes.forEach(shp => {
-          if (!shp.movedFromDefault) {
-            updateCanvasShape(shp.id, { x: center.x, y: center.y, movedFromDefault: true });
-          }
-        });
-    }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape]);
+
+        hasCenteredRef.current = true;
+
+    }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape, activeView.id]);
 
 
     const dragBoundFunc = useMemo(() => {
