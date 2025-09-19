@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -769,6 +768,7 @@ function ProductOptionsPage() {
           boxEl.style.top = `${newY}%`;
           boxEl.style.width = `${newWidth * 1.025}%`;
           boxEl.style.height = `${newHeight}%`;
+          boxEl.style.transform = 'translateX(-1.25%)';
         }
     }, [imageRect]);
   
@@ -1322,4 +1322,3 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
-
