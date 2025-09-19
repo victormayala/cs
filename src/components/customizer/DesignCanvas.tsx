@@ -288,7 +288,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
 
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
-            if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0) {
+            if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
                 return pos;
             }
 
@@ -296,48 +296,34 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
             const itemWidth = selfRect.width;
             const itemHeight = selfRect.height;
 
+            // Find which box the center of the object is in, or which it is closest to
+            let bestBox = pixelBoundaryBoxes[0];
+            let minDistance = Infinity;
+
             for (const box of pixelBoundaryBoxes) {
-                const boxLeft = box.x;
-                const boxRight = box.x + box.width;
-                const boxTop = box.y;
-                const boxBottom = box.y + box.height;
+                const boxCenterX = box.x + box.width / 2;
+                const boxCenterY = box.y + box.height / 2;
+                const distance = Math.sqrt(Math.pow(pos.x - boxCenterX, 2) + Math.pow(pos.y - boxCenterY, 2));
 
-                const itemLeft = pos.x - itemWidth / 2;
-                const itemRight = pos.x + itemWidth / 2;
-                const itemTop = pos.y - itemHeight / 2;
-                const itemBottom = pos.y + itemHeight / 2;
-
-                if (
-                    itemLeft >= boxLeft &&
-                    itemRight <= boxRight &&
-                    itemTop >= boxTop &&
-                    itemBottom <= boxBottom
-                ) {
-                    return pos; // The item is fully inside this box, so the position is valid
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestBox = box;
                 }
             }
-            
-            // If we are here, the item is not fully inside any single box.
-            // Find the closest valid position.
-            const oldPos = this.absolutePosition();
-            let newX = pos.x;
-            let newY = pos.y;
-            
-            const unionBox = pixelBoundaryBoxes.reduce((acc, box) => ({
-                minX: Math.min(acc.minX, box.x),
-                minY: Math.min(acc.minY, box.y),
-                maxX: Math.max(acc.maxX, box.x + box.width),
-                maxY: Math.max(acc.maxY, box.y + box.height),
-            }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 
-            newX = Math.max(unionBox.minX + itemWidth / 2, Math.min(newX, unionBox.maxX - itemWidth / 2));
-            newY = Math.max(unionBox.minY + itemHeight / 2, Math.min(newY, unionBox.maxY - itemHeight / 2));
-            
-            // This is a simplified fallback. A more complex one would find the closest point
-            // within ANY of the boxes, but for now, we constrain to the union.
+            // Now constrain to the bestBox
+            const newX = Math.max(
+                bestBox.x + itemWidth / 2,
+                Math.min(pos.x, bestBox.x + bestBox.width - itemWidth / 2)
+            );
+            const newY = Math.max(
+                bestBox.y + itemHeight / 2,
+                Math.min(pos.y, bestBox.y + bestBox.height - itemHeight / 2)
+            );
+
             return { x: newX, y: newY };
         };
-    }, [pixelBoundaryBoxes]);
+    }, [pixelBoundaryBoxes, stageDimensions]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
