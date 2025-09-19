@@ -1,15 +1,13 @@
 
 "use client";
 
-import { useSearchParams, useRouter } from 'next/navigation';
-import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
-import AppHeader from '@/components/layout/AppHeader';
+import { Suspense } from 'react';
 import { UploadProvider } from "@/contexts/UploadContext";
 import {
   Loader2,
 } from 'lucide-react';
 
-import { Customizer } from './Customizer';
+import { Customizer } from '@/components/customizer/Customizer';
 
 
 function CustomizerLayoutAndLogic() {

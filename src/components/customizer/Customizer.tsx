@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
-import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredpixelBoundaryBoxesentials } from '@/app/actions/woocommerceActions';
+import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import type { ProductOptionsFirestoreData, NativeProductVariation, BoundaryBox } from '@/app/actions/productOptionsActions';
 import type { NativeProduct, CustomizationTechnique } from '@/app/actions/productActions';
@@ -630,14 +630,21 @@ export function Customizer() {
 
     // 3. THE CALCULATION LOGIC:
     const newPixelBoxes = currentView.boundaryBoxes.map(box => {
-      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100);
-      const calculatedWidth = stageDimensions.width * box.width / 100;
-  
+      // Original width in pixels
+      const baseWidth = stageDimensions.width * box.width / 100;
+
+      // New width (60% wider)
+      const calculatedWidth = baseWidth * 1.6;
+
+      // Shift X so it expands evenly left + right
+      const extraWidth = calculatedWidth - baseWidth;
+      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+
       return {
-        x: calculatedX,
-        y: stageDimensions.y + (stageDimensions.height * box.y / 100),
-        width: calculatedWidth,
-        height: stageDimensions.height * box.height / 100,
+          x: calculatedX,
+          y: stageDimensions.y + (stageDimensions.height * box.y / 100),
+          width: calculatedWidth,
+          height: stageDimensions.height * box.height / 100,
       };
     });
 
@@ -897,7 +904,10 @@ export function Customizer() {
         </Button>
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
-          <TransformToolbar />
+          <TransformToolbar
+            pixelBoundaryBoxes={pixelBoundaryBoxes}
+            stageDimensions={stageDimensions}
+          />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
@@ -907,7 +917,6 @@ export function Customizer() {
                 showGrid={showGrid} 
                 showBoundaryBoxes={showBoundaryBoxes}
                 onStageRectChange={setStageDimensions}
-                pixelBoundaryBoxes={pixelBoundaryBoxes}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
