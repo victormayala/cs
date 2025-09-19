@@ -69,6 +69,7 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
+          rotateEnabled={true} // Enable rotation
         />
       )}
     </>
@@ -133,6 +134,7 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
+          rotateEnabled={true} // Enable rotation
         />
       )}
     </>
@@ -195,6 +197,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
+          rotateEnabled={true} // Enable rotation
         />
       )}
     </>
@@ -211,9 +214,9 @@ interface DesignCanvasProps {
 
 export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, onStageRectChange, pixelBoundaryBoxes }: DesignCanvasProps) {
     const {
-        canvasImages, selectedCanvasImageId, selectCanvasImage, updateCanvasImage,
-        canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText,
-        canvasShapes, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape,
+        canvasImages, selectedCanvasImageId, selectCanvasImage, updateCanvasImage, removeCanvasImage,
+        canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText, removeCanvasText,
+        canvasShapes, selectedCanvasShapeId, selectCanvasShape, updateCanvasShape, removeCanvasShape,
         getStageRef,
     } = useUploads();
     
@@ -228,6 +231,20 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         setStageDimensions(rect);
         onStageRectChange(rect);
     }, [onStageRectChange]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedCanvasImageId) removeCanvasImage(selectedCanvasImageId);
+                if (selectedCanvasTextId) removeCanvasText(selectedCanvasTextId);
+                if (selectedCanvasShapeId) removeCanvasShape(selectedCanvasShapeId);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedCanvasImageId, removeCanvasImage, selectedCanvasTextId, removeCanvasText, selectedCanvasShapeId, removeCanvasShape]);
+
 
     useEffect(() => {
         const container = containerRef.current;
@@ -444,3 +461,5 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         </div>
     );
 }
+
+    
