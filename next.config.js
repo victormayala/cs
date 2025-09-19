@@ -51,6 +51,12 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('canvas');
+    } else {
+      // Required to fix a build error with 'handlebars'.
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false
+      };
     }
     return config;
   },
