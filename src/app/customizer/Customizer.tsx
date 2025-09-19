@@ -980,4 +980,3 @@ export function Customizer() {
     </div>
   );
 }
-
