@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -424,7 +425,7 @@ export default function ProductDetailPage() {
                                   <div className="flex items-start">
                                     <InfoIcon className="h-4 w-4 !text-blue-600 mt-0.5" />
                                     <AlertDescription className="text-sm text-blue-700 ml-2">
-                                        A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
+                                        A one-time setup fee of ${storeConfig.embroidery?.setupFeeAmount.toFixed(2)} applies for new logo uploads.
                                         <TooltipProvider delayDuration={100}>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -433,11 +434,11 @@ export default function ProductDetailPage() {
                                                 <TooltipContent className="max-w-xs p-3" side="top" align="center">
                                                     <div className="space-y-2">
                                                         <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
-                                                          <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" layout="fill" objectFit="cover"/>
+                                                          <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" fill className="object-cover"/>
                                                         </div>
                                                         <p className="text-xs font-bold">One-Time Digitization Fee</p>
                                                         <p className="text-xs">
-                                                            This is a one-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.
+                                                            {storeConfig.embroidery?.setupFeeDescription || 'This is a one-time fee to convert your logo file into a format that embroidery machines can read. Once paid, you can reuse this embroidery file on future orders for free.'}
                                                         </p>
                                                     </div>
                                                 </TooltipContent>
