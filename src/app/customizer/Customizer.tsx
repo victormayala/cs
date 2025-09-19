@@ -50,6 +50,7 @@ import PremiumDesignsPanel from '@/components/customizer/PremiumDesignsPanel';
 import VariantSelector from '@/components/customizer/VariantSelector';
 import RightPanel from '@/components/customizer/RightPanel';
 import type { IRect } from 'konva/lib/types';
+import TransformToolbar from '@/components/customizer/TransformToolbar';
 
 
 const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'), {
@@ -902,6 +903,7 @@ export function Customizer() {
         </Button>
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
+          <TransformToolbar />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            <div className="w-full flex flex-col flex-1 min-h-0 pb-4">
@@ -980,5 +982,3 @@ export function Customizer() {
     </div>
   );
 }
-
-    
