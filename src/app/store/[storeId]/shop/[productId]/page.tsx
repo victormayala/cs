@@ -421,12 +421,13 @@ export default function ProductDetailPage() {
                             )}
 
                              {showEmbroideryFeeMessage && (
-                                <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-                                  <div className="flex items-start">
-                                    <InfoIcon className="h-4 w-4 !text-blue-600 mt-0.5 shrink-0" />
-                                    <div className="ml-3 flex-1">
-                                        <AlertTitle className="text-blue-900">Embroidery Fee</AlertTitle>
-                                        <AlertDescription className="text-sm text-blue-700">
+                                <Card className="bg-blue-50 border-blue-200">
+                                    <CardContent className="p-4">
+                                        <h4 className="font-semibold text-blue-900 flex items-center mb-1">
+                                            <InfoIcon className="h-5 w-5 !text-blue-600 mr-2" />
+                                            Embroidery Fee
+                                        </h4>
+                                        <p className="text-sm text-blue-700 pl-7">
                                             A one-time setup fee of ${storeConfig.embroidery.setupFeeAmount.toFixed(2)} applies for new logo uploads.
                                             <TooltipProvider delayDuration={100}>
                                                 <Tooltip>
@@ -436,7 +437,7 @@ export default function ProductDetailPage() {
                                                     <TooltipContent className="max-w-xs p-3" side="top" align="center">
                                                         <div className="space-y-2">
                                                             <div className="relative w-full aspect-video rounded-md overflow-hidden bg-muted">
-                                                            <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" fill className="object-cover"/>
+                                                                <Image src="https://firebasestorage.googleapis.com/v0/b/embedz.firebasestorage.app/o/misc%2Fembroidery-setup.png?alt=media&token=151d19bf-f929-4d23-b6fc-c55f504bce1a" alt="Embroidery setup example" fill className="object-cover"/>
                                                             </div>
                                                             <p className="text-xs font-bold">One-Time Digitization Fee</p>
                                                             <p className="text-xs">
@@ -446,10 +447,9 @@ export default function ProductDetailPage() {
                                                     </TooltipContent>
                                                 </Tooltip>
                                             </TooltipProvider>
-                                        </AlertDescription>
-                                    </div>
-                                  </div>
-                                </Alert>
+                                        </p>
+                                    </CardContent>
+                                </Card>
                             )}
 
                             {/* Shipping Options Section moved here */}
