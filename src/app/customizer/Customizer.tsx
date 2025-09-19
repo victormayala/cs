@@ -139,7 +139,7 @@ async function loadProductOptionsFromFirestore(
 ): Promise<{ options?: ProductOptionsFirestoreData; error?: string }> {
   if (!userIdForOptions || !productId || !db) {
     const message = 'User/Config ID, Product ID, or DB service is missing for loading options.';
-    console.warn(`loadProductOptionsFromFirestore: ${message}`);
+    console.warn(`loadProductOptionsFromFirestore: ${'message'}`);
     return { error: message };
   }
   const firestoreDocId = productId.split('/').pop() || productId;
@@ -151,7 +151,7 @@ async function loadProductOptionsFromFirestore(
     }
     return { options: undefined }; 
   } catch (error: any) {
-    let detailedError = `Failed to load options from cloud: ${error.message}`;
+    let detailedError = `Failed to load options from cloud: ${'error.message'}`;
     if (error.code === 'permission-denied' || error.message?.includes('Missing or insufficient permissions')) {
         detailedError += " This is likely a Firestore security rule issue. Ensure public read access is configured for userProductOptions/{configUserId}/products/{productId} if using configUserId, or that the current user has permission.";
     }
@@ -334,7 +334,7 @@ export function Customizer() {
       try {
           if (sourceFromUrl === 'shopify') {
               if (!userIdForFirestoreOptions) throw new Error("User credentials required for Shopify.");
-              const credDocRef = doc(db, 'userShopifyCredentials', userIdForOptions);
+              const credDocRef = doc(db, 'userShopifyCredentials', userIdForFirestoreOptions);
               const credDocSnap = await getDoc(credDocRef);
               if (!credDocSnap.exists()) throw new Error("Shopify store not connected.");
               const creds = credDocSnap.data() as UserShopifyCredentials;
@@ -980,3 +980,4 @@ export function Customizer() {
     </div>
   );
 }
+
