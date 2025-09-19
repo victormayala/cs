@@ -20,7 +20,7 @@ import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsAc
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import {
   Loader2, AlertTriangle, ShoppingCart, UploadCloud, Layers, Type, Shapes as ShapesIconLucide, Smile, Palette, Gem as GemIcon, Settings2 as SettingsIcon,
-  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Sparkles, Ban, ArrowLeft
+  PanelLeftClose, PanelRightOpen, PanelRightClose, PanelLeftOpen, Ban, ArrowLeft
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -629,16 +629,9 @@ export function Customizer() {
 
     // 3. THE CALCULATION LOGIC:
     const newPixelBoxes = currentView.boundaryBoxes.map(box => {
-      // Original width in pixels
-      const baseWidth = stageDimensions.width * box.width / 100;
-
-      // New width (60% wider)
-      const calculatedWidth = baseWidth * 1.6;
-
-      // Shift X so it expands evenly left + right
-      const extraWidth = calculatedWidth - baseWidth;
-      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
-
+      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100);
+      const calculatedWidth = stageDimensions.width * box.width / 100;
+  
       return {
         x: calculatedX,
         y: stageDimensions.y + (stageDimensions.height * box.y / 100),
@@ -980,3 +973,5 @@ export function Customizer() {
     </div>
   );
 }
+
+    
