@@ -220,8 +220,14 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     const stageRef = getStageRef();
     const containerRef = useRef<HTMLDivElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
+    const [stageDimensions, setStageDimensions] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
 
     const [isImageLoading, setIsImageLoading] = useState(true);
+
+    const handleStageRectChange = useCallback((rect: { width: number; height: number; x: number; y: number }) => {
+        setStageDimensions(rect);
+        onStageRectChange(rect);
+    }, [onStageRectChange]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -255,7 +261,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
             }
             
             const newRect = { width: renderWidth, height: renderHeight, x, y };
-            onStageRectChange(newRect);
+            handleStageRectChange(newRect);
         };
         
         const resizeObserver = new ResizeObserver(calculateRect);
@@ -273,40 +279,65 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
 
         return () => {
           resizeObserver.disconnect();
-          image.removeEventListener('load', handleImageLoad);
+          if (image) {
+            image.removeEventListener('load', handleImageLoad);
+          }
         };
-    }, [activeView.imageUrl, onStageRectChange]);
+    }, [activeView.imageUrl, handleStageRectChange]);
 
 
     const dragBoundFunc = useMemo(() => {
-        if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0) {
-          // No boundaries defined, allow free dragging within the canvas
-          return function(this: Konva.Node, pos: { x: number; y: number }) {
-            return pos;
-          };
-        }
-    
-        // Calculate the union of all boundary boxes
-        const unionBox = pixelBoundaryBoxes.reduce((acc, box) => {
-          return {
-            minX: Math.min(acc.minX, box.x),
-            minY: Math.min(acc.minY, box.y),
-            maxX: Math.max(acc.maxX, box.x + box.width),
-            maxY: Math.max(acc.maxY, box.y + box.height),
-          };
-        }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
-    
         return function(this: Konva.Node, pos: { x: number; y: number }) {
-          const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-          const offsetX = selfRect.width / 2;
-          const offsetY = selfRect.height / 2;
-    
-          return {
-            x: Math.max(unionBox.minX + offsetX, Math.min(pos.x, unionBox.maxX - offsetX)),
-            y: Math.max(unionBox.minY + offsetY, Math.min(pos.y, unionBox.maxY - offsetY)),
-          };
+            if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0) {
+                return pos;
+            }
+
+            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+            const itemWidth = selfRect.width;
+            const itemHeight = selfRect.height;
+
+            for (const box of pixelBoundaryBoxes) {
+                const boxLeft = box.x;
+                const boxRight = box.x + box.width;
+                const boxTop = box.y;
+                const boxBottom = box.y + box.height;
+
+                const itemLeft = pos.x - itemWidth / 2;
+                const itemRight = pos.x + itemWidth / 2;
+                const itemTop = pos.y - itemHeight / 2;
+                const itemBottom = pos.y + itemHeight / 2;
+
+                if (
+                    itemLeft >= boxLeft &&
+                    itemRight <= boxRight &&
+                    itemTop >= boxTop &&
+                    itemBottom <= boxBottom
+                ) {
+                    return pos; // The item is fully inside this box, so the position is valid
+                }
+            }
+            
+            // If we are here, the item is not fully inside any single box.
+            // Find the closest valid position.
+            const oldPos = this.absolutePosition();
+            let newX = pos.x;
+            let newY = pos.y;
+            
+            const unionBox = pixelBoundaryBoxes.reduce((acc, box) => ({
+                minX: Math.min(acc.minX, box.x),
+                minY: Math.min(acc.minY, box.y),
+                maxX: Math.max(acc.maxX, box.x + box.width),
+                maxY: Math.max(acc.maxY, box.y + box.height),
+            }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+            newX = Math.max(unionBox.minX + itemWidth / 2, Math.min(newX, unionBox.maxX - itemWidth / 2));
+            newY = Math.max(unionBox.minY + itemHeight / 2, Math.min(newY, unionBox.maxY - itemHeight / 2));
+            
+            // This is a simplified fallback. A more complex one would find the closest point
+            // within ANY of the boxes, but for now, we constrain to the union.
+            return { x: newX, y: newY };
         };
-      }, [pixelBoundaryBoxes]);
+    }, [pixelBoundaryBoxes]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
