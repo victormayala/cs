@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
@@ -1170,10 +1171,11 @@ function ProductOptionsPage() {
                                 className={cn(
                                     "absolute group/box",
                                     selectedBoundaryBoxId === box.id
-                                        ? 'border-primary ring-2 ring-primary ring-offset-background bg-primary/10'
-                                        : 'border-2 border-dashed border-red-500'
+                                        ? 'border-red-500 bg-red-500/10'
+                                        : 'border-dashed border-red-500'
                                 )}
                                 style={{
+                                    borderWidth: '2px',
                                     left: `${box.x}%`,
                                     top: `${box.y}%`,
                                     width: `${box.width * 1.025}%`,
@@ -1182,16 +1184,16 @@ function ProductOptionsPage() {
                                 }}
                             >
                                 <div
-                                    className="absolute inset-0 cursor-move hover:bg-primary/10"
+                                    className="absolute inset-0 cursor-move hover:bg-red-500/10"
                                     onMouseDown={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                     onTouchStart={(e) => { setSelectedBoundaryBoxId(box.id); handleInteractionStart(e, box, 'move'); }}
                                 />
                                 {selectedBoundaryBoxId === box.id && (
                                     <>
-                                        <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                        <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
-                                        <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-primary text-primary-foreground rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-red-500 text-white rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tl')}><Maximize2 className="w-2.5 h-2.5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Top-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_tr')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_tr')}><Maximize2 className="w-2.5 h-2.5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-red-500 text-white rounded-full border-2 border-background shadow-md cursor-nesw-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Left)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_bl')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_bl')}><Maximize2 className="w-2.5 h-2.5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
+                                        <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full border-2 border-background shadow-md cursor-nwse-resize hover:opacity-80 active:opacity-100" title="Resize (Bottom-Right)" onMouseDown={(e) => handleInteractionStart(e, box, 'resize_br')} onTouchStart={(e) => handleInteractionStart(e, box, 'resize_br')}><Maximize2 className="w-2.5 h-2.5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>
                                     </>
                                 )}
                             </div>
@@ -1323,3 +1325,4 @@ export default function ProductOptions() {
     <ProductOptionsPage />
   );
 }
+
