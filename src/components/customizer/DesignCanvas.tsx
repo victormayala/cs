@@ -3,11 +3,11 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Path } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
 import type { ProductView } from '@/app/customizer/Customizer';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IRect } from 'konva/lib/types';
 
@@ -19,10 +19,11 @@ interface InteractiveCanvasImageProps {
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
 }
 
-const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
+const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransformEnd, onDragEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const [image, setImage] = useState<HTMLImageElement | undefined>(undefined);
@@ -60,7 +61,7 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         onClick={onSelect}
         onTap={onSelect}
         onTransformEnd={onTransformEnd}
-        onDragEnd={onTransformEnd}
+        onDragEnd={onDragEnd}
         zIndex={imageProps.zIndex}
         dragBoundFunc={dragBoundFunc}
         offsetX={imageProps.width / 2}
@@ -70,7 +71,14 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          rotateEnabled={true} // Enable rotation
+          anchorFill="hsl(var(--primary))"
+          anchorStroke="hsl(var(--primary-foreground))"
+          anchorSize={10}
+          anchorCornerRadius={5}
+          borderStroke="hsl(var(--primary))"
+          borderStrokeWidth={1.5}
+          borderDash={[4, 4]}
+          rotateEnabled={true}
         />
       )}
     </>
@@ -82,10 +90,11 @@ interface InteractiveCanvasTextProps {
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y:number};
 }
 
-const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
+const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransformEnd, onDragEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
   
@@ -114,7 +123,7 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         onClick={onSelect}
         onTap={onSelect}
         onTransformEnd={onTransformEnd}
-        onDragEnd={onTransformEnd}
+        onDragEnd={onDragEnd}
         fontStyle={`${textProps.fontWeight} ${textProps.fontStyle}`}
         textDecoration={textProps.textDecoration}
         lineHeight={textProps.lineHeight}
@@ -135,7 +144,14 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          rotateEnabled={true} // Enable rotation
+          anchorFill="hsl(var(--primary))"
+          anchorStroke="hsl(var(--primary-foreground))"
+          anchorSize={10}
+          anchorCornerRadius={5}
+          borderStroke="hsl(var(--primary))"
+          borderStrokeWidth={1.5}
+          borderDash={[4, 4]}
+          rotateEnabled={true}
         />
       )}
     </>
@@ -147,10 +163,11 @@ interface InteractiveCanvasShapeProps {
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
 }
 
-const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransformEnd, dragBoundFunc }) => {
+const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransformEnd, onDragEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Rect | Konva.Circle>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -175,7 +192,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     onClick: onSelect,
     onTap: onSelect,
     onTransformEnd: onTransformEnd,
-    onDragEnd: onTransformEnd,
+    onDragEnd: onDragEnd,
     zIndex: shapeProps.zIndex,
     dragBoundFunc: dragBoundFunc,
   };
@@ -198,7 +215,14 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5 ? oldBox : newBox)}
-          rotateEnabled={true} // Enable rotation
+          anchorFill="hsl(var(--primary))"
+          anchorStroke="hsl(var(--primary-foreground))"
+          anchorSize={10}
+          anchorCornerRadius={5}
+          borderStroke="hsl(var(--primary))"
+          borderStrokeWidth={1.5}
+          borderDash={[4, 4]}
+          rotateEnabled={true}
         />
       )}
     </>
@@ -351,6 +375,10 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         }
     };
 
+    const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>, itemType: 'image' | 'text' | 'shape') => {
+      handleTransformEnd(e, itemType);
+    };
+
     const handleTransformEnd = (e: Konva.KonvaEventObject<Event>, itemType: 'image' | 'text' | 'shape') => {
         const node = e.target;
         
@@ -433,6 +461,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 isSelected={img.id === selectedCanvasImageId && !img.isLocked}
                                 onSelect={() => selectCanvasImage(img.id)}
                                 onTransformEnd={(e) => handleTransformEnd(e, 'image')}
+                                onDragEnd={(e) => handleDragEnd(e, 'image')}
                                 dragBoundFunc={dragBoundFunc}
                             />
                         ))}
@@ -443,6 +472,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 isSelected={text.id === selectedCanvasTextId && !text.isLocked}
                                 onSelect={() => selectCanvasText(text.id)}
                                 onTransformEnd={(e) => handleTransformEnd(e, 'text')}
+                                onDragEnd={(e) => handleDragEnd(e, 'text')}
                                 dragBoundFunc={dragBoundFunc}
                             />
                         ))}
@@ -453,6 +483,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 isSelected={shape.id === selectedCanvasShapeId && !shape.isLocked}
                                 onSelect={() => selectCanvasShape(shape.id)}
                                 onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
+                                onDragEnd={(e) => handleDragEnd(e, 'shape')}
                                 dragBoundFunc={dragBoundFunc}
                             />
                         ))}
