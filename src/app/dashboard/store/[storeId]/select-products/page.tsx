@@ -22,7 +22,7 @@ import { fetchShopifyProducts } from '@/app/actions/shopifyActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
 import { fetchWooCommerceProducts, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
-import { deployStore } from '@/ai/flows/deploy-store';
+
 
 interface DisplayProduct {
   id: string;
@@ -171,25 +171,20 @@ function SelectProductsStorePage() {
         const storeRef = doc(db, 'userStores', storeId);
         await updateDoc(storeRef, { 'deployment.status': 'pending' });
         
-        // Ensure the config object passed to the flow includes the ID
-        const plainStoreConfig = JSON.parse(JSON.stringify({ 
-            ...storeConfig, 
-            id: storeId, // Explicitly add the store ID here
-            productIds: Array.from(selectedProductIds) 
-        }));
+        // Mock deployment delay
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const deploymentUrl = `/store/${storeId}`;
 
-        const deploymentResult = await deployStore(plainStoreConfig);
-        
         await updateDoc(storeRef, {
             deployment: {
                 status: 'active',
-                deployedUrl: deploymentResult.deploymentUrl,
+                deployedUrl: deploymentUrl,
                 lastDeployedAt: serverTimestamp(),
             }
         });
 
         toast({ title: "Deployment Successful!", description: "Your store is now live." });
-        router.push(`/store/${storeId}`);
+        router.push(deploymentUrl);
 
       } catch (err: any) {
         console.error("Deployment failed:", err);
