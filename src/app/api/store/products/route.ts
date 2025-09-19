@@ -87,7 +87,7 @@ export async function GET(request: Request) {
         description: productData.description,
         price: price,
         imageUrl: primaryImageUrl,
-        productUrl: `/store/${storeId}/products/${productId}`, // Use storeId
+        productUrl: `/store/${storeId}/shop/${productId}`, // Use storeId and new route
       };
       return publicProduct;
     });
