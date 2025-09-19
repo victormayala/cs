@@ -1,3 +1,4 @@
+
 "use client";
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
@@ -348,8 +349,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           isLocked: false,
           itemType: 'image',
           movedFromDefault: !stageWidth || !stageHeight,
-          offsetX: width / 2,
-          offsetY: height / 2,
         };
         setCanvasImages(prev => [...prev, newCanvasImage]);
         setSelectedCanvasImageId(newCanvasImage.id);

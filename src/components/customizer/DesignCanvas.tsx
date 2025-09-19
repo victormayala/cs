@@ -340,11 +340,50 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         };
     }, [activeView.imageUrl, handleStageRectChange]);
 
+    useEffect(() => {
+        if (!stageDimensions || stageDimensions.width === 0 || stageDimensions.height === 0) return;
+    
+        const center = { x: stageDimensions.width / 2, y: stageDimensions.height / 2 };
+        
+        // Reposition images that haven't been moved
+        canvasImages.forEach(img => {
+          if (!img.movedFromDefault) {
+            updateCanvasImage(img.id, { x: center.x, y: center.y, movedFromDefault: true });
+          }
+        });
+        
+        // Reposition texts that haven't been moved
+        canvasTexts.forEach(txt => {
+          if (!txt.movedFromDefault) {
+            updateCanvasText(txt.id, { x: center.x, y: center.y, movedFromDefault: true });
+          }
+        });
+        
+        // Reposition shapes that haven't been moved
+        canvasShapes.forEach(shp => {
+          if (!shp.movedFromDefault) {
+            updateCanvasShape(shp.id, { x: center.x, y: center.y, movedFromDefault: true });
+          }
+        });
+    }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape]);
+
 
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
             if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-                return pos;
+                 const selfRect = this.getClientRect({ relativeTo: this.getParent() });
+                const itemWidth = selfRect.width;
+                const itemHeight = selfRect.height;
+                const newX = Math.max(
+                    itemWidth / 2,
+                    Math.min(pos.x, stageDimensions!.width - itemWidth / 2)
+                );
+                const newY = Math.max(
+                    itemHeight / 2,
+                    Math.min(pos.y, stageDimensions!.height - itemHeight / 2)
+                );
+
+                return { x: newX, y: newY };
             }
 
             const selfRect = this.getClientRect({ relativeTo: this.getParent() });
