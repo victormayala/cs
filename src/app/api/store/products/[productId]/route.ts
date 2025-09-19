@@ -21,7 +21,7 @@ interface PublicProductDetail extends PublicProduct {
     variationImages?: Record<string, ProductView[]>; // Key: Color Name
     brand?: string;
     sku?: string;
-    category?: string; // This will now hold the category ID
+    category?: string; // This will now hold the category NAME
     customizationTechniques?: CustomizationTechnique[];
     nativeVariations?: NativeProductVariation[];
 }
@@ -70,6 +70,16 @@ export async function GET(request: Request, { params }: { params: { productId: s
     const productData = productSnap.data() as NativeProduct;
     const optionsData = optionsSnap.exists() ? optionsSnap.data() as ProductOptionsFirestoreData : null;
     
+    // Fetch category name
+    let categoryName: string | undefined = undefined;
+    if (productData.category) {
+        const categoryRef = doc(db, `users/${configUserId}/productCategories`, productData.category);
+        const categorySnap = await getDoc(categoryRef);
+        if (categorySnap.exists()) {
+            categoryName = (categorySnap.data() as ProductCategory).name;
+        }
+    }
+
     const defaultPlaceholderImage = `https://placehold.co/600x400.png?text=${encodeURIComponent(productData.name)}`;
     
     const views = optionsData?.defaultViews?.map(view => ({
@@ -106,13 +116,13 @@ export async function GET(request: Request, { params }: { params: { productId: s
       price: optionsData?.price ?? 0,
       salePrice: optionsData?.salePrice ?? null,
       imageUrl: primaryImageUrl,
-      productUrl: `/store/${storeId}/shop/${productId}`, // Use storeId in the URL
+      productUrl: `/store/${storeId}/shop/${productId}`, // Use storeId and new route
       views: views,
       attributes: optionsData?.nativeAttributes as ProductAttributeOptionsForPDP | undefined,
       variationImages: Object.keys(variationImages).length > 0 ? variationImages : undefined,
       brand: productData.brand,
       sku: productData.sku,
-      category: productData.category, // Pass the ID directly
+      category: categoryName, // Pass the fetched name
       customizationTechniques: productData.customizationTechniques,
       nativeVariations: cleanNativeVariations,
     };
