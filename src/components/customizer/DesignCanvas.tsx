@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
@@ -461,5 +462,6 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         </div>
     );
 }
+
 
     
