@@ -905,6 +905,12 @@ export function Customizer() {
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
           <TransformToolbar
+            selectedItem={
+              canvasImages.find(i => i.id === selectedCanvasImageId) ||
+              canvasTexts.find(t => t.id === selectedCanvasTextId) ||
+              canvasShapes.find(s => s.id === selectedCanvasShapeId) ||
+              null
+            }
             pixelBoundaryBoxes={pixelBoundaryBoxes}
             stageDimensions={stageDimensions}
           />
