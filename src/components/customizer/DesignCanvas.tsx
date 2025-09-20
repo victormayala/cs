@@ -126,6 +126,30 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
   const shapeRef = useRef<Konva.Text>(null);
   const pathRef = useRef<Konva.Path>(null);
   const trRef = useRef<Konva.Transformer>(null);
+
+  const transformerBoundBoxFunc = useMemo(() => {
+    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
+      const node = this.nodes()[0];
+      if (!node) return oldBox;
+
+      if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
+        return newBox; // No boundaries, allow any transform
+      }
+
+      const nodeCenter = { x: node.x(), y: node.y() };
+      
+      const containingBox = pixelBoundaryBoxes.find(box => 
+          nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+          nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+      ) || pixelBoundaryBoxes[0];
+      
+      if (newBox.width > containingBox.width || newBox.height > containingBox.height) {
+        return oldBox;
+      }
+
+      return newBox;
+    };
+  }, []);
   
   useEffect(() => {
     if (isSelected && trRef.current && (shapeRef.current || pathRef.current)) {
@@ -165,30 +189,6 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
     zIndex: textProps.zIndex,
     dragBoundFunc: dragBoundFunc,
   };
-
-  const transformerBoundBoxFunc = useMemo(() => {
-    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
-      const node = this.nodes()[0];
-      if (!node) return oldBox;
-
-      if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-        return newBox; // No boundaries, allow any transform
-      }
-
-      const nodeCenter = { x: node.x(), y: node.y() };
-      
-      const containingBox = pixelBoundaryBoxes.find(box => 
-          nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
-          nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
-      ) || pixelBoundaryBoxes[0];
-      
-      if (newBox.width > containingBox.width || newBox.height > containingBox.height) {
-        return oldBox;
-      }
-
-      return newBox;
-    };
-  }, []);
 
   if (!textProps.archAmount) {
     // If there's no arch, we don't need the complex path logic
@@ -530,46 +530,44 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape, activeView.id]);
 
     const dragBoundFunc = useMemo(() => {
-        return function(this: Konva.Node, pos: { x: number; y: number }) {
-            if (!stageDimensions) {
-                return this.getAbsolutePosition();
-            }
-
-            const selfRect = this.getClientRect({ relativeTo: this.getParent() });
-            const itemWidth = selfRect.width;
-            const itemHeight = selfRect.height;
-            const relPos = {
-                x: pos.x - stageDimensions.x,
-                y: pos.y - stageDimensions.y,
-            };
-
-            let containingBox: IRect | undefined;
-            
-            // If boundaries exist, find the one containing the item's center
-            if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
-                containingBox = pixelBoundaryBoxes.find(box => 
-                    relPos.x >= (box.x - stageDimensions.x) && relPos.x <= (box.x - stageDimensions.x + box.width) &&
-                    relPos.y >= (box.y - stageDimensions.y) && relPos.y <= (box.y - stageDimensions.y + box.height)
-                );
-            }
-
-            // Fallback to full stage if no specific boundary contains the item
-            const boundary = containingBox 
-                ? { x: containingBox.x - stageDimensions.x, y: containingBox.y - stageDimensions.y, width: containingBox.width, height: containingBox.height }
-                : { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
-
-            // Clamp the position to keep the item within the determined boundary
-            const newX = Math.max(
-                boundary.x + itemWidth / 2,
-                Math.min(pos.x, boundary.x + boundary.width - itemWidth / 2)
-            );
-            const newY = Math.max(
-                boundary.y + itemHeight / 2,
-                Math.min(pos.y, boundary.y + boundary.height - itemHeight / 2)
-            );
-
-            return { x: newX, y: newY };
-        };
+      return function(this: Konva.Node, pos: { x: number; y: number }) {
+        if (!stageDimensions) {
+          return this.getAbsolutePosition();
+        }
+    
+        const scaleX = this.scaleX();
+        const scaleY = this.scaleY();
+        // Use base width/height, not clientRect, which is already scaled
+        const itemWidth = this.width(); 
+        const itemHeight = this.height();
+    
+        const scaledHalfWidth = (itemWidth * scaleX) / 2;
+        const scaledHalfHeight = (itemHeight * scaleY) / 2;
+    
+        let containingBox: IRect | undefined;
+    
+        if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+          containingBox = pixelBoundaryBoxes.find(box => 
+            pos.x >= box.x && pos.x <= box.x + box.width &&
+            pos.y >= box.y && pos.y <= box.y + box.height
+          );
+        }
+    
+        const boundary = containingBox 
+          ? containingBox
+          : { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
+    
+        const newX = Math.max(
+          boundary.x + scaledHalfWidth,
+          Math.min(pos.x, boundary.x + boundary.width - scaledHalfWidth)
+        );
+        const newY = Math.max(
+          boundary.y + scaledHalfHeight,
+          Math.min(pos.y, boundary.y + boundary.height - scaledHalfHeight)
+        );
+    
+        return { x: newX, y: newY };
+      };
     }, [stageDimensions, pixelBoundaryBoxes]);
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -657,9 +655,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                         style={{
                             left: `${box.x}px`,
                             top: `${box.y}px`,
-                            width: `${box.width * 1.6}px`,
+                            width: `${box.width}px`,
                             height: `${box.height}px`,
-                            transform: `translateX(-${(box.width * 0.6) / 2}px)`
                         }}
                     />
                 ))}
@@ -719,6 +716,3 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         </div>
     );
 }
-
-
-    
