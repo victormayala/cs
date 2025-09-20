@@ -589,26 +589,18 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                     />
                 )}
 
-                {showBoundaryBoxes && activeView.boundaryBoxes.map((box, index) => {
-                    if (!stageDimensions) return null;
-                    const baseWidth = stageDimensions.width * (box.width / 100);
-                    const calculatedWidth = baseWidth * 1.6;
-                    const extraWidth = calculatedWidth - baseWidth;
-                    const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
-
-                    return (
-                        <div 
-                            key={`box-${index}`} 
-                            className="absolute border-2 border-dashed border-red-500 pointer-events-none" 
-                            style={{
-                                left: `${calculatedX}px`,
-                                top: `${stageDimensions.y + (stageDimensions.height * box.y / 100)}px`,
-                                width: `${calculatedWidth}px`,
-                                height: `${stageDimensions.height * box.height / 100}px`,
-                            }}
-                        />
-                    );
-                })}
+                {showBoundaryBoxes && pixelBoundaryBoxes.map((box, index) => (
+                    <div 
+                        key={`box-${index}`} 
+                        className="absolute border-2 border-dashed border-red-500 pointer-events-none" 
+                        style={{
+                            left: `${box.x}px`,
+                            top: `${box.y}px`,
+                            width: `${box.width}px`,
+                            height: `${box.height}px`,
+                        }}
+                    />
+                ))}
 
                 <Stage
                     ref={stageRef}
@@ -622,7 +614,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                     onTouchStart={startInteractiveOperation}
                     onTouchEnd={endInteractiveOperation}
                 >
-                    <Layer name="interactive-layer">
+                    <Layer name="interactive-layer" x={stageDimensions?.x} y={stageDimensions?.y}>
                         {visibleImages.map((img) => (
                             <InteractiveCanvasImage
                                 key={`${img.id}-${img.zIndex}`}
@@ -671,3 +663,5 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         </div>
     );
 }
+
+    
