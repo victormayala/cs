@@ -1,14 +1,9 @@
-
 "use client";
 
 import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 import { UploadProvider } from "@/contexts/UploadContext";
-import {
-  Loader2,
-} from 'lucide-react';
-
 import { Customizer } from '@/components/customizer/Customizer';
-
 
 function CustomizerLayoutAndLogic() {
   return <Customizer />
