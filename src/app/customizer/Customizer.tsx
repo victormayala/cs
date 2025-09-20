@@ -220,8 +220,11 @@ export function Customizer() {
   const { toast } = useToast();
   const { 
     canvasImages, 
+    selectedCanvasImageId, 
     canvasTexts, 
-    canvasShapes,
+    selectedCanvasTextId, 
+    canvasShapes, 
+    selectedCanvasShapeId,
     restoreFromSnapshot, 
     getStageRef 
   } = useUploads();
@@ -746,61 +749,70 @@ export function Customizer() {
         if (!stage) {
             throw new Error("Canvas is not ready. Please try again.");
         }
+        
+        const generatePreview = (viewId: string): Promise<{ viewId: string; viewName: string; url: string; }> => {
+            return new Promise(async (resolve, reject) => {
+                const viewInfo = productDetails.views.find(v => v.id === viewId);
+                if (!viewInfo) return reject(new Error(`View info for ${viewId} not found.`));
 
-        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-        const tempStageContainer = document.createElement('div');
-        tempStageContainer.style.position = 'absolute';
-        tempStageContainer.style.left = '-9999px';
-        document.body.appendChild(tempStageContainer);
+                const tempContainer = document.createElement('div');
+                document.body.appendChild(tempContainer);
+                tempContainer.style.position = 'absolute';
+                tempContainer.style.left = '-9999px';
+                
+                const tempStage = new Konva.Stage({
+                    container: tempContainer,
+                    width: stage.width(),
+                    height: stage.height(),
+                });
 
-        for (const viewId of customizedViewIds) {
-            const viewInfo = productDetails.views.find(v => v.id === viewId);
-            if (!viewInfo) continue;
+                const bgLayer = new Konva.Layer();
+                tempStage.add(bgLayer);
 
-            const tempStage = new Konva.Stage({
-                container: tempStageContainer,
-                width: stage.width(),
-                height: stage.height(),
+                const contentLayer = new Konva.Layer();
+                tempStage.add(contentLayer);
+
+                // Load background image
+                const bgImageObj = new window.Image();
+                bgImageObj.crossOrigin = 'Anonymous';
+                bgImageObj.src = viewInfo.imageUrl;
+                bgImageObj.onload = async () => {
+                    bgLayer.add(new Konva.Image({ image: bgImageObj, width: tempStage.width(), height: tempStage.height() }));
+                    bgLayer.draw();
+
+                    // Clone and add items
+                    const viewItems = [
+                        ...canvasImages.filter(item => item.viewId === viewId),
+                        ...canvasTexts.filter(item => item.viewId === viewId),
+                        ...canvasShapes.filter(item => item.viewId === viewId)
+                    ].sort((a, b) => a.zIndex - b.zIndex);
+
+                    for (const item of viewItems) {
+                        const node = stage.findOne(`#${item.id}`);
+                        if (node) {
+                            contentLayer.add(node.clone({ visible: true }));
+                        }
+                    }
+                    contentLayer.draw();
+                    
+                    // Allow a moment for rendering
+                    setTimeout(() => {
+                        const dataURL = tempStage.toDataURL({ pixelRatio: 2 });
+                        tempStage.destroy();
+                        document.body.removeChild(tempContainer);
+                        resolve({ viewId: viewInfo.id, viewName: viewInfo.name, url: dataURL });
+                    }, 100);
+                };
+                bgImageObj.onerror = () => {
+                    tempStage.destroy();
+                    document.body.removeChild(tempContainer);
+                    reject(new Error(`Failed to load background image for view: ${viewInfo.name}`));
+                };
             });
+        };
 
-            const bgLayer = new Konva.Layer();
-            tempStage.add(bgLayer);
-
-            const contentLayer = new Konva.Layer();
-            tempStage.add(contentLayer);
-
-            // Load and add background image
-            const bgImageObj = await new Promise<HTMLImageElement>((resolve, reject) => {
-                const img = new window.Image();
-                img.crossOrigin = 'Anonymous';
-                img.onload = () => resolve(img);
-                img.onerror = reject;
-                img.src = viewInfo.imageUrl;
-            });
-            bgLayer.add(new Konva.Image({ image: bgImageObj, width: tempStage.width(), height: tempStage.height() }));
-            
-            const viewItems = [
-                ...canvasImages.filter(item => item.viewId === viewId),
-                ...canvasTexts.filter(item => item.viewId === viewId),
-                ...canvasShapes.filter(item => item.viewId === viewId)
-            ].sort((a, b) => a.zIndex - b.zIndex);
-
-            for (const item of viewItems) {
-                const node = stage.findOne(`#${item.id}`);
-                if (node) {
-                    contentLayer.add(node.clone() as Konva.Node);
-                }
-            }
-
-            bgLayer.draw();
-            contentLayer.draw();
-            
-            const dataURL = tempStage.toDataURL({ pixelRatio: 2 });
-            finalThumbnails.push({ viewId: viewInfo.id, viewName: viewInfo.name, url: dataURL });
-            tempStage.destroy();
-        }
-
-        document.body.removeChild(tempStageContainer);
+        const thumbnailPromises = Array.from(customizedViewIds).map(viewId => generatePreview(viewId));
+        const finalThumbnails = await Promise.all(thumbnailPromises);
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
@@ -941,7 +953,11 @@ export function Customizer() {
     );
   }
   
-  const selectedItem = null; // Placeholder, as TransformToolbar is not yet implemented
+  const selectedItem =
+    canvasImages.find(i => i.id === selectedCanvasImageId) ||
+    canvasTexts.find(t => t.id === selectedCanvasTextId) ||
+    canvasShapes.find(s => s.id === selectedCanvasShapeId) ||
+    null;
 
   return (
     <div className={cn("flex flex-col min-h-svh h-screen w-full", isEmbedded ? "bg-transparent" : "bg-muted/20")}>
@@ -963,6 +979,7 @@ export function Customizer() {
             selectedItem={selectedItem}
             pixelBoundaryBoxes={pixelBoundaryBoxes}
             stageDimensions={stageDimensions}
+            getStageRef={getStageRef}
           />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
