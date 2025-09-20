@@ -5,7 +5,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText, Transformer, Rect, Circle, Group, Line, Path, Star as KonvaStar } from 'react-konva';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape } from "@/contexts/UploadContext";
 import type Konva from 'konva';
-import type { ProductView } from '@/app/customizer/Customizer';
+import type { ProductView } from '@/components/customizer/Customizer';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IRect } from 'konva/lib/types';
@@ -21,9 +21,10 @@ interface InteractiveCanvasImageProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
+  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
 }
 
-const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc }) => {
+const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const [image, setImage] = useState<HTMLImageElement | undefined>(undefined);
@@ -82,6 +83,7 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
           rotateEnabled={true}
           rotationSnaps={[0, 90, 180, 270]}
           rotateAnchorOffset={30}
+          boundBoxFunc={transformerBoundBoxFunc}
         />
       )}
     </>
@@ -96,9 +98,10 @@ interface InteractiveCanvasTextProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y:number};
+  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
 }
 
-const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc }) => {
+const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
   
@@ -159,6 +162,7 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
           rotateEnabled={true}
           rotationSnaps={[0, 90, 180, 270]}
           rotateAnchorOffset={30}
+          boundBoxFunc={transformerBoundBoxFunc}
         />
       )}
     </>
@@ -173,9 +177,10 @@ interface InteractiveCanvasShapeProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
+  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
 }
 
-const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc }) => {
+const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -268,6 +273,7 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
           rotateEnabled={true}
           rotationSnaps={[0, 90, 180, 270]}
           rotateAnchorOffset={30}
+          boundBoxFunc={transformerBoundBoxFunc}
         />
       )}
     </>
@@ -279,9 +285,10 @@ interface DesignCanvasProps {
   showGrid: boolean;
   showBoundaryBoxes: boolean;
   onStageRectChange: (rect: { width: number; height: number; x: number; y: number }) => void;
+  pixelBoundaryBoxes: IRect[];
 }
 
-export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, onStageRectChange }: DesignCanvasProps) {
+export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, onStageRectChange, pixelBoundaryBoxes }: DesignCanvasProps) {
     const {
         canvasImages, selectedCanvasImageId, selectCanvasImage, updateCanvasImage, removeCanvasImage,
         canvasTexts, selectedCanvasTextId, selectCanvasText, updateCanvasText, removeCanvasText,
@@ -402,6 +409,33 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape, activeView.id]);
 
 
+    const transformerBoundBoxFunc = useMemo(() => {
+        return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
+            const node = this.nodes()[0];
+            if (!node) return oldBox;
+
+            if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
+                // If no boundaries, constrain to stage
+                if (newBox.width > stageDimensions.width || newBox.height > stageDimensions.height) {
+                    return oldBox;
+                }
+                return newBox;
+            }
+
+            const nodeCenter = { x: node.x(), y: node.y() };
+            const containingBox = pixelBoundaryBoxes.find(box => 
+                nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+                nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+            ) || pixelBoundaryBoxes[0]; 
+
+            if (newBox.width > containingBox.width) {
+                return oldBox;
+            }
+
+            return newBox;
+        };
+    }, [pixelBoundaryBoxes, stageDimensions]);
+
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
             if (!stageDimensions) {
@@ -503,20 +537,26 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                     />
                 )}
 
-                {showBoundaryBoxes && activeView.boundaryBoxes.map((box, index) => (
-                    stageDimensions && (
+                {showBoundaryBoxes && activeView.boundaryBoxes.map((box, index) => {
+                    if (!stageDimensions) return null;
+                    const baseWidth = stageDimensions.width * (box.width / 100);
+                    const calculatedWidth = baseWidth * 1.6;
+                    const extraWidth = calculatedWidth - baseWidth;
+                    const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+
+                    return (
                         <div 
                             key={`box-${index}`} 
                             className="absolute border-2 border-dashed border-red-500 pointer-events-none" 
                             style={{
-                                left: `${stageDimensions.x + (stageDimensions.width * box.x / 100)}px`,
+                                left: `${calculatedX}px`,
                                 top: `${stageDimensions.y + (stageDimensions.height * box.y / 100)}px`,
-                                width: `${stageDimensions.width * box.width / 100}px`,
+                                width: `${calculatedWidth}px`,
                                 height: `${stageDimensions.height * box.height / 100}px`,
                             }}
                         />
-                    )
-                ))}
+                    );
+                })}
 
                 <Stage
                     ref={stageRef}
@@ -541,6 +581,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'image')}
                                 onDragEnd={(e) => handleDragEnd(e, 'image')}
                                 dragBoundFunc={dragBoundFunc}
+                                transformerBoundBoxFunc={transformerBoundBoxFunc}
                             />
                         ))}
                         {visibleTexts.map((text) => (
@@ -553,6 +594,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'text')}
                                 onDragEnd={(e) => handleDragEnd(e, 'text')}
                                 dragBoundFunc={dragBoundFunc}
+                                transformerBoundBoxFunc={transformerBoundBoxFunc}
                             />
                         ))}
                         {visibleShapes.map((shape) => (
@@ -565,6 +607,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
                                 onDragEnd={(e) => handleDragEnd(e, 'shape')}
                                 dragBoundFunc={dragBoundFunc}
+                                transformerBoundBoxFunc={transformerBoundBoxFunc}
                             />
                         ))}
                     </Layer>
