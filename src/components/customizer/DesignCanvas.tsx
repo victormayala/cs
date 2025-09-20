@@ -531,52 +531,45 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape, activeView.id]);
 
     const dragBoundFunc = useMemo(() => {
-      return function(this: Konva.Node, pos: { x: number; y: number }) {
-        if (!stageDimensions) {
-          return this.getAbsolutePosition();
-        }
-    
-        const scaleX = this.scaleX();
-        const scaleY = this.scaleY();
-        const width = this.width();
-        const height = this.height();
-        const offsetX = this.offsetX();
-        const offsetY = this.offsetY();
-    
-        const itemTopLeft = {
-          x: -offsetX * scaleX,
-          y: -offsetY * scaleY,
-        };
-        const itemBottomRight = {
-          x: (width - offsetX) * scaleX,
-          y: (height - offsetY) * scaleY,
-        };
+        return function (this: Konva.Node, pos: { x: number; y: number }) {
+            if (!stageDimensions) {
+                return this.getAbsolutePosition();
+            }
 
-        let containingBox: IRect | undefined;
-    
-        if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
-          containingBox = pixelBoundaryBoxes.find(box => 
-            pos.x >= box.x && pos.x <= box.x + box.width &&
-            pos.y >= box.y && pos.y <= box.y + box.height
-          );
-        }
-    
-        const boundary = containingBox 
-          ? containingBox
-          : { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
-    
-        const newX = Math.max(
-          boundary.x - itemTopLeft.x,
-          Math.min(pos.x, boundary.x + boundary.width - itemBottomRight.x)
-        );
-        const newY = Math.max(
-          boundary.y - itemTopLeft.y,
-          Math.min(pos.y, boundary.y + boundary.height - itemBottomRight.y)
-        );
-    
-        return { x: newX, y: newY };
-      };
+            const scaleX = this.scaleX();
+            const scaleY = this.scaleY();
+            const width = this.width();
+            const height = this.height();
+            const offsetX = this.offsetX() || 0;
+            const offsetY = this.offsetY() || 0;
+
+            const halfWidth = (width / 2) * scaleX;
+            const halfHeight = (height / 2) * scaleY;
+            
+            let containingBox: IRect | undefined;
+            if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+                 containingBox = pixelBoundaryBoxes.find(box =>
+                    pos.x >= box.x &&
+                    pos.x <= box.x + box.width &&
+                    pos.y >= box.y &&
+                    pos.y <= box.y + box.height
+                ) || pixelBoundaryBoxes[0];
+            } else {
+                containingBox = { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
+            }
+
+            const minX = containingBox.x + halfWidth;
+            const maxX = containingBox.x + containingBox.width - halfWidth;
+            const minY = containingBox.y + halfHeight;
+            const maxY = containingBox.y + containingBox.height - halfHeight;
+
+            const newX = Math.max(minX, Math.min(pos.x, maxX));
+            const newY = Math.max(minY, Math.min(pos.y, maxY));
+            
+            return { x: newX, y: newY };
+        };
     }, [stageDimensions, pixelBoundaryBoxes]);
+
 
     const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (e.target === e.target.getStage()) {
