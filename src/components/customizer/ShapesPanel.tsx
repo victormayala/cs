@@ -11,7 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
-import type { BoundaryBox } from '@/app/actions/productOptionsActions'; // Import BoundaryBox
+import type { BoundaryBox } from '@/app/actions/productOptionsActions';
 
 interface ShapeOption {
   type: ShapeType;
