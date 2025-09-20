@@ -12,31 +12,18 @@ import type { IRect } from 'konva/lib/types';
 
 
 interface TransformToolbarProps {
+  selectedItem: CanvasImage | CanvasText | CanvasShape | null;
   pixelBoundaryBoxes: IRect[];
   stageDimensions: { width: number; height: number; x: number; y: number } | null;
 }
 
-export default function TransformToolbar({ pixelBoundaryBoxes, stageDimensions }: TransformToolbarProps) {
+export default function TransformToolbar({ selectedItem, pixelBoundaryBoxes, stageDimensions }: TransformToolbarProps) {
   const {
-    selectedCanvasImageId, canvasImages, updateCanvasImage, removeCanvasImage,
-    selectedCanvasTextId, canvasTexts, updateCanvasText, removeCanvasText,
-    selectedCanvasShapeId, canvasShapes, updateCanvasShape, removeCanvasShape,
+    updateCanvasImage, removeCanvasImage,
+    updateCanvasText, removeCanvasText,
+    updateCanvasShape, removeCanvasShape,
   } = useUploads();
-
-  const [selectedItem, setSelectedItem] = useState<CanvasImage | CanvasText | CanvasShape | null>(null);
   
-  useEffect(() => {
-    if (selectedCanvasImageId) {
-      setSelectedItem(canvasImages.find(item => item.id === selectedCanvasImageId) || null);
-    } else if (selectedCanvasTextId) {
-      setSelectedItem(canvasTexts.find(item => item.id === selectedCanvasTextId) || null);
-    } else if (selectedCanvasShapeId) {
-      setSelectedItem(canvasShapes.find(item => item.id === selectedCanvasShapeId) || null);
-    } else {
-      setSelectedItem(null);
-    }
-  }, [selectedCanvasImageId, canvasImages, selectedCanvasTextId, canvasTexts, selectedCanvasShapeId, canvasShapes]);
-
   const handleRotationChange = (value: number[]) => {
     if (!selectedItem) return;
     const rotation = value[0];

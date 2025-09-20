@@ -223,7 +223,7 @@ export function Customizer() {
     canvasTexts, 
     selectedCanvasTextId, 
     canvasShapes, 
-    selectedCanvasShapeId, 
+    selectedCanvasShapeId,
     restoreFromSnapshot, 
     getStageRef 
   } = useUploads();
@@ -897,6 +897,12 @@ export function Customizer() {
       </div>
     );
   }
+  
+  const selectedItem =
+    canvasImages.find(i => i.id === selectedCanvasImageId) ||
+    canvasTexts.find(t => t.id === selectedCanvasTextId) ||
+    canvasShapes.find(s => s.id === selectedCanvasShapeId) ||
+    null;
 
   return (
     <div className={cn("flex flex-col min-h-svh h-screen w-full", isEmbedded ? "bg-transparent" : "bg-muted/20")}>
@@ -915,6 +921,7 @@ export function Customizer() {
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
           <TransformToolbar
+            selectedItem={selectedItem}
             pixelBoundaryBoxes={pixelBoundaryBoxes}
             stageDimensions={stageDimensions}
           />

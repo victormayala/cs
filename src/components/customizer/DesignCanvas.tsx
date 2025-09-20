@@ -21,10 +21,11 @@ interface InteractiveCanvasImageProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
-  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
+  pixelBoundaryBoxes: IRect[];
+  stageDimensions: { width: number; height: number; x: number; y: number } | null;
 }
 
-const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
+const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imageProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, pixelBoundaryBoxes, stageDimensions }) => {
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const [image, setImage] = useState<HTMLImageElement | undefined>(undefined);
@@ -45,6 +46,32 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
     }
   }, [isSelected]);
   
+  const transformerBoundBoxFunc = useMemo(() => {
+    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
+        const node = this.nodes()[0];
+        if (!node) return oldBox;
+
+        if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
+            if (newBox.width > stageDimensions.width || newBox.height > stageDimensions.height) {
+                return oldBox;
+            }
+            return newBox;
+        }
+
+        const nodeCenter = { x: node.x(), y: node.y() };
+        const containingBox = pixelBoundaryBoxes.find(box => 
+            nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+            nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+        ) || pixelBoundaryBoxes[0]; 
+
+        if (newBox.width > containingBox.width) {
+            return oldBox;
+        }
+
+        return newBox;
+    };
+  }, [pixelBoundaryBoxes, stageDimensions]);
+
 
   return (
     <>
@@ -98,10 +125,11 @@ interface InteractiveCanvasTextProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y:number};
-  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
+  pixelBoundaryBoxes: IRect[];
+  stageDimensions: { width: number; height: number; x: number; y: number } | null;
 }
 
-const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
+const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, pixelBoundaryBoxes, stageDimensions }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
   
@@ -112,6 +140,31 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
     }
   }, [isSelected]);
   
+  const transformerBoundBoxFunc = useMemo(() => {
+    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
+        const node = this.nodes()[0];
+        if (!node) return oldBox;
+
+        if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
+            if (newBox.width > stageDimensions.width || newBox.height > stageDimensions.height) {
+                return oldBox;
+            }
+            return newBox;
+        }
+
+        const nodeCenter = { x: node.x(), y: node.y() };
+        const containingBox = pixelBoundaryBoxes.find(box => 
+            nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+            nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+        ) || pixelBoundaryBoxes[0]; 
+
+        if (newBox.width > containingBox.width) {
+            return oldBox;
+        }
+
+        return newBox;
+    };
+  }, [pixelBoundaryBoxes, stageDimensions]);
 
   return (
     <>
@@ -177,10 +230,11 @@ interface InteractiveCanvasShapeProps {
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   dragBoundFunc: (pos: {x: number, y: number}) => {x: number, y: number};
-  transformerBoundBoxFunc: (oldBox: IRect, newBox: IRect) => IRect;
+  pixelBoundaryBoxes: IRect[];
+  stageDimensions: { width: number; height: number; x: number; y: number } | null;
 }
 
-const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, transformerBoundBoxFunc }) => {
+const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc, pixelBoundaryBoxes, stageDimensions }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -191,6 +245,32 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
     }
   }, [isSelected]);
   
+  const transformerBoundBoxFunc = useMemo(() => {
+    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
+        const node = this.nodes()[0];
+        if (!node) return oldBox;
+
+        if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
+            if (newBox.width > stageDimensions.width || newBox.height > stageDimensions.height) {
+                return oldBox;
+            }
+            return newBox;
+        }
+
+        const nodeCenter = { x: node.x(), y: node.y() };
+        const containingBox = pixelBoundaryBoxes.find(box => 
+            nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+            nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+        ) || pixelBoundaryBoxes[0]; 
+
+        if (newBox.width > containingBox.width) {
+            return oldBox;
+        }
+
+        return newBox;
+    };
+  }, [pixelBoundaryBoxes, stageDimensions]);
+
   const commonProps = {
     id: shapeProps.id,
     x: shapeProps.x,
@@ -408,34 +488,6 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         }
     }, [stageDimensions, canvasImages, canvasTexts, canvasShapes, updateCanvasImage, updateCanvasText, updateCanvasShape, activeView.id]);
 
-
-    const transformerBoundBoxFunc = useMemo(() => {
-        return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
-            const node = this.nodes()[0];
-            if (!node) return oldBox;
-
-            if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-                // If no boundaries, constrain to stage
-                if (newBox.width > stageDimensions.width || newBox.height > stageDimensions.height) {
-                    return oldBox;
-                }
-                return newBox;
-            }
-
-            const nodeCenter = { x: node.x(), y: node.y() };
-            const containingBox = pixelBoundaryBoxes.find(box => 
-                nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
-                nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
-            ) || pixelBoundaryBoxes[0]; 
-
-            if (newBox.width > containingBox.width) {
-                return oldBox;
-            }
-
-            return newBox;
-        };
-    }, [pixelBoundaryBoxes, stageDimensions]);
-
     const dragBoundFunc = useMemo(() => {
         return function(this: Konva.Node, pos: { x: number; y: number }) {
             if (!stageDimensions) {
@@ -581,7 +633,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'image')}
                                 onDragEnd={(e) => handleDragEnd(e, 'image')}
                                 dragBoundFunc={dragBoundFunc}
-                                transformerBoundBoxFunc={transformerBoundBoxFunc}
+                                pixelBoundaryBoxes={pixelBoundaryBoxes}
+                                stageDimensions={stageDimensions}
                             />
                         ))}
                         {visibleTexts.map((text) => (
@@ -594,7 +647,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'text')}
                                 onDragEnd={(e) => handleDragEnd(e, 'text')}
                                 dragBoundFunc={dragBoundFunc}
-                                transformerBoundBoxFunc={transformerBoundBoxFunc}
+                                pixelBoundaryBoxes={pixelBoundaryBoxes}
+                                stageDimensions={stageDimensions}
                             />
                         ))}
                         {visibleShapes.map((shape) => (
@@ -607,7 +661,8 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                                 onTransformEnd={(e) => handleTransformEnd(e, 'shape')}
                                 onDragEnd={(e) => handleDragEnd(e, 'shape')}
                                 dragBoundFunc={dragBoundFunc}
-                                transformerBoundBoxFunc={transformerBoundBoxFunc}
+                                pixelBoundaryBoxes={pixelBoundaryBoxes}
+                                stageDimensions={stageDimensions}
                             />
                         ))}
                     </Layer>
