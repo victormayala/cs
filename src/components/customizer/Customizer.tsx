@@ -217,7 +217,16 @@ export function Customizer() {
 
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { canvasImages, canvasTexts, canvasShapes, restoreFromSnapshot, getStageRef } = useUploads();
+  const { 
+    canvasImages, 
+    selectedCanvasImageId, 
+    canvasTexts, 
+    selectedCanvasTextId, 
+    canvasShapes, 
+    selectedCanvasShapeId, 
+    restoreFromSnapshot, 
+    getStageRef 
+  } = useUploads();
 
   const [productDetails, setProductDetails] = useState<ProductForCustomizer | null>(null);
   
@@ -646,6 +655,7 @@ export function Customizer() {
           width: calculatedWidth,
           height: stageDimensions.height * box.height / 100,
       };
+
     });
 
     setPixelBoundaryBoxes(newPixelBoxes);
@@ -905,12 +915,6 @@ export function Customizer() {
 
         <main className="flex-1 p-4 md:p-6 flex flex-col min-h-0">
           <TransformToolbar
-            selectedItem={
-              canvasImages.find(i => i.id === selectedCanvasImageId) ||
-              canvasTexts.find(t => t.id === selectedCanvasTextId) ||
-              canvasShapes.find(s => s.id === selectedCanvasShapeId) ||
-              null
-            }
             pixelBoundaryBoxes={pixelBoundaryBoxes}
             stageDimensions={stageDimensions}
           />
@@ -923,6 +927,7 @@ export function Customizer() {
                 showGrid={showGrid} 
                 showBoundaryBoxes={showBoundaryBoxes}
                 onStageRectChange={setStageDimensions}
+                pixelBoundaryBoxes={pixelBoundaryBoxes}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
