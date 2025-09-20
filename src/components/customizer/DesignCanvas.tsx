@@ -190,6 +190,19 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
     dragBoundFunc: dragBoundFunc,
   };
 
+  const textPath = useMemo(() => {
+    if (!textProps.archAmount) return '';
+    const textWidth = textProps.fontSize * textProps.content.length * 0.6 * textProps.scale;
+    const radius = (textWidth * 100) / (Math.abs(textProps.archAmount) * Math.PI);
+    const isUpward = textProps.archAmount > 0;
+    
+    if (isUpward) {
+      return `M ${-textWidth/2},0 A ${radius},${radius} 0 0,1 ${textWidth/2},0`;
+    } else {
+      return `M ${textWidth/2},0 A ${radius},${radius} 0 0,0 ${-textWidth/2},0`;
+    }
+  }, [textProps.content, textProps.fontSize, textProps.scale, textProps.archAmount]);
+  
   if (!textProps.archAmount) {
     // If there's no arch, we don't need the complex path logic
     return (
@@ -221,18 +234,6 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
   }
 
   // Logic for arched text
-  const textPath = useMemo(() => {
-    const textWidth = textProps.fontSize * textProps.content.length * 0.6 * textProps.scale;
-    const radius = (textWidth * 100) / (Math.abs(textProps.archAmount) * Math.PI);
-    const isUpward = textProps.archAmount > 0;
-    
-    if (isUpward) {
-      return `M ${-textWidth/2},0 A ${radius},${radius} 0 0,1 ${textWidth/2},0`;
-    } else {
-      return `M ${textWidth/2},0 A ${radius},${radius} 0 0,0 ${-textWidth/2},0`;
-    }
-  }, [textProps.content, textProps.fontSize, textProps.scale, textProps.archAmount]);
-  
   return (
      <>
         <KonvaText
@@ -537,13 +538,20 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
     
         const scaleX = this.scaleX();
         const scaleY = this.scaleY();
-        // Use base width/height, not clientRect, which is already scaled
-        const itemWidth = this.width(); 
-        const itemHeight = this.height();
+        const width = this.width();
+        const height = this.height();
+        const offsetX = this.offsetX();
+        const offsetY = this.offsetY();
     
-        const scaledHalfWidth = (itemWidth * scaleX) / 2;
-        const scaledHalfHeight = (itemHeight * scaleY) / 2;
-    
+        const itemTopLeft = {
+          x: -offsetX * scaleX,
+          y: -offsetY * scaleY,
+        };
+        const itemBottomRight = {
+          x: (width - offsetX) * scaleX,
+          y: (height - offsetY) * scaleY,
+        };
+
         let containingBox: IRect | undefined;
     
         if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
@@ -558,12 +566,12 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
           : { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
     
         const newX = Math.max(
-          boundary.x + scaledHalfWidth,
-          Math.min(pos.x, boundary.x + boundary.width - scaledHalfWidth)
+          boundary.x - itemTopLeft.x,
+          Math.min(pos.x, boundary.x + boundary.width - itemBottomRight.x)
         );
         const newY = Math.max(
-          boundary.y + scaledHalfHeight,
-          Math.min(pos.y, boundary.y + boundary.height - scaledHalfHeight)
+          boundary.y - itemTopLeft.y,
+          Math.min(pos.y, boundary.y + boundary.height - itemBottomRight.y)
         );
     
         return { x: newX, y: newY };
@@ -651,7 +659,7 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
                 {showBoundaryBoxes && pixelBoundaryBoxes.map((box, index) => (
                      <div
                         key={`box-${index}`}
-                        className="absolute border-2 border-dashed border-red-500 pointer-events-none"
+                        className="absolute border-2 border-dashed border-red-500/70 pointer-events-none"
                         style={{
                             left: `${box.x}px`,
                             top: `${box.y}px`,
