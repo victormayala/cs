@@ -27,31 +27,7 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
   const shapeRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const [image, setImage] = useState<HTMLImageElement | undefined>(undefined);
-
-  const transformerBoundBoxFunc = useMemo(() => {
-    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
-      const node = this.nodes()[0];
-      if (!node) return oldBox;
-
-      if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-        return newBox; // No boundaries, allow any transform
-      }
-
-      const nodeCenter = { x: node.x(), y: node.y() };
-      
-      const containingBox = pixelBoundaryBoxes.find(box => 
-          nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
-          nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
-      ) || pixelBoundaryBoxes[0];
-      
-      if (newBox.width > containingBox.width || newBox.height > containingBox.height) {
-        return oldBox;
-      }
-
-      return newBox;
-    };
-  }, []);
-
+  
   useEffect(() => {
     const img = new window.Image();
     img.src = imageProps.dataUrl;
@@ -95,7 +71,28 @@ const InteractiveCanvasImage: React.FC<InteractiveCanvasImageProps> = ({ imagePr
       {isSelected && !imageProps.isLocked && (
         <Transformer
           ref={trRef}
-          boundBoxFunc={transformerBoundBoxFunc}
+          boundBoxFunc={(oldBox, newBox) => {
+            if (!stageDimensions) return oldBox;
+            const node = trRef.current?.nodes()[0];
+            if (!node) return oldBox;
+            
+            const itemWidth = node.width() * node.scaleX();
+
+            if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+              const nodeCenter = { x: node.x(), y: node.y() };
+              const containingBox = pixelBoundaryBoxes.find(box => 
+                  nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+                  nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+              ) || pixelBoundaryBoxes[0];
+              
+              if (itemWidth > containingBox.width) {
+                  return oldBox;
+              }
+            } else if (itemWidth > stageDimensions.width) {
+              return oldBox;
+            }
+            return newBox;
+          }}
           anchorFill="#000"
           anchorStroke="#000"
           anchorSize={10}
@@ -127,30 +124,6 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
   const pathRef = useRef<Konva.Path>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
-  const transformerBoundBoxFunc = useMemo(() => {
-    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
-      const node = this.nodes()[0];
-      if (!node) return oldBox;
-
-      if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-        return newBox; // No boundaries, allow any transform
-      }
-
-      const nodeCenter = { x: node.x(), y: node.y() };
-      
-      const containingBox = pixelBoundaryBoxes.find(box => 
-          nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
-          nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
-      ) || pixelBoundaryBoxes[0];
-      
-      if (newBox.width > containingBox.width || newBox.height > containingBox.height) {
-        return oldBox;
-      }
-
-      return newBox;
-    };
-  }, []);
-  
   useEffect(() => {
     if (isSelected && trRef.current && (shapeRef.current || pathRef.current)) {
       trRef.current.nodes([shapeRef.current || pathRef.current!]);
@@ -216,7 +189,28 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         {isSelected && !textProps.isLocked && (
           <Transformer
             ref={trRef}
-            boundBoxFunc={transformerBoundBoxFunc}
+            boundBoxFunc={(oldBox, newBox) => {
+              if (!stageDimensions) return oldBox;
+              const node = trRef.current?.nodes()[0];
+              if (!node) return oldBox;
+              
+              const itemWidth = node.width() * node.scaleX();
+
+              if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+                const nodeCenter = { x: node.x(), y: node.y() };
+                const containingBox = pixelBoundaryBoxes.find(box => 
+                    nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+                    nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+                ) || pixelBoundaryBoxes[0];
+                
+                if (itemWidth > containingBox.width) {
+                    return oldBox;
+                }
+              } else if (itemWidth > stageDimensions.width) {
+                return oldBox;
+              }
+              return newBox;
+            }}
             anchorFill="#000"
             anchorStroke="#000"
             anchorSize={10}
@@ -245,7 +239,28 @@ const InteractiveCanvasText: React.FC<InteractiveCanvasTextProps> = ({ textProps
         {isSelected && !textProps.isLocked && (
             <Transformer
                 ref={trRef}
-                boundBoxFunc={transformerBoundBoxFunc}
+                boundBoxFunc={(oldBox, newBox) => {
+                  if (!stageDimensions) return oldBox;
+                  const node = trRef.current?.nodes()[0];
+                  if (!node) return oldBox;
+                  
+                  const itemWidth = node.width() * node.scaleX();
+
+                  if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+                    const nodeCenter = { x: node.x(), y: node.y() };
+                    const containingBox = pixelBoundaryBoxes.find(box => 
+                        nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+                        nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+                    ) || pixelBoundaryBoxes[0];
+                    
+                    if (itemWidth > containingBox.width) {
+                        return oldBox;
+                    }
+                  } else if (itemWidth > stageDimensions.width) {
+                    return oldBox;
+                  }
+                  return newBox;
+                }}
                 anchorFill="#000"
                 anchorStroke="#000"
                 anchorSize={10}
@@ -275,30 +290,6 @@ interface InteractiveCanvasShapeProps {
 const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapeProps, isSelected, onSelect, onTransform, onTransformEnd, onDragEnd, dragBoundFunc }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
-
-  const transformerBoundBoxFunc = useMemo(() => {
-    return function(this: Konva.Transformer, oldBox: IRect, newBox: IRect): IRect {
-      const node = this.nodes()[0];
-      if (!node) return oldBox;
-
-      if (!pixelBoundaryBoxes || pixelBoundaryBoxes.length === 0 || !stageDimensions) {
-        return newBox; // No boundaries, allow any transform
-      }
-
-      const nodeCenter = { x: node.x(), y: node.y() };
-      
-      const containingBox = pixelBoundaryBoxes.find(box => 
-          nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
-          nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
-      ) || pixelBoundaryBoxes[0];
-      
-      if (newBox.width > containingBox.width || newBox.height > containingBox.height) {
-        return oldBox;
-      }
-
-      return newBox;
-    };
-  }, []);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
@@ -379,7 +370,28 @@ const InteractiveCanvasShape: React.FC<InteractiveCanvasShapeProps> = ({ shapePr
       {isSelected && !shapeProps.isLocked && (
         <Transformer
           ref={trRef}
-          boundBoxFunc={transformerBoundBoxFunc}
+          boundBoxFunc={(oldBox, newBox) => {
+            if (!stageDimensions) return oldBox;
+            const node = trRef.current?.nodes()[0];
+            if (!node) return oldBox;
+            
+            const itemWidth = node.width() * node.scaleX();
+
+            if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
+              const nodeCenter = { x: node.x(), y: node.y() };
+              const containingBox = pixelBoundaryBoxes.find(box => 
+                  nodeCenter.x >= box.x && nodeCenter.x <= box.x + box.width &&
+                  nodeCenter.y >= box.y && nodeCenter.y <= box.y + box.height
+              ) || pixelBoundaryBoxes[0];
+              
+              if (itemWidth > containingBox.width) {
+                  return oldBox;
+              }
+            } else if (itemWidth > stageDimensions.width) {
+              return oldBox;
+            }
+            return newBox;
+          }}
           anchorFill="#000"
           anchorStroke="#000"
           anchorSize={10}
@@ -406,6 +418,7 @@ interface DesignCanvasProps {
 
 let pixelBoundaryBoxes: IRect[] = [];
 let stageDimensions: { width: number; height: number; x: number; y: number; } | null = null;
+let lastGoodContainingBox: IRect | null = null;
 
 export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, onStageRectChange, pixelBoundaryBoxes: pbBoxes }: DesignCanvasProps) {
     pixelBoundaryBoxes = pbBoxes;
@@ -538,30 +551,40 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
 
             const scaleX = this.scaleX();
             const scaleY = this.scaleY();
-            const width = this.width();
-            const height = this.height();
-            const offsetX = this.offsetX() || 0;
-            const offsetY = this.offsetY() || 0;
-
-            const halfWidth = (width / 2) * scaleX;
-            const halfHeight = (height / 2) * scaleY;
+            const itemWidth = this.width();
+            const itemHeight = this.height();
+            const offsetX = this.offsetX() * scaleX;
+            const offsetY = this.offsetY() * scaleY;
             
-            let containingBox: IRect | undefined;
+            const scaledHalfWidth = (itemWidth * scaleX) / 2;
+            const scaledHalfHeight = (itemHeight * scaleY) / 2;
+
+            let containingBox: IRect | undefined | null = null;
             if (pixelBoundaryBoxes && pixelBoundaryBoxes.length > 0) {
-                 containingBox = pixelBoundaryBoxes.find(box =>
+                containingBox = pixelBoundaryBoxes.find(box =>
                     pos.x >= box.x &&
                     pos.x <= box.x + box.width &&
                     pos.y >= box.y &&
                     pos.y <= box.y + box.height
-                ) || pixelBoundaryBoxes[0];
+                );
+
+                if (!containingBox) {
+                    containingBox = lastGoodContainingBox || pixelBoundaryBoxes[0];
+                } else {
+                    lastGoodContainingBox = containingBox;
+                }
             } else {
                 containingBox = { x: 0, y: 0, width: stageDimensions.width, height: stageDimensions.height };
             }
+            
+            if (!containingBox) {
+                return this.getAbsolutePosition();
+            }
 
-            const minX = containingBox.x + halfWidth;
-            const maxX = containingBox.x + containingBox.width - halfWidth;
-            const minY = containingBox.y + halfHeight;
-            const maxY = containingBox.y + containingBox.height - halfHeight;
+            const minX = containingBox.x + scaledHalfWidth - offsetX;
+            const maxX = containingBox.x + containingBox.width - scaledHalfWidth - offsetX;
+            const minY = containingBox.y + scaledHalfHeight - offsetY;
+            const maxY = containingBox.y + containingBox.height - scaledHalfHeight - offsetY;
 
             const newX = Math.max(minX, Math.min(pos.x, maxX));
             const newY = Math.max(minY, Math.min(pos.y, maxY));
@@ -717,3 +740,5 @@ export default function DesignCanvas({ activeView, showGrid, showBoundaryBoxes, 
         </div>
     );
 }
+
+    
