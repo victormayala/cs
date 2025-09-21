@@ -14,7 +14,6 @@ import { db, storage } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { uploadString, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import dynamic from 'next/dynamic';
-import Konva from 'konva';
 
 
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
@@ -640,15 +639,23 @@ export function Customizer() {
 
     // 3. THE CALCULATION LOGIC:
     const newPixelBoxes = currentView.boundaryBoxes.map(box => {
-      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100);
-      const calculatedWidth = stageDimensions.width * box.width / 100;
-  
+      // Original width in pixels
+      const baseWidth = stageDimensions.width * box.width / 100;
+
+      // New width (60% wider)
+      const calculatedWidth = baseWidth * 1.6;
+
+      // Shift X so it expands evenly left + right
+      const extraWidth = calculatedWidth - baseWidth;
+      const calculatedX = stageDimensions.x + (stageDimensions.width * box.x / 100) - (extraWidth / 2);
+
       return {
-        x: calculatedX,
-        y: stageDimensions.y + (stageDimensions.height * box.y / 100),
-        width: calculatedWidth,
-        height: stageDimensions.height * box.height / 100,
+          x: calculatedX,
+          y: stageDimensions.y + (stageDimensions.height * box.y / 100),
+          width: calculatedWidth,
+          height: stageDimensions.height * box.height / 100,
       };
+
     });
 
     setPixelBoundaryBoxes(newPixelBoxes);
@@ -749,17 +756,19 @@ export function Customizer() {
         if (!stage) {
             throw new Error("Canvas is not ready. Please try again.");
         }
-        
-        const generatePreview = (viewId: string): Promise<{ viewId: string; viewName: string; url: string; }> => {
-            return new Promise(async (resolve, reject) => {
-                const viewInfo = productDetails.views.find(v => v.id === viewId);
-                if (!viewInfo) return reject(new Error(`View info for ${viewId} not found.`));
 
+        const previewPromises = Array.from(customizedViewIds).map(viewId => {
+            return new Promise<{ viewId: string; viewName: string; url: string; } | null>(async (resolve) => {
+                const viewInfo = productDetails.views.find(v => v.id === viewId);
+                if (!viewInfo) return resolve(null);
+
+                // Use a temporary off-screen Konva stage
                 const tempContainer = document.createElement('div');
-                document.body.appendChild(tempContainer);
                 tempContainer.style.position = 'absolute';
                 tempContainer.style.left = '-9999px';
-                
+                tempContainer.style.top = '-9999px';
+                document.body.appendChild(tempContainer);
+
                 const tempStage = new Konva.Stage({
                     container: tempContainer,
                     width: stage.width(),
@@ -776,11 +785,11 @@ export function Customizer() {
                 const bgImageObj = new window.Image();
                 bgImageObj.crossOrigin = 'Anonymous';
                 bgImageObj.src = viewInfo.imageUrl;
-                bgImageObj.onload = async () => {
+                
+                bgImageObj.onload = () => {
                     bgLayer.add(new Konva.Image({ image: bgImageObj, width: tempStage.width(), height: tempStage.height() }));
-                    bgLayer.draw();
-
-                    // Clone and add items
+                    
+                    // Clone and add items for the current view
                     const viewItems = [
                         ...canvasImages.filter(item => item.viewId === viewId),
                         ...canvasTexts.filter(item => item.viewId === viewId),
@@ -793,26 +802,30 @@ export function Customizer() {
                             contentLayer.add(node.clone({ visible: true }));
                         }
                     }
-                    contentLayer.draw();
                     
-                    // Allow a moment for rendering
+                    // Wait a moment for rendering to complete before capturing
                     setTimeout(() => {
-                        const dataURL = tempStage.toDataURL({ pixelRatio: 2 });
+                        const dataURL = tempStage.toDataURL({ pixelRatio: 2, mimeType: 'image/png' });
                         tempStage.destroy();
                         document.body.removeChild(tempContainer);
                         resolve({ viewId: viewInfo.id, viewName: viewInfo.name, url: dataURL });
-                    }, 100);
+                    }, 50); // Small delay to ensure render completes
                 };
+                
                 bgImageObj.onerror = () => {
+                    console.error(`Failed to load background image for preview: ${viewInfo.imageUrl}`);
                     tempStage.destroy();
                     document.body.removeChild(tempContainer);
-                    reject(new Error(`Failed to load background image for view: ${viewInfo.name}`));
+                    resolve(null);
                 };
             });
-        };
+        });
 
-        const thumbnailPromises = Array.from(customizedViewIds).map(viewId => generatePreview(viewId));
-        const finalThumbnails = await Promise.all(thumbnailPromises);
+        const finalThumbnails = (await Promise.all(previewPromises)).filter(Boolean) as { viewId: string; viewName: string; url: string; }[];
+        
+        if(finalThumbnails.length !== customizedViewIds.size) {
+            console.warn("Could not generate previews for all customized views.");
+        }
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
