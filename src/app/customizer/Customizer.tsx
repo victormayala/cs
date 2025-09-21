@@ -757,75 +757,18 @@ export function Customizer() {
             throw new Error("Canvas is not ready. Please try again.");
         }
 
-        const previewPromises = Array.from(customizedViewIds).map(viewId => {
-            return new Promise<{ viewId: string; viewName: string; url: string; } | null>(async (resolve) => {
-                const viewInfo = productDetails.views.find(v => v.id === viewId);
-                if (!viewInfo) return resolve(null);
-
-                // Use a temporary off-screen Konva stage
-                const tempContainer = document.createElement('div');
-                tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '-9999px';
-                tempContainer.style.top = '-9999px';
-                document.body.appendChild(tempContainer);
-
-                const tempStage = new Konva.Stage({
-                    container: tempContainer,
-                    width: stage.width(),
-                    height: stage.height(),
+        // --- DEMO DATA FOR THUMBNAILS ---
+        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+        Array.from(customizedViewIds).forEach((viewId, index) => {
+            const viewInfo = productDetails.views.find(v => v.id === viewId);
+            if (viewInfo) {
+                finalThumbnails.push({
+                    viewId: viewInfo.id,
+                    viewName: viewInfo.name,
+                    url: `https://picsum.photos/seed/${viewInfo.id}/${200 + index}/200`, // Placeholder
                 });
-
-                const bgLayer = new Konva.Layer();
-                tempStage.add(bgLayer);
-
-                const contentLayer = new Konva.Layer();
-                tempStage.add(contentLayer);
-
-                // Load background image
-                const bgImageObj = new window.Image();
-                bgImageObj.crossOrigin = 'Anonymous';
-                bgImageObj.src = viewInfo.imageUrl;
-                
-                bgImageObj.onload = () => {
-                    bgLayer.add(new Konva.Image({ image: bgImageObj, width: tempStage.width(), height: tempStage.height() }));
-                    
-                    // Clone and add items for the current view
-                    const viewItems = [
-                        ...canvasImages.filter(item => item.viewId === viewId),
-                        ...canvasTexts.filter(item => item.viewId === viewId),
-                        ...canvasShapes.filter(item => item.viewId === viewId)
-                    ].sort((a, b) => a.zIndex - b.zIndex);
-
-                    for (const item of viewItems) {
-                        const node = stage.findOne(`#${item.id}`);
-                        if (node) {
-                            contentLayer.add(node.clone({ visible: true }));
-                        }
-                    }
-                    
-                    // Wait a moment for rendering to complete before capturing
-                    setTimeout(() => {
-                        const dataURL = tempStage.toDataURL({ pixelRatio: 2, mimeType: 'image/png' });
-                        tempStage.destroy();
-                        document.body.removeChild(tempContainer);
-                        resolve({ viewId: viewInfo.id, viewName: viewInfo.name, url: dataURL });
-                    }, 50); // Small delay to ensure render completes
-                };
-                
-                bgImageObj.onerror = () => {
-                    console.error(`Failed to load background image for preview: ${viewInfo.imageUrl}`);
-                    tempStage.destroy();
-                    document.body.removeChild(tempContainer);
-                    resolve(null);
-                };
-            });
+            }
         });
-
-        const finalThumbnails = (await Promise.all(previewPromises)).filter(Boolean) as { viewId: string; viewName: string; url: string; }[];
-        
-        if(finalThumbnails.length !== customizedViewIds.size) {
-            console.warn("Could not generate previews for all customized views.");
-        }
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
@@ -856,7 +799,7 @@ export function Customizer() {
           productName: productDetails.name,
           quantity: 1,
           totalCustomizationPrice: totalCustomizationPrice,
-          previewImageUrls: finalThumbnails,
+          previewImageUrls: finalThumbnails, // Using demo data here
           customizationDetails: {
             viewData: createLightweightViewData(),
             selectedOptions: selectedVariationOptions,
@@ -1072,3 +1015,5 @@ export function Customizer() {
     </div>
   );
 }
+
+    
