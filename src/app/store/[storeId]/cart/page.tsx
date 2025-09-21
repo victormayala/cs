@@ -30,22 +30,6 @@ interface CartItem {
     customizationDetails: any; 
 }
 
-const DUMMY_CART_ITEMS: CartItem[] = [
-    {
-      id: 'dummy-item-1',
-      productId: 'dummy-prod-1',
-      variationId: null,
-      quantity: 1,
-      productName: 'Camisa Verde (Dummy Preview)',
-      totalCustomizationPrice: 22.00,
-      previewImageUrls: [
-        { viewId: 'front', viewName: 'Front View', url: 'https://picsum.photos/seed/front/200' },
-        { viewId: 'back', viewName: 'Back View', url: 'https://picsum.photos/seed/back/200' },
-      ],
-      customizationDetails: {},
-    }
-];
-
 
 function CartLoadingSkeleton() {
     return (
@@ -93,8 +77,7 @@ export default function CartPage() {
 
   // Function to save cart to localStorage
   const saveCart = useCallback((items: CartItem[]) => {
-      // For this test, we are not saving to local storage to keep the dummy data
-      // localStorage.setItem(getCartStorageKey(), JSON.stringify(items));
+      localStorage.setItem(getCartStorageKey(), JSON.stringify(items));
       setCartItems(items);
   }, [getCartStorageKey]);
 
@@ -102,25 +85,14 @@ export default function CartPage() {
   useEffect(() => {
     if (!storeId) return;
     try {
-        // FOR TESTING: Always show dummy data
-        setCartItems(DUMMY_CART_ITEMS);
-
-        // Original logic commented out for now
-        // const storedCart = localStorage.getItem(getCartStorageKey());
-        // if (storedCart) {
-        //     const parsedItems = JSON.parse(storedCart);
-        //     if (parsedItems.length > 0) {
-        //         setCartItems(parsedItems);
-        //     } else {
-        //         setCartItems(DUMMY_CART_ITEMS);
-        //     }
-        // } else {
-        //     setCartItems(DUMMY_CART_ITEMS);
-        // }
+        const storedCart = localStorage.getItem(getCartStorageKey());
+        if (storedCart) {
+            const parsedItems = JSON.parse(storedCart);
+            setCartItems(parsedItems);
+        }
     } catch (e) {
         console.error("Failed to parse cart from localStorage", e);
-        setCartItems(DUMMY_CART_ITEMS); // Fallback to dummy data
-        // localStorage.removeItem(getCartStorageKey());
+        localStorage.removeItem(getCartStorageKey());
     }
   }, [storeId, getCartStorageKey]);
 

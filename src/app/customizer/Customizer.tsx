@@ -752,21 +752,11 @@ export function Customizer() {
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
     
     try {
-        // --- DEMO DATA FOR THUMBNAILS ---
-        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-        Array.from(customizedViewIds).forEach((viewId, index) => {
-            const viewInfo = productDetails.views.find(v => v.id === viewId);
-            if (viewInfo) {
-                finalThumbnails.push({
-                    viewId: viewInfo.id,
-                    viewName: viewInfo.name,
-                    // Using picsum.photos for reliable placeholder images.
-                    // The seed is based on the viewId to ensure some consistency.
-                    url: `https://picsum.photos/seed/${viewInfo.id.replace(/[^a-zA-Z0-9]/g, '')}/${200 + index}/200`,
-                });
-            }
-        });
-        
+        const stage = getStageRef()?.current;
+        if (!stage) {
+            throw new Error("Canvas is not ready. Please try again.");
+        }
+
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
             return items.map(item => {
@@ -796,13 +786,21 @@ export function Customizer() {
           productName: productDetails.name,
           quantity: 1,
           totalCustomizationPrice: totalCustomizationPrice,
-          previewImageUrls: finalThumbnails, // Using demo data here
+          // Using picsum.photos for reliable placeholder images.
+          previewImageUrls: Array.from(customizedViewIds).map((viewId, index) => {
+            const viewInfo = productDetails.views.find(v => v.id === viewId);
+            return {
+              viewId: viewId,
+              viewName: viewInfo?.name || `View ${index + 1}`,
+              url: `https://picsum.photos/seed/${viewId.replace(/[^a-zA-Z0-9]/g, '')}/${200 + index}/200`,
+            };
+          }),
           customizationDetails: {
             viewData: createLightweightViewData(),
             selectedOptions: selectedVariationOptions,
           }
         };
-
+        
         const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
         let cartData = [];
         const storedCart = localStorage.getItem(cartKey);
@@ -932,7 +930,6 @@ export function Customizer() {
             selectedItem={selectedItem}
             pixelBoundaryBoxes={pixelBoundaryBoxes}
             stageDimensions={stageDimensions}
-            getStageRef={getStageRef}
           />
           {error && productDetails?.id === defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
            {error && productDetails && productDetails.id !== defaultFallbackProduct.id && ( <div className="w-full max-w-4xl p-3 mb-4 border border-destructive bg-destructive/10 rounded-md text-destructive text-sm flex-shrink-0"> <AlertTriangle className="inline h-4 w-4 mr-1" /> {error} </div> )}
