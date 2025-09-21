@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -757,6 +758,32 @@ export function Customizer() {
             throw new Error("Canvas is not ready. Please try again.");
         }
 
+        const originalActiveViewId = activeViewId;
+        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+
+        for (const viewId of Array.from(customizedViewIds)) {
+            const viewInfo = productDetails.views.find(v => v.id === viewId);
+            if (!viewInfo) continue;
+            
+            // Temporarily switch view to generate preview
+            setActiveViewId(viewId);
+            // Wait for re-render
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+            
+            const dataUrl = stage.toDataURL({ pixelRatio: 1 });
+            if (storage && user) {
+                const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
+                const imageRef = storageRef(storage, storagePath);
+                const snapshot = await uploadString(imageRef, dataUrl, 'data_url');
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
+            } else {
+                 finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+            }
+        }
+        // Restore original view
+        setActiveViewId(originalActiveViewId);
+
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
             return items.map(item => {
@@ -786,21 +813,13 @@ export function Customizer() {
           productName: productDetails.name,
           quantity: 1,
           totalCustomizationPrice: totalCustomizationPrice,
-          // Using picsum.photos for reliable placeholder images.
-          previewImageUrls: Array.from(customizedViewIds).map((viewId, index) => {
-            const viewInfo = productDetails.views.find(v => v.id === viewId);
-            return {
-              viewId: viewId,
-              viewName: viewInfo?.name || `View ${index + 1}`,
-              url: `https://picsum.photos/seed/${viewId.replace(/[^a-zA-Z0-9]/g, '')}/${200 + index}/200`,
-            };
-          }),
+          previewImageUrls: finalThumbnails,
           customizationDetails: {
             viewData: createLightweightViewData(),
             selectedOptions: selectedVariationOptions,
           }
         };
-        
+
         const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
         let cartData = [];
         const storedCart = localStorage.getItem(cartKey);
