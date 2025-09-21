@@ -752,11 +752,6 @@ export function Customizer() {
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
     
     try {
-        const stage = getStageRef()?.current;
-        if (!stage) {
-            throw new Error("Canvas is not ready. Please try again.");
-        }
-
         // --- DEMO DATA FOR THUMBNAILS ---
         const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
         Array.from(customizedViewIds).forEach((viewId, index) => {
@@ -765,7 +760,9 @@ export function Customizer() {
                 finalThumbnails.push({
                     viewId: viewInfo.id,
                     viewName: viewInfo.name,
-                    url: `https://picsum.photos/seed/${viewInfo.id}/${200 + index}/200`, // Placeholder
+                    // Using picsum.photos for reliable placeholder images.
+                    // The seed is based on the viewId to ensure some consistency.
+                    url: `https://picsum.photos/seed/${viewInfo.id.replace(/[^a-zA-Z0-9]/g, '')}/${200 + index}/200`,
                 });
             }
         });
@@ -1015,5 +1012,3 @@ export function Customizer() {
     </div>
   );
 }
-
-    

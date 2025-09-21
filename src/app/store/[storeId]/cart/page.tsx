@@ -280,7 +280,7 @@ export default function CartPage() {
                                 </div>
                                 <div className="flex gap-2 mt-4">
                                     <Button variant="outline" size="sm" asChild>
-                                        <Link href={`/customizer?productId=${item.productId}&source=customizer-studio&configUserId=${storeConfig.userId}&editCartItemId=${item.id}`}>
+                                        <Link href={`/customizer?productId=${item.productId}&source=customizer-studio&configUserId=${storeConfig.userId}&editCartItemId=${item.id}&storeId=${storeId}`}>
                                             <Pencil className="h-3 w-3 mr-1.5" /> Edit
                                         </Link>
                                     </Button>
