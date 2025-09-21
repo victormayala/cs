@@ -302,7 +302,7 @@ export default function CartPage() {
                                             src={preview.url} 
                                             alt={`${item.productName} - ${preview.viewName}`} 
                                             fill 
-                                            className="object-contain" 
+                                            className="object-contain"
                                         />
                                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate">{preview.viewName}</div>
                                     </div>
@@ -370,5 +370,3 @@ export default function CartPage() {
     </div>
   );
 }
-
-    
