@@ -37,3 +37,6 @@ next-env.d.ts
 firebase-debug.log
 firestore-debug.log
 *.log
+firebase-debug.log
+firestore-debug.log
+*.log
