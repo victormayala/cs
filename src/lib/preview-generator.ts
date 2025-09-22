@@ -47,28 +47,84 @@ async function generateCanvasPreview(stage: KonvaStage, width: number, height: n
     bgLayer.moveToBottom();
     bgLayer.show();
     
-    // Log visible content
+    // Log visible content and node details
+    let hasVisibleContent = false;
     stage.getLayers().forEach((layer, i) => {
       const visibleNodes = layer.children?.filter(node => node.isVisible()) || [];
-      console.log(`Layer ${i} contents:`, {
+      const nodeDetails = visibleNodes.map(node => {
+        const bounds = node.getClientRect();
+        return {
+          type: node.getClassName(),
+          id: node.attrs.id,
+          viewId: node.attrs.viewId,
+          position: { x: node.x(), y: node.y() },
+          dimensions: { width: bounds.width, height: bounds.height },
+          visible: node.isVisible(),
+          opacity: node.opacity(),
+          scale: node.scale(),
+        };
+      });
+      
+      console.log(`Layer ${i} detailed contents:`, {
+        layerName: layer.attrs.name || 'unnamed',
         visible: layer.isVisible(),
+        opacity: layer.opacity(),
         totalNodes: layer.children?.length || 0,
         visibleNodes: visibleNodes.length,
         nodeTypes: visibleNodes.map(n => n.getClassName()),
+        nodes: nodeDetails,
       });
+
+      if (visibleNodes.length > 0) {
+        hasVisibleContent = true;
+      }
     });
+
+    if (!hasVisibleContent) {
+      console.warn('No visible content found in any layer!');
+    }
 
     // Force stage update
     stage.draw();
     await new Promise(resolve => setTimeout(resolve, 200));
 
     // Generate high-quality preview
-    console.log('Capturing stage content...');
-    const dataUrl = stage.toDataURL({
-      pixelRatio: 2,
-      mimeType: 'image/png',
-      quality: 1
-    });
+    console.log('Preparing to capture stage content...');
+    
+    // Create a new canvas for manual compositing
+    const renderCanvas = document.createElement('canvas');
+    renderCanvas.width = width * 2; // 2x for higher quality
+    renderCanvas.height = height * 2;
+    const renderCtx = renderCanvas.getContext('2d');
+    
+    if (!renderCtx) {
+      throw new Error('Could not get render context');
+    }
+
+    // Fill white background
+    renderCtx.fillStyle = '#FFFFFF';
+    renderCtx.fillRect(0, 0, renderCanvas.width, renderCanvas.height);
+
+    // Draw each layer manually
+    for (const layer of stage.getLayers()) {
+      if (!layer.isVisible()) continue;
+
+      console.log(`Rendering layer: ${layer.attrs.name || 'unnamed'}`, {
+        visible: layer.isVisible(),
+        hasContent: layer.children?.length > 0,
+      });
+
+      const layerCanvas = layer.getCanvas()._canvas;
+      renderCtx.drawImage(
+        layerCanvas, 
+        0, 0, layerCanvas.width, layerCanvas.height,
+        0, 0, renderCanvas.width, renderCanvas.height
+      );
+    }
+
+    // Convert to data URL
+    console.log('Converting canvas to data URL...');
+    const dataUrl = renderCanvas.toDataURL('image/png', 1.0);
 
     // Validate content
     const isValid = await new Promise<boolean>((resolve) => {
@@ -88,27 +144,60 @@ async function generateCanvasPreview(stage: KonvaStage, width: number, height: n
         ctx.drawImage(img, 0, 0);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Check for non-white content
-        let nonWhitePixels = 0;
+        // Initialize counters for different pixel types
+        let stats = {
+          white: 0,
+          black: 0,
+          colored: 0,
+          transparent: 0
+        };
+
+        // Check content by analyzing pixel distribution
         for (let i = 0; i < imageData.data.length; i += 4) {
           const r = imageData.data[i];
           const g = imageData.data[i + 1];
           const b = imageData.data[i + 2];
-          if (r !== 255 || g !== 255 || b !== 255) {
-            nonWhitePixels++;
+          const a = imageData.data[i + 3];
+
+          if (a < 250) {
+            stats.transparent++;
+          } else if (r === 255 && g === 255 && b === 255) {
+            stats.white++;
+          } else if (r === 0 && g === 0 && b === 0) {
+            stats.black++;
+          } else {
+            stats.colored++;
           }
         }
 
         const totalPixels = (canvas.width * canvas.height);
-        const nonWhitePercentage = (nonWhitePixels / totalPixels) * 100;
+        const percentages = {
+          white: (stats.white / totalPixels) * 100,
+          black: (stats.black / totalPixels) * 100,
+          colored: (stats.colored / totalPixels) * 100,
+          transparent: (stats.transparent / totalPixels) * 100
+        };
         
-        console.log('Content validation:', {
+        console.log('Content analysis:', {
           dimensions: `${canvas.width}x${canvas.height}`,
-          nonWhitePixels,
-          nonWhitePercentage: `${nonWhitePercentage.toFixed(2)}%`
+          totalPixels,
+          pixelCounts: stats,
+          percentages: Object.fromEntries(
+            Object.entries(percentages).map(
+              ([key, value]) => [key, `${value.toFixed(2)}%`]
+            )
+          )
         });
 
-        resolve(nonWhitePercentage > 0.1); // More than 0.1% non-white
+        // Image is valid if it has significant non-white content
+        const nonWhiteContent = stats.black + stats.colored;
+        const hasContent = (nonWhiteContent / totalPixels) * 100 > 0.5; // More than 0.5% non-white
+
+        if (!hasContent) {
+          console.warn('Preview validation failed: insufficient content detected');
+        }
+
+        resolve(hasContent);
       };
       img.onerror = () => {
         console.error('Failed to load preview for validation');
@@ -175,22 +264,47 @@ export async function generateViewPreviews({
 
         // Show all content for this view
         console.log('Preparing view content...');
+        
+        // First, reset all layers and nodes
         stage.getLayers().forEach(layer => {
-          // Skip background layer
-          if (layer.attrs.name === 'background') return;
+          layer.show();
+          layer.opacity(1);
+          layer.children?.forEach(child => {
+            child.hide(); // Hide all initially
+            child.opacity(1);
+            child.scale({ x: 1, y: 1 });
+            child.rotation(0);
+          });
+        });
+
+        // Then, show only the relevant nodes
+        let foundContent = false;
+        stage.getLayers().forEach(layer => {
+          if (layer.attrs.name === 'background') {
+            console.log('Ensuring background layer is visible');
+            layer.show();
+            layer.moveToBottom();
+            return;
+          }
           
           layer.show();
           layer.children?.forEach(child => {
-            // Only show nodes for this view
             if (child.attrs.viewId === viewId) {
-              console.log(`Showing node: ${child.attrs.id}`);
+              console.log(`Showing node for view ${viewId}:`, {
+                id: child.attrs.id,
+                type: child.getClassName(),
+                bounds: child.getClientRect()
+              });
               child.show();
               child.moveToTop();
-            } else {
-              child.hide();
+              foundContent = true;
             }
           });
         });
+
+        if (!foundContent) {
+          console.warn(`No content found for view ${viewId}!`);
+        }
 
         // Wait for images to load
         console.log('Waiting for images to load...');
