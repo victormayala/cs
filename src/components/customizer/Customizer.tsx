@@ -19,6 +19,8 @@ import { db, storage } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { uploadString, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import dynamic from 'next/dynamic';
+import { getStageState, applyStageState, type StageState } from '@/lib/stage-utils';
+import { generateCanvasPreview } from '@/lib/preview-generator';
 
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
@@ -725,59 +727,287 @@ export function Customizer() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
+// Helper function to get customized view IDs
+const getCustomizedViewIds = () => {
+    const viewIds = new Set<string>();
+    [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
+        if (item.viewId) viewIds.add(item.viewId);
+    });
+    return viewIds;
+};
+
+// Helper function to create cart item
+const createCartItem = (thumbnails: ViewPreview[]) => {
+    if (!productDetails) throw new Error("Product details not available");
+    
+    return {
+        id: editCartItemId || crypto.randomUUID(),
+        productId: productDetails.id,
+        productName: productDetails.name,
+        quantity: 1,
+        totalCustomizationPrice: totalCustomizationPrice,
+        previewImageUrls: thumbnails,
+        customizationDetails: {
+            selectedVariation,
+            selectedTechnique,
+            customizations: {
+                images: canvasImages,
+                texts: canvasTexts,
+                shapes: canvasShapes
+            }
+        }
+    };
+};
+
 const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
-      toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
-      return;
+        toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
+        return;
     }
 
     // Get the stage reference early
     const stage = getStageRef()?.current;
     if (!stage) {
-      toast({ title: "Error", description: "Canvas is not ready. Please try again.", variant: "destructive" });
-      return;
+        toast({ title: "Error", description: "Canvas is not ready. Please try again.", variant: "destructive" });
+        return;
     }
 
-    // Collect all customized views
-    const customizedViewIds = new Set<string>();
-    [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
-      if (item.viewId) customizedViewIds.add(item.viewId);
-    });
-
+    // Check customized views
+    const customizedViewIds = getCustomizedViewIds();
     if (customizedViewIds.size === 0) {
-      toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
-      return;
+        toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
+        return;
     }
 
     if (!isEmbedded && !user) {
-      toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
-      return;
+        toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
+        return;
     }
 
-    // Store stage state before modifications
-    const originalState = {
-      scale: stage.scale(),
-      position: stage.position(),
-      rotation: stage.rotation(),
-      layers: stage.getLayers().map(layer => ({
-        id: layer.id(),
-        visible: layer.isVisible(),
-        opacity: layer.opacity(),
-        nodes: layer.children?.map(node => ({
-          id: node.id(),
-          visible: node.isVisible(),
-          opacity: node.opacity(),
-          scale: node.scale(),
-          rotation: node.rotation(),
-          position: node.position()
-        }))
-      }))
-    };
-    
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
-    
+
     try {
+        // Store the stage state before attempting any modifications
+        const stageState = getStageState(stage);
+        let finalThumbnails: ViewPreview[] = [];
+
+        try {
+            // Generate previews first, before any UI changes or cart operations
+            finalThumbnails = await Promise.all(
+                Array.from(customizedViewIds).map(async viewId => {
+                    const view = productDetails.views.find(v => v.id === viewId);
+                    if (!view) return null;
+                    return {
+                        viewId: view.id,
+                        viewName: view.name,
+                        url: await generateCanvasPreview(stage, stage.width(), stage.height())
+                    };
+                })
+            ).then(results => results.filter(Boolean) as ViewPreview[]);
+
+            // After previews are generated, create and add the cart item
+            const cartItem = createCartItem(finalThumbnails);
+
+            // Handle cart operations based on context
+            if (isEmbedded) {
+                window.parent.postMessage({
+                    type: 'CUSTOMIZER_STUDIO_ADD_TO_CART',
+                    customizerStudioDesignData: cartItem
+                }, '*');
+            } else {
+                const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+                const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+                const existingItemIndex = currentCart.findIndex((item: any) => item.id === editCartItemId);
+                
+                if (existingItemIndex > -1) {
+                    currentCart[existingItemIndex] = cartItem;
+                } else {
+                    currentCart.push(cartItem);
+                }
+                
+                localStorage.setItem(cartKey, JSON.stringify(currentCart));
+            }
+
+            toast({ 
+                title: "Success!", 
+                description: `${productDetails.name} has been ${editCartItemId ? 'updated in' : 'added to'} your cart.`
+            });
+
+            if (storeIdFromUrl) {
+                router.push(`/store/${storeIdFromUrl}/cart`);
+            }
+        } finally {
+            // Always restore the stage state, even if there was an error
+            applyStageState(stage, stageState);
+        }
+    } catch (error: any) {
+        console.error('Error adding to cart:', error);
+        toast({ 
+            title: "Add to Cart Failed",
+            description: error.message || "Failed to add item to cart",
+            variant: "destructive"
+        });
+    } finally {
+        setIsAddingToCart(false);
+    }
+};
+
+    try {
+        // Store the current stage state
+        const originalState = getStageState(stage);
+        let finalThumbnails: ViewPreview[] = [];
+
+        try {
+            // Generate all previews first, before any UI changes
+            finalThumbnails = await Promise.all(
+                Array.from(customizedViewIds).map(async viewId => {
+                    const view = productDetails?.views.find(v => v.id === viewId);
+                    if (!view || !stage) return null;
+
+                    const previewDataUrl = await generateCanvasPreview(stage, stage.width(), stage.height());
+                    return {
+                        viewId: view.id,
+                        viewName: view.name,
+                        url: previewDataUrl
+                    };
+                })
+            ).then(results => results.filter(Boolean) as ViewPreview[]);
+
+            // Create the cart item with the previews
+            const newCartItem = {
+                id: editCartItemId || crypto.randomUUID(),
+                productId: productDetails.id,
+                productName: productDetails.name,
+                quantity: 1,
+                totalCustomizationPrice: totalCustomizationPrice,
+                previewImageUrls: finalThumbnails,
+                customizationDetails: {
+                    selectedVariation,
+                    selectedTechnique,
+                    customizations: {
+                        images: canvasImages,
+                        texts: canvasTexts,
+                        shapes: canvasShapes
+                    }
+                }
+            };
+
+            // Add to cart based on context (embedded vs standalone)
+            if (isEmbedded) {
+                window.parent.postMessage({
+                    type: 'CUSTOMIZER_STUDIO_ADD_TO_CART',
+                    customizerStudioDesignData: newCartItem
+                }, '*');
+            } else {
+                // Add to local storage cart
+                const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+                const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+                const existingItemIndex = currentCart.findIndex((item: any) => item.id === editCartItemId);
+                
+                if (existingItemIndex > -1) {
+                    currentCart[existingItemIndex] = newCartItem;
+                } else {
+                    currentCart.push(newCartItem);
+                }
+                
+                localStorage.setItem(cartKey, JSON.stringify(currentCart));
+            }
+
+            toast({ 
+                title: "Success!", 
+                description: `${productDetails.name} has been ${editCartItemId ? 'updated in' : 'added to'} your cart.`
+            });
+
+            if (storeIdFromUrl) {
+                router.push(`/store/${storeIdFromUrl}/cart`);
+            }
+        } finally {
+            // Restore the original stage state
+            applyStageState(stage, originalState);
+        }
+    } catch (error: any) {
+        console.error('Error adding to cart:', error);
+        toast({ 
+            title: "Add to Cart Failed", 
+            description: error.message || "Failed to add item to cart", 
+            variant: "destructive"
+        });
+    } finally {
+        setIsAddingToCart(false);
+    }
+};
+
+        try {
+            // Generate all previews first, before any UI changes
+            finalThumbnails = await Promise.all(
+                Array.from(customizedViewIds).map(async viewId => {
+                    const view = productDetails?.views.find(v => v.id === viewId);
+                    if (!view || !stage) return null;
+
+                    // Use stage dimensions for the preview
+                    const previewDataUrl = await generateCanvasPreview(
+                        stage, 
+                        stage.width(), 
+                        stage.height()
+                    );
+
+                    return {
+                        viewId: view.id,
+                        viewName: view.name,
+                        url: previewDataUrl
+                    };
+                })
+            ).then(results => results.filter(Boolean) as ViewPreview[]);
+
+            // Create the cart item with the previews
+            const newCartItem = {
+                id: editCartItemId || crypto.randomUUID(),
+                productId: productDetails.id,
+                productName: productDetails.name,
+                quantity: 1,
+                totalCustomizationPrice: totalCustomizationPrice,
+                previewImageUrls: finalThumbnails,
+                customizationDetails: {
+                    selectedVariation,
+                    selectedTechnique,
+                    customizations: {
+                        images: canvasImages,
+                        texts: canvasTexts,
+                        shapes: canvasShapes
+                    }
+                }
+            };
+
+            // Add to cart based on context (embedded vs standalone)
+            if (isEmbedded) {
+                window.parent.postMessage({
+                    type: 'CUSTOMIZER_STUDIO_ADD_TO_CART',
+                    customizerStudioDesignData: newCartItem
+                }, '*');
+            } else {
+                // Add to local storage cart
+                const cartKey = `cs_cart_${storeIdFromUrl || user?.uid}`;
+                const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+                const existingItemIndex = currentCart.findIndex((item: any) => item.id === editCartItemId);
+                
+                if (existingItemIndex > -1) {
+                    currentCart[existingItemIndex] = newCartItem;
+                } else {
+                    currentCart.push(newCartItem);
+                }
+                
+                localStorage.setItem(cartKey, JSON.stringify(currentCart));
+            }
+
+            toast({ 
+                title: "Success!", 
+                description: `${productDetails.name} has been ${editCartItemId ? 'updated in' : 'added to'} your cart.`
+            });
+
+            if (storeIdFromUrl) {
+                router.push(`/store/${storeIdFromUrl}/cart`);
+            }
         const stage = getStageRef()?.current;
         if (!stage) {
             throw new Error("Canvas is not ready. Please try again.");

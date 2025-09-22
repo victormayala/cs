@@ -20,7 +20,7 @@ interface PreviewGeneratorOptions {
   setActiveViewId?: (viewId: string | null) => void;
 }
 
-async function generateCanvasPreview(stage: KonvaStage, width: number, height: number): Promise<string> {
+export async function generateCanvasPreview(stage: KonvaStage, width: number, height: number): Promise<string> {
   try {
     console.log('Generating canvas preview...');
     console.log('Stage state:', {

@@ -2,7 +2,7 @@ import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import type { Layer as KonvaLayer } from 'konva/lib/Layer';
 import type { Node as KonvaNode } from 'konva/lib/Node';
 
-type StageState = {
+export type StageState = {
     scale: { x: number; y: number };
     position: { x: number; y: number };
     rotation: number;
