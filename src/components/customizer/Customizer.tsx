@@ -808,26 +808,52 @@ export function Customizer() {
                 backgroundLayer.add(background);
                 stage.add(backgroundLayer);
                 
+                // Ensure all layers are visible
+                stage.getLayers().forEach(layer => layer.show());
+                
                 // Draw all canvas content
                 stage.draw();
                 
-                // Get the final composite image
-                const stageDataUrl = stage.toDataURL({ pixelRatio: 1, mimeType: 'image/png' });
                 try {
+                    // Get the final composite image directly from the stage
+                    console.log('Attempting to generate preview for view:', viewId);
+                    const stageDataUrl = stage.toCanvas().toDataURL('image/png');
+                    
                     if (storage && user) {
                         const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
                         const imageRef = storageRef(storage, storagePath);
+                        console.log('Uploading preview to Firebase:', storagePath);
                         const snapshot = await uploadString(imageRef, stageDataUrl, 'data_url');
                         const downloadURL = await getDownloadURL(snapshot.ref);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
+                        console.log('Successfully uploaded preview for view:', viewId);
                     } else {
                         // Fallback to using data URLs directly when Firebase Storage is not available
+                        console.log('Using data URL directly for preview:', viewId);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: stageDataUrl });
                     }
                 } catch (error) {
                     console.error("Error generating preview for view:", viewId, error);
-                    // Still add the data URL as fallback even if Firebase upload fails
-                    finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: stageDataUrl });
+                    try {
+                        // Alternative method using native canvas
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            canvas.width = stage.width();
+                            canvas.height = stage.height();
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            stage.getLayers().forEach(layer => {
+                                const layerCanvas = layer.getCanvas()._canvas;
+                                ctx.drawImage(layerCanvas, 0, 0);
+                            });
+                            const fallbackDataUrl = canvas.toDataURL('image/png');
+                            finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: fallbackDataUrl });
+                            console.log('Generated fallback preview for view:', viewId);
+                        }
+                    } catch (fallbackError) {
+                        console.error("Error generating fallback preview:", fallbackError);
+                    }
                 }
             }
         } finally {
