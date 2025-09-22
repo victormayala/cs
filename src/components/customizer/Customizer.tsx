@@ -767,9 +767,38 @@ export function Customizer() {
                 
                 // Temporarily switch view to generate preview
                 setActiveViewId(viewId);
-                // Wait for re-render
-                await new Promise(resolve => setTimeout(resolve, 50)); 
+                // Wait for re-render and image load
+                await new Promise(resolve => setTimeout(resolve, 100)); 
                 
+                // Create an offscreen image to load the product view
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = viewInfo.imageUrl;
+                });
+
+                // Draw product image on stage first
+                const width = stage.width();
+                const height = stage.height();
+                stage.clear();
+                
+                const ctx = stage.getContext()._context;
+                ctx.save();
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, width, height);
+                
+                // Calculate dimensions to maintain aspect ratio
+                const scale = Math.min(width / img.width, height / img.height);
+                const x = (width - img.width * scale) / 2;
+                const y = (height - img.height * scale) / 2;
+                
+                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                ctx.restore();
+                
+                // Now let Konva draw all the layers on top
+                stage.draw();
                 const dataUrl = stage.toDataURL({ pixelRatio: 1 });
                 try {
                     if (storage && user) {
