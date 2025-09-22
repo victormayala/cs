@@ -21,29 +21,64 @@ interface PreviewGeneratorOptions {
 }
 
 async function generateCanvasPreview(stage: KonvaStage, width: number, height: number): Promise<string> {
-  // Create a new canvas
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  if (!ctx) throw new Error('Could not get canvas context');
+  try {
+    // Wait for a brief moment to ensure all stage updates are complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Force stage update
+    stage.batchDraw();
 
-  // Set canvas size
-  canvas.width = width;
-  canvas.height = height;
+    // Use Konva's built-in toDataURL method which properly handles all layers and transformations
+    const dataUrl = stage.toDataURL({
+      pixelRatio: 2, // Higher quality output
+      mimeType: 'image/png',
+      quality: 1,
+      callback: (dataUrl: string) => {
+        return dataUrl;
+      }
+    });
 
-  // Fill white background
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, width, height);
+    // Validate the generated image
+    const validationPromise = new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Create a temporary canvas to check the image content
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        const ctx = tempCanvas.getContext('2d');
+        
+        if (!ctx) {
+          reject(new Error('Could not get canvas context for validation'));
+          return;
+        }
 
-  // Draw all layers from the stage
-  stage.getLayers().forEach((layer: KonvaLayer) => {
-    if (!layer.isVisible()) return;
-    const layerCanvas = layer.getCanvas()._canvas;
-    ctx.drawImage(layerCanvas, 0, 0);
-  });
+        // Draw the image
+        ctx.drawImage(img, 0, 0);
+        
+        // Check if the image has non-transparent pixels
+        const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const hasContent = Array.from(imageData.data).some((value, index) => {
+          // Check RGB values (skip alpha)
+          return index % 4 !== 3 && value > 0;
+        });
 
-  // Return data URL
-  return canvas.toDataURL('image/png');
+        if (hasContent) {
+          resolve(dataUrl);
+        } else {
+          reject(new Error('Generated preview appears to be empty'));
+        }
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load generated preview for validation'));
+      img.src = dataUrl;
+    });
+
+    return await validationPromise;
+  } catch (error) {
+    console.error('Error generating canvas preview:', error);
+    throw error;
+  }
 }
 
 export async function generateViewPreviews({
