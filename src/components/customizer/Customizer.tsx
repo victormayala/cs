@@ -812,25 +812,22 @@ export function Customizer() {
                 stage.draw();
                 
                 // Get the final composite image
-                const stageDataUrl = stage.toDataURL({ pixelRatio: 1 });
-
-                // Get the final composite image
-                const dataUrl = offscreenCanvas.toDataURL('image/png');
+                const stageDataUrl = stage.toDataURL({ pixelRatio: 1, mimeType: 'image/png' });
                 try {
                     if (storage && user) {
                         const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
                         const imageRef = storageRef(storage, storagePath);
-                        const snapshot = await uploadString(imageRef, dataUrl, 'data_url');
+                        const snapshot = await uploadString(imageRef, stageDataUrl, 'data_url');
                         const downloadURL = await getDownloadURL(snapshot.ref);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
                     } else {
                         // Fallback to using data URLs directly when Firebase Storage is not available
-                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: stageDataUrl });
                     }
                 } catch (error) {
                     console.error("Error generating preview for view:", viewId, error);
                     // Still add the data URL as fallback even if Firebase upload fails
-                    finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+                    finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: stageDataUrl });
                 }
             }
         } finally {

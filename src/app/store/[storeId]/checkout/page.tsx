@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import { CustomPreviewImage } from '@/components/store/CustomPreviewImage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -219,7 +219,11 @@ export default function CheckoutPage() {
                                 {cartItems.map(item => (
                                     <div key={item.id} className="flex items-center gap-4">
                                         <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted border flex-shrink-0">
-                                            <Image src={item.previewImageUrls?.[0]?.url || '/placeholder-image.png'} alt={item.productName} fill className="object-contain" />
+                                            <CustomPreviewImage 
+                                                src={item.previewImageUrls?.[0]?.url || '/placeholder-image.png'} 
+                                                alt={item.productName}
+                                                viewName={item.previewImageUrls?.[0]?.viewName || 'Preview'}
+                                            />
                                         </div>
                                         <div className="flex-grow">
                                             <p className="font-medium text-sm truncate">{item.productName}</p>
