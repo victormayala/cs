@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -9,8 +8,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-import { Customizer } from './Customizer';
-
+import { Customizer } from '@/components/customizer/Customizer';
 
 function CustomizerLayoutAndLogic() {
   return <Customizer />

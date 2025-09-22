@@ -5,6 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
+import type { ProductView, ProductVariation, WooCommerceVariation } from '@/types/customization';
+import type { DetailedHTMLProps, HTMLAttributes } from 'react';
+import Konva from 'konva';
+import type { BaseProduct, ProductForCustomizer } from '@/types/product-types';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
 import { fetchShopifyProductById } from '@/app/actions/shopifyActions';
 import type { ProductOptionsFirestoreData, NativeProductVariation, BoundaryBox } from '@/app/actions/productOptionsActions';
@@ -114,6 +118,8 @@ const defaultFallbackProduct: ProductForCustomizer = {
       imageUrl: 'https://placehold.co/700x700.png',
       aiHint: 'product mockup',
       price: 0,
+      embroideryAdditionalFee: 0,
+      printAdditionalFee: 0,
       boundaryBoxes: [
         { id: 'fallback_area_1', name: 'Default Area', x: 25, y: 25, width: 50, height: 50 },
       ],
@@ -302,13 +308,13 @@ export function Customizer() {
   }, [hasCanvasElements, router, user, isEmbedded]);
 
 
-  const toggleGrid = useCallback(() => setShowGrid(prev => !prev), []);
-  const toggleBoundaryBoxes = useCallback(() => setShowBoundaryBoxes(prev => !prev), []);
-  const toggleToolPanel = useCallback(() => setIsToolPanelOpen(prev => !prev), []);
-  const toggleRightSidebar = useCallback(() => setIsRightSidebarOpen(prev => !prev), []);
+  const toggleGrid = useCallback(() => setShowGrid((prev: boolean) => !prev), []);
+  const toggleBoundaryBoxes = useCallback(() => setShowBoundaryBoxes((prev: boolean) => !prev), []);
+  const toggleToolPanel = useCallback(() => setIsToolPanelOpen((prev: boolean) => !prev), []);
+  const toggleRightSidebar = useCallback(() => setIsRightSidebarOpen((prev: boolean) => !prev), []);
 
   const handleVariantOptionSelect = useCallback((attributeName: string, optionValue: string) => {
-    setSelectedVariationOptions(prev => ({ ...prev, [attributeName]: optionValue }));
+    setSelectedVariationOptions((prev: Record<string, string>) => ({ ...prev, [attributeName]: optionValue }));
   }, []);
 
 
@@ -547,15 +553,15 @@ export function Customizer() {
 
     if (isVariable) {
         if (productDetails.source === 'customizer-studio' && productDetails.nativeVariations) {
-            matchingNativeVariation = productDetails.nativeVariations.find(v => 
-                Object.entries(selectedVariationOptions).every(([key, value]) => v.attributes[key] === value)
+            matchingNativeVariation = productDetails.nativeVariations.find((v: NativeProductVariation) => 
+                Object.entries(selectedVariationOptions).every(([key, value]: [string, string]) => v.attributes[key] === value)
             );
             if (matchingNativeVariation) {
                 matchingVariationPrice = matchingNativeVariation.price;
             }
         } else if (productDetails.source === 'woocommerce' && productVariations) {
-            matchingWcVariation = productVariations.find(variation => 
-                variation.attributes.every(attr => selectedVariationOptions[attr.name] === attr.option)
+            matchingWcVariation = productVariations.find((variation: WooCommerceVariation) => 
+                variation.attributes.every((attr: {name: string, option: string}) => selectedVariationOptions[attr.name] === attr.option)
             );
             if (matchingWcVariation) {
                 matchingVariationPrice = parseFloat(matchingWcVariation.price || '0');
@@ -566,7 +572,7 @@ export function Customizer() {
     const colorKey = loadedGroupingAttributeName ? selectedVariationOptions[loadedGroupingAttributeName] : null;
     const colorSpecificViews = colorKey && loadedOptionsByColor?.[colorKey]?.views;
 
-    const processAndProxyViews = async (views: ProductView[]) => {
+    const processAndProxyViews = async (views: ProductView[]): Promise<ProductView[]> => {
       return Promise.all(views.map(async (view) => ({
         ...view,
         imageUrl: await proxyImageUrl(view.imageUrl),
@@ -579,23 +585,28 @@ export function Customizer() {
       } else if (matchingWcVariation?.image?.src) {
         finalViews = [{
           id: `wc_variation_view_${matchingWcVariation.id}`,
-          name: matchingWcVariation.attributes.map(a => a.option).join(' '),
+          name: matchingWcVariation.attributes.map((a: {option: string}) => a.option).join(' '),
           imageUrl: await proxyImageUrl(matchingWcVariation.image.src),
-          aiHint: matchingWcVariation.image.alt || 'product variation',
+          aiHint: matchingWcVariation.image?.alt || 'product variation',
           boundaryBoxes: productDetails.views[0]?.boundaryBoxes || [],
           price: 0,
+          embroideryAdditionalFee: 0,
+          printAdditionalFee: 0,
         }];
       } else {
-        const baseViews = Object.entries(viewBaseImages).map(([id, base], index) => ({
-          id,
-          name: productDetails.views.find(v => v.id === id)?.name || `View ${index + 1}`,
-          imageUrl: base.url, // Already proxied
-          aiHint: base.aiHint,
-          price: productDetails.views.find(v => v.id === id)?.price,
-          embroideryAdditionalFee: productDetails.views.find(v => v.id === id)?.embroideryAdditionalFee,
-          printAdditionalFee: productDetails.views.find(v => v.id === id)?.printAdditionalFee,
-          boundaryBoxes: productDetails.views.find(v => v.id === id)?.boundaryBoxes || [],
-        }));
+        const baseViews = Object.entries(viewBaseImages).map(([id, base]: [string, {url: string, aiHint?: string}], index) => {
+          const matchingView = productDetails.views.find((v: ProductView) => v.id === id);
+          return {
+            id,
+            name: matchingView?.name || `View ${index + 1}`,
+            imageUrl: base.url, // Already proxied
+            aiHint: base.aiHint,
+            price: matchingView?.price || 0,
+            embroideryAdditionalFee: matchingView?.embroideryAdditionalFee || 0,
+            printAdditionalFee: matchingView?.printAdditionalFee || 0,
+            boundaryBoxes: matchingView?.boundaryBoxes || [],
+          };
+        });
         finalViews = await processAndProxyViews(baseViews);
       }
 
@@ -768,7 +779,7 @@ export function Customizer() {
                 // Create an offscreen canvas for better control
                 const offscreenCanvas = document.createElement('canvas');
                 const offscreenCtx = offscreenCanvas.getContext('2d');
-                if (!offscreenCtx) continue;
+                if (!offscreenCtx) return;
 
                 // Set canvas size to match stage
                 const width = stage.width();
@@ -776,57 +787,80 @@ export function Customizer() {
                 offscreenCanvas.width = width;
                 offscreenCanvas.height = height;
 
-                // Load the product image first
-                const baseImg = new Image();
-                baseImg.crossOrigin = "anonymous";
-                await new Promise((resolve, reject) => {
-                    baseImg.onload = resolve;
-                    baseImg.onerror = reject;
-                    baseImg.src = viewInfo.imageUrl;
-                });
-
-                // Draw white background
-                offscreenCtx.fillStyle = 'white';
-                offscreenCtx.fillRect(0, 0, width, height);
-
-                // Draw product image maintaining aspect ratio
-                const scale = Math.min(width / baseImg.width, height / baseImg.height);
-                const x = (width - baseImg.width * scale) / 2;
-                const y = (height - baseImg.height * scale) / 2;
-                offscreenCtx.drawImage(baseImg, x, y, baseImg.width * scale, baseImg.height * scale);
-
                 // Temporarily switch view to generate customizations
                 setActiveViewId(viewId);
                 // Wait for re-render
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                // Draw stage content (customizations) on top
-                const stageDataUrl = stage.toDataURL({ pixelRatio: 1 });
-                const customizationsImg = new Image();
-                await new Promise((resolve, reject) => {
-                    customizationsImg.onload = resolve;
-                    customizationsImg.onerror = reject;
-                    customizationsImg.src = stageDataUrl;
+                // Use the stage directly to render the final preview
+                stage.clear();
+                
+                // Draw white background first
+                const layer = stage.getLayers()[0];
+                const backgroundRect = layer.getContext().canvas;
+                // Create the background layer
+                const backgroundLayer = new Konva.Layer();
+                const background = new Konva.Rect({
+                  width: stage.width(),
+                  height: stage.height(),
+                  fill: '#FFFFFF',
                 });
-                offscreenCtx.drawImage(customizationsImg, 0, 0);
-
-                // Get the final composite image
-                const dataUrl = offscreenCanvas.toDataURL('image/png');
+                backgroundLayer.add(background);
+                stage.add(backgroundLayer);
+                
+                // Ensure all layers are visible
+                stage.getLayers().forEach(layer => layer.show());
+                
+                // Draw all canvas content
+                stage.draw();
+                
                 try {
+                    // Get the final composite image using native canvas
+                    console.log('Generating preview for view:', viewId);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) throw new Error('Could not get canvas context');
+
+                    // Set canvas size
+                    canvas.width = stage.width();
+                    canvas.height = stage.height();
+
+                    // Fill white background
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // Draw each layer
+                    stage.getLayers().forEach(layer => {
+                        // Skip if layer is hidden
+                        if (!layer.isVisible()) return;
+                        const layerCanvas = layer.getCanvas()._canvas;
+                        ctx.drawImage(layerCanvas, 0, 0);
+                    });
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    console.log('Preview generated successfully for view:', viewId);
+                    
                     if (storage && user) {
                         const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
                         const imageRef = storageRef(storage, storagePath);
+                        console.log('Uploading preview to Firebase:', storagePath);
                         const snapshot = await uploadString(imageRef, dataUrl, 'data_url');
                         const downloadURL = await getDownloadURL(snapshot.ref);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
+                        console.log('Successfully uploaded preview for view:', viewId);
                     } else {
                         // Fallback to using data URLs directly when Firebase Storage is not available
+                        console.log('Using data URL directly for preview:', viewId);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
                     }
                 } catch (error) {
                     console.error("Error generating preview for view:", viewId, error);
-                    // Still add the data URL as fallback even if Firebase upload fails
-                    finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+                    // Add a default placeholder in case of error
+                    finalThumbnails.push({ 
+                        viewId: viewId, 
+                        viewName: viewInfo.name, 
+                        url: 'https://placehold.co/400x400?text=Preview+Error' 
+                    });
                 }
             }
         } finally {
@@ -846,13 +880,13 @@ export function Customizer() {
           };
 
           return productDetails.views
-            .filter(view => customizedViewIds.has(view.id))
-            .map(view => ({
+            .filter((view: {id: string}) => customizedViewIds.has(view.id))
+            .map((view: {id: string}) => ({
               viewId: view.id,
               items: stripDataUrls([
-                ...canvasImages.filter(item => item.viewId === view.id),
-                ...canvasTexts.filter(item => item.viewId === view.id),
-                ...canvasShapes.filter(item => item.viewId === view.id)
+                ...canvasImages.filter((item: CanvasImage) => item.viewId === view.id),
+                ...canvasTexts.filter((item: CanvasText) => item.viewId === view.id),
+                ...canvasShapes.filter((item: CanvasShape) => item.viewId === view.id)
               ]),
             }));
         };
