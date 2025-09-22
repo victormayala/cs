@@ -3,69 +3,226 @@
 import Konva from 'konva';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import type { Layer as KonvaLayer } from 'konva/lib/Layer';
-import type { Image as KonvaImage } from 'konva/lib/shapes/Image';
+import type { Node as KonvaNode } from 'konva/lib/Node';
 
 export interface ViewPreview {
-  viewId: string;
-  viewName: string;
-  url: string;
+    viewId: string;
+    viewName: string;
+    url: string;
 }
 
 interface PreviewGeneratorOptions {
-  stage: KonvaStage;
-  customizedViewIds: Set<string>;
-  views: Array<{ id: string; name: string }>;
-  storage?: any;
-  user?: { uid: string } | null;
-  setActiveViewId?: (viewId: string | null) => void;
+    stage: KonvaStage;
+    customizedViewIds: Set<string>;
+    views: Array<{ id: string; name: string }>;
+    storage?: any;
+    user?: { uid: string } | null;
+}
+
+function cloneStage(sourceStage: KonvaStage, width: number, height: number): KonvaStage {
+    // Create a new container div for the temporary stage
+    const container = document.createElement('div');
+    container.style.display = 'none';
+    document.body.appendChild(container);
+
+    // Create new stage with same dimensions
+    const newStage = new Konva.Stage({
+        container: container,
+        width: width,
+        height: height
+    });
+
+    // Clone each layer and its contents
+    sourceStage.getLayers().forEach(layer => {
+        const newLayer = new Konva.Layer();
+        
+        // Clone each node in the layer
+        layer.getChildren().forEach(node => {
+            const clone = node.clone();
+            clone.setAttrs({
+                x: node.x(),
+                y: node.y(),
+                scaleX: node.scaleX(),
+                scaleY: node.scaleY(),
+                rotation: node.rotation(),
+                opacity: node.opacity(),
+                visible: node.isVisible()
+            });
+            newLayer.add(clone);
+        });
+
+        newStage.add(newLayer);
+    });
+
+    return newStage;
+}
+
+function cleanupClonedStage(stage: KonvaStage) {
+    const container = stage.container();
+    stage.destroy();
+    if (container.parentNode) {
+        container.parentNode.removeChild(container);
+    }
 }
 
 export async function generateCanvasPreview(stage: KonvaStage, width: number, height: number): Promise<string> {
-  try {
-    console.log('Generating canvas preview...');
-    console.log('Stage state:', {
-      width: stage.width(),
-      height: stage.height(),
-      layers: stage.getLayers().length,
-    });
-
-    // Ensure white background
-    let bgLayer = stage.findOne('.background') as Konva.Layer;
-    if (!bgLayer) {
-      console.log('Creating background layer');
-      bgLayer = new Konva.Layer({ name: 'background' });
-      const background = new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-        fill: '#FFFFFF',
-      });
-      bgLayer.add(background);
-      stage.add(bgLayer);
-    }
-    bgLayer.moveToBottom();
-    bgLayer.show();
+    let previewStage: KonvaStage | null = null;
     
-    // Log visible content and node details
-    let hasVisibleContent = false;
-    stage.getLayers().forEach((layer, i) => {
-      const visibleNodes = layer.children?.filter(node => node.isVisible()) || [];
-      const nodeDetails = visibleNodes.map(node => {
-        const bounds = node.getClientRect();
-        return {
-          type: node.getClassName(),
-          id: node.attrs.id,
-          viewId: node.attrs.viewId,
-          position: { x: node.x(), y: node.y() },
-          dimensions: { width: bounds.width, height: bounds.height },
-          visible: node.isVisible(),
-          opacity: node.opacity(),
-          scale: node.scale(),
-        };
-      });
-      
-      console.log(`Layer ${i} detailed contents:`, {
+    try {
+        // Clone the stage to avoid modifying the original
+        previewStage = cloneStage(stage, width, height);
+
+        // Ensure white background in the cloned stage
+        const bgLayer = new Konva.Layer({ name: 'background' });
+        const background = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: width,
+            height: height,
+            fill: '#FFFFFF',
+        });
+        bgLayer.add(background);
+        previewStage.add(bgLayer);
+        bgLayer.moveToBottom();
+
+        // Force an update of the cloned stage
+        previewStage.batchDraw();
+
+        // Generate preview at 2x resolution for better quality
+        const dataUrl = previewStage.toDataURL({
+            pixelRatio: 2,
+            mimeType: 'image/png',
+            quality: 1
+        });
+
+        return dataUrl;
+    } catch (error) {
+        console.error('Error generating preview:', error);
+        throw new Error('Failed to generate preview image');
+    } finally {
+        // Clean up the cloned stage
+        if (previewStage) {
+            cleanupClonedStage(previewStage);
+        }
+    }
+}
+
+export async function generateViewPreviews({
+    stage,
+    customizedViewIds,
+    views,
+    storage,
+    user
+}: PreviewGeneratorOptions): Promise<ViewPreview[]> {
+    const width = stage.width();
+    const height = stage.height();
+
+    // Generate previews for each customized view
+    const previews = await Promise.all(
+        Array.from(customizedViewIds).map(async viewId => {
+            const view = views.find(v => v.id === viewId);
+            if (!view) return null;
+
+            try {
+                const previewDataUrl = await generateCanvasPreview(stage, width, height);
+                
+                // Upload to storage if available
+                if (storage && user) {
+                    try {
+                        const filename = `${crypto.randomUUID()}.png`;
+                        const storagePath = `users/${user.uid}/cart_previews/${filename}`;
+                        const storageRef = storage.ref(storagePath);
+                        const snapshot = await storageRef.putString(previewDataUrl, 'data_url');
+                        const downloadURL = await snapshot.ref.getDownloadURL();
+                        
+                        return {
+                            viewId: view.id,
+                            viewName: view.name,
+                            url: downloadURL
+                        };
+                    } catch (uploadError) {
+                        console.error('Upload failed:', uploadError);
+                        return {
+                            viewId: view.id,
+                            viewName: view.name,
+                            url: previewDataUrl
+                        };
+                    }
+                }
+                
+                return {
+                    viewId: view.id,
+                    viewName: view.name,
+                    url: previewDataUrl
+                };
+            } catch (error) {
+                console.error(`Error generating preview for view ${viewId}:`, error);
+                return null;
+            }
+        })
+    );
+
+    return previews.filter(Boolean) as ViewPreview[];
+}
+}
+
+export async function generateViewPreviews({
+    stage,
+    customizedViewIds,
+    views,
+    storage,
+    user
+}: PreviewGeneratorOptions): Promise<ViewPreview[]> {
+    const width = stage.width();
+    const height = stage.height();
+
+    // Generate previews for each customized view
+    const previews = await Promise.all(
+        Array.from(customizedViewIds).map(async viewId => {
+            const view = views.find(v => v.id === viewId);
+            if (!view) return null;
+
+            try {
+                const previewDataUrl = await generateCanvasPreview(stage, width, height);
+                
+                // Upload to storage if available
+                if (storage && user) {
+                    try {
+                        const filename = `${crypto.randomUUID()}.png`;
+                        const storagePath = `users/${user.uid}/cart_previews/${filename}`;
+                        const storageRef = storage.ref(storagePath);
+                        const snapshot = await storageRef.putString(previewDataUrl, 'data_url');
+                        const downloadURL = await snapshot.ref.getDownloadURL();
+                        
+                        return {
+                            viewId: view.id,
+                            viewName: view.name,
+                            url: downloadURL
+                        };
+                    } catch (uploadError) {
+                        console.error('Upload failed:', uploadError);
+                        return {
+                            viewId: view.id,
+                            viewName: view.name,
+                            url: previewDataUrl
+                        };
+                    }
+                }
+                
+                return {
+                    viewId: view.id,
+                    viewName: view.name,
+                    url: previewDataUrl
+                };
+            } catch (error) {
+                console.error(`Error generating preview for view ${viewId}:`, error);
+                return null;
+            }
+        })
+    );
+
+    return previews.filter(Boolean) as ViewPreview[];
+}      console.log(`Layer ${i} detailed contents:`, {
         layerName: layer.attrs.name || 'unnamed',
         visible: layer.isVisible(),
         opacity: layer.opacity(),
