@@ -757,7 +757,41 @@ export function Customizer() {
             throw new Error("Canvas is not ready. Please try again.");
         }
 
+        const originalActiveViewId = activeViewId;
         const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
+        
+        try {
+            for (const viewId of Array.from(customizedViewIds)) {
+                const viewInfo = productDetails.views.find(v => v.id === viewId);
+                if (!viewInfo) continue;
+                
+                // Temporarily switch view to generate preview
+                setActiveViewId(viewId);
+                // Wait for re-render
+                await new Promise(resolve => setTimeout(resolve, 50)); 
+                
+                const dataUrl = stage.toDataURL({ pixelRatio: 1 });
+                try {
+                    if (storage && user) {
+                        const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
+                        const imageRef = storageRef(storage, storagePath);
+                        const snapshot = await uploadString(imageRef, dataUrl, 'data_url');
+                        const downloadURL = await getDownloadURL(snapshot.ref);
+                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
+                    } else {
+                        // Fallback to using data URLs directly when Firebase Storage is not available
+                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+                    }
+                } catch (error) {
+                    console.error("Error generating preview for view:", viewId, error);
+                    // Still add the data URL as fallback even if Firebase upload fails
+                    finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
+                }
+            }
+        } finally {
+            // Always restore the original view
+            setActiveViewId(originalActiveViewId);
+        }
         
         const createLightweightViewData = () => {
           const stripDataUrls = (items: (CanvasImage | CanvasText | CanvasShape)[]) => {
