@@ -815,45 +815,52 @@ export function Customizer() {
                 stage.draw();
                 
                 try {
-                    // Get the final composite image directly from the stage
-                    console.log('Attempting to generate preview for view:', viewId);
-                    const stageDataUrl = stage.toCanvas().toDataURL('image/png');
+                    // Get the final composite image using native canvas
+                    console.log('Generating preview for view:', viewId);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) throw new Error('Could not get canvas context');
+
+                    // Set canvas size
+                    canvas.width = stage.width();
+                    canvas.height = stage.height();
+
+                    // Fill white background
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // Draw each layer
+                    stage.getLayers().forEach(layer => {
+                        // Skip if layer is hidden
+                        if (!layer.isVisible()) return;
+                        const layerCanvas = layer.getCanvas()._canvas;
+                        ctx.drawImage(layerCanvas, 0, 0);
+                    });
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    console.log('Preview generated successfully for view:', viewId);
                     
                     if (storage && user) {
                         const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
                         const imageRef = storageRef(storage, storagePath);
                         console.log('Uploading preview to Firebase:', storagePath);
-                        const snapshot = await uploadString(imageRef, stageDataUrl, 'data_url');
+                        const snapshot = await uploadString(imageRef, dataUrl, 'data_url');
                         const downloadURL = await getDownloadURL(snapshot.ref);
                         finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: downloadURL });
                         console.log('Successfully uploaded preview for view:', viewId);
                     } else {
                         // Fallback to using data URLs directly when Firebase Storage is not available
                         console.log('Using data URL directly for preview:', viewId);
-                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: stageDataUrl });
+                        finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: dataUrl });
                     }
                 } catch (error) {
                     console.error("Error generating preview for view:", viewId, error);
-                    try {
-                        // Alternative method using native canvas
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        if (ctx) {
-                            canvas.width = stage.width();
-                            canvas.height = stage.height();
-                            ctx.fillStyle = '#FFFFFF';
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            stage.getLayers().forEach(layer => {
-                                const layerCanvas = layer.getCanvas()._canvas;
-                                ctx.drawImage(layerCanvas, 0, 0);
-                            });
-                            const fallbackDataUrl = canvas.toDataURL('image/png');
-                            finalThumbnails.push({ viewId: viewId, viewName: viewInfo.name, url: fallbackDataUrl });
-                            console.log('Generated fallback preview for view:', viewId);
-                        }
-                    } catch (fallbackError) {
-                        console.error("Error generating fallback preview:", fallbackError);
-                    }
+                    // Add a default placeholder in case of error
+                    finalThumbnails.push({ 
+                        viewId: viewId, 
+                        viewName: viewInfo.name, 
+                        url: 'https://placehold.co/400x400?text=Preview+Error' 
+                    });
                 }
             }
         } finally {

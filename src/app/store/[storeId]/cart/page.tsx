@@ -4,9 +4,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { CartPreviewThumbnail } from '@/components/store/CartPreviewThumbnail';
 import { Separator } from '@/components/ui/separator';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { StoreFooter } from '@/components/store/StoreFooter';
@@ -270,11 +270,12 @@ export default function CartPage() {
                                 </div>
                                 <div className="mt-4 flex flex-wrap gap-2">
                                   {(item.previewImageUrls || []).map((preview, index) => (
-                                    <CustomPreviewImage
-                                        key={index}
-                                        src={preview.url}
-                                        alt={`${item.productName} - ${preview.viewName}`}
+                                    <CartPreviewThumbnail
+                                        key={`${item.id}-preview-${index}`}
+                                        viewId={preview.viewId}
                                         viewName={preview.viewName}
+                                        url={preview.url}
+                                        productName={item.productName}
                                     />
                                   ))}
                                 </div>

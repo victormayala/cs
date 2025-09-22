@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { CartPreviewThumbnail } from '@/components/store/CartPreviewThumbnail';
 import { CustomPreviewImage } from '@/components/store/CustomPreviewImage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
