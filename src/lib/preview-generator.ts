@@ -1,7 +1,9 @@
 'use client';
 
+import type Konva from 'konva';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import type { Layer as KonvaLayer } from 'konva/lib/Layer';
+import type { Image as KonvaImage } from 'konva/lib/shapes/Image';
 
 export interface ViewPreview {
   viewId: string;
@@ -64,12 +66,66 @@ export async function generateViewPreviews({
       // Switch to this view if we have a setter
       if (setActiveViewId) {
         setActiveViewId(viewId);
-        // Wait for re-render
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for the stage to update with the new view
+        await new Promise(resolve => {
+          const checkStage = () => {
+            // Ensure all layers are properly loaded
+            const allLayersReady = stage.getLayers().every(layer => {
+              const images = layer.find('.Image') as KonvaImage[];
+              return images.every(img => {
+                const imageElement = (img as any).imageElement;
+                return !imageElement || imageElement.complete;
+              });
+            });
+            
+            if (allLayersReady) {
+              resolve(true);
+            } else {
+              setTimeout(checkStage, 50); // Check again in 50ms
+            }
+          };
+          setTimeout(checkStage, 100); // Initial check after view change
+        });
+
+        // Force a redraw to ensure everything is rendered
+        stage.batchDraw();
       }
+
+      // Wait a bit more to ensure all animations have completed
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Generate preview for this view
       const dataUrl = await generateCanvasPreview(stage, width, height);
+
+      // Validate that the preview actually contains content
+      const validateImage = await new Promise<boolean>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          // Check if the image is not just a blank canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(false);
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          // Check if there's any non-white pixel
+          const hasContent = Array.from(imageData.data).some((value, index) => {
+            // Skip alpha channel
+            return index % 4 !== 3 && value !== 255;
+          });
+          resolve(hasContent);
+        };
+        img.onerror = () => resolve(false);
+        img.src = dataUrl;
+      });
+
+      if (!validateImage) {
+        throw new Error('Generated preview appears to be empty');
+      }
 
       // If Firebase storage is available, upload the preview
       if (storage && user) {
@@ -110,7 +166,7 @@ export async function generateViewPreviews({
       previews.push({
         viewId,
         viewName: viewInfo.name,
-        url: 'https://placehold.co/400x400?text=Preview+Error'
+        url: 'https://placehold.co/400x400?text=Preview+Failed'
       });
     }
   }
