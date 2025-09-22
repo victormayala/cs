@@ -5,8 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, Suspense, useMemo, useRef } from 'react';
 import AppHeader from '@/components/layout/AppHeader';
 import { useUploads, type CanvasImage, type CanvasText, type CanvasShape, type ImageTransform } from "@/contexts/UploadContext";
-import type { ProductView, ProductVariation, WooCommerceVariation } from '@/types/customization';
+import type { ProductVariation, WooCommerceVariation } from '@/types/customization';
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
+import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import Konva from 'konva';
 import type { BaseProduct, ProductForCustomizer } from '@/types/product-types';
 import { fetchWooCommerceProductById, fetchWooCommerceProductVariations, type WooCommerceCredentials } from '@/app/actions/woocommerceActions';
@@ -18,7 +19,6 @@ import { db, storage } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { uploadString, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import dynamic from 'next/dynamic';
-
 
 import type { UserWooCommerceCredentials } from '@/app/actions/userCredentialsActions';
 import type { UserShopifyCredentials } from '@/app/actions/userShopifyCredentialsActions';
@@ -42,7 +42,8 @@ import type { WCCustomProduct, WCVariation } from '@/types/woocommerce';
 import { useToast } from '@/hooks/use-toast';
 import CustomizerIconNav, { type CustomizerTool } from '@/components/customizer/CustomizerIconNav';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import type { ViewPreview } from '@/lib/preview-generator';
+import type { SelectedVariation } from '@/types/product-variations';
 
 import UploadArea from '@/components/customizer/UploadArea';
 import LayersPanel from '@/components/customizer/LayersPanel';
@@ -69,40 +70,9 @@ const DesignCanvas = dynamic(() => import('@/components/customizer/DesignCanvas'
 
 // --- Main Customizer Component ---
 
-export interface ProductView {
-  id: string;
-  name: string;
-  imageUrl: string;
-  aiHint?: string;
-  price?: number;
-  embroideryAdditionalFee?: number;
-  printAdditionalFee?: number;
-  boundaryBoxes: BoundaryBox[];
-}
+import type { ColorGroupOptionsForCustomizer, ProductView } from '@/types/shared-types';
 
-interface ColorGroupOptionsForCustomizer {
-  selectedVariationIds: string[];
-  views?: ProductView[]; // Views are now optional within the color group
-}
-
-export interface ProductForCustomizer {
-  id: string;
-  name: string;
-  basePrice: number;
-  views: ProductView[];
-  type?: 'simple' | 'variable' | 'grouped' | 'external' | 'shopify' | 'customizer-studio';
-  allowCustomization?: boolean;
-  customizationTechniques?: CustomizationTechnique[];
-  nativeVariations?: NativeProductVariation[];
-  nativeAttributes?: { name: string, options: string[] }[];
-  meta?: {
-    proxyUsed?: boolean;
-    configUserIdUsed?: string | null;
-    source: 'woocommerce' | 'shopify' | 'customizer-studio';
-  };
-}
-
-export interface ConfigurableAttribute {
+interface ConfigurableAttribute {
   name: string;
   options: string[];
 }
@@ -110,7 +80,10 @@ export interface ConfigurableAttribute {
 const defaultFallbackProduct: ProductForCustomizer = {
   id: 'fallback_product',
   name: 'Product Customizer (Default)',
+  description: 'Default customizable product',
+  price: 25.00,
   basePrice: 25.00,
+  source: 'woocommerce',
   views: [
     {
       id: 'fallback_view_1',
@@ -258,6 +231,7 @@ export function Customizer() {
   const [loadedGroupingAttributeName, setLoadedGroupingAttributeName] = useState<string | null>(null);
   const [viewBaseImages, setViewBaseImages] = useState<Record<string, {url: string, aiHint?: string}>>({});
   const [totalCustomizationPrice, setTotalCustomizationPrice] = useState<number>(0);
+  const [selectedVariation, setSelectedVariation] = useState<SelectedVariation>(null);
 
   const [hasCanvasElements, setHasCanvasElements] = useState(false);
 
@@ -412,7 +386,15 @@ export function Customizer() {
           const finalAllowCustomization = firestoreOptions?.allowCustomization !== undefined ? firestoreOptions.allowCustomization : true;
           if (!finalAllowCustomization) {
               setError(`Customization for product "${baseProductDetails.name}" is disabled.`);
-              setProductDetails({ ...baseProductDetails, views: [], allowCustomization: false, meta: metaForProduct });
+              setProductDetails({ 
+                ...baseProductDetails, 
+                description: baseProductDetails.name,
+                price: baseProductDetails.basePrice,
+                source: 'woocommerce',
+                views: [], 
+                allowCustomization: false, 
+                meta: metaForProduct 
+              });
               setIsLoading(false);
               return;
           }
@@ -450,7 +432,7 @@ export function Customizer() {
               baseProductDetails.basePrice = parseFloat(basePriceFromUrl);
           }
 
-          setLoadedOptionsByColor(firestoreOptions?.optionsByColor || {});
+          setLoadedOptionsByColor((firestoreOptions?.optionsByColor || {}) as Record<string, ColorGroupOptionsForCustomizer>);
           setLoadedGroupingAttributeName(firestoreOptions?.groupingAttributeName || null);
 
           const baseImagesMapFinal: Record<string, {url: string, aiHint?: string}> = {};
@@ -459,6 +441,9 @@ export function Customizer() {
           
           const productWithViews: ProductForCustomizer = {
             ...baseProductDetails,
+            description: baseProductDetails.name,
+            price: baseProductDetails.basePrice,
+            source: 'woocommerce',
             views: proxiedViews,
             allowCustomization: true,
             nativeVariations: firestoreOptions?.nativeVariations,
@@ -740,7 +725,7 @@ export function Customizer() {
 
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   
- const handleAddToCart = async () => {
+const handleAddToCart = async () => {
     if (!productDetails || productDetails.allowCustomization === false || isAddingToCart) {
       toast({ title: "Cannot Add to Cart", description: "Customization is disabled or an operation is in progress.", variant: "destructive" });
       return;
@@ -755,10 +740,12 @@ export function Customizer() {
       toast({ title: "Empty Design", description: "Please add design elements before adding to cart.", variant: "default" });
       return;
     }
+
     if (!isEmbedded && !user) {
       toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
       return;
     }
+    
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
     
@@ -768,36 +755,63 @@ export function Customizer() {
             throw new Error("Canvas is not ready. Please try again.");
         }
 
-        const originalActiveViewId = activeViewId;
-        const finalThumbnails: { viewId: string; viewName: string; url: string; }[] = [];
-        
         try {
-            for (const viewId of Array.from(customizedViewIds)) {
-                const viewInfo = productDetails.views.find(v => v.id === viewId);
-                if (!viewInfo) continue;
+            // Use our helper function to generate previews
+            const { generateViewPreviews } = await import('@/lib/preview-generator');
+            const finalThumbnails = await generateViewPreviews({
+                stage, 
+                customizedViewIds, 
+                views: productDetails.views,
+                storage,
+                user,
+                setActiveViewId
+            });
 
-                // Create an offscreen canvas for better control
-                const offscreenCanvas = document.createElement('canvas');
-                const offscreenCtx = offscreenCanvas.getContext('2d');
-                if (!offscreenCtx) return;
+            // Update cart data
+            const cartData = {
+                productId: productDetails.id,
+                productName: productDetails.name,
+                basePrice: productDetails.basePrice,
+                selectedVariation: selectedVariation,
+                selectedTechnique: selectedTechnique,
+                customizations: {
+                    images: canvasImages,
+                    texts: canvasTexts,
+                    shapes: canvasShapes
+                },
+                previewImageUrls: finalThumbnails,
+                metadata: {
+                    dateCreated: new Date().toISOString(),
+                    userId: user?.uid || 'guest'
+                }
+            };
 
-                // Set canvas size to match stage
-                const width = stage.width();
-                const height = stage.height();
-                offscreenCanvas.width = width;
-                offscreenCanvas.height = height;
-
-                // Temporarily switch view to generate customizations
-                setActiveViewId(viewId);
-                // Wait for re-render
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // Use the stage directly to render the final preview
-                stage.clear();
-                
-                // Draw white background first
-                const layer = stage.getLayers()[0];
-                const backgroundRect = layer.getContext().canvas;
+            // If embedded, emit event
+            if (isEmbedded) {
+                window.parent.postMessage({
+                    type: 'ADD_TO_CART',
+                    payload: cartData
+                }, '*');
+                toast({ title: "Success!", description: "Item added to cart successfully." });
+            } else {
+                // Add to local storage cart
+                const existingCart = JSON.parse(localStorage.getItem('cart') || '[]');
+                existingCart.push(cartData);
+                localStorage.setItem('cart', JSON.stringify(existingCart));
+                toast({ title: "Success!", description: "Item added to cart successfully." });
+                router.push('/cart');
+            }
+        } catch (error: any) {
+            console.error('Error generating previews:', error);
+            toast({ title: "Error", description: error.message || "Failed to generate design previews.", variant: "destructive" });
+        }
+    } catch (err: any) {
+        console.error('Error adding to cart:', err);
+        toast({ title: "Error", description: err.message || "Failed to add item to cart.", variant: "destructive" });
+    } finally {
+        setIsAddingToCart(false);
+    }
+};
                 // Create the background layer
                 const backgroundLayer = new Konva.Layer();
                 const background = new Konva.Rect({

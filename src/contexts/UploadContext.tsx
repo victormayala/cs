@@ -170,7 +170,7 @@ interface UploadContextType {
   restoreFromSnapshot: (snapshot: Partial<CanvasStateSnapshot>) => void;
 
   // New function to provide access to the Konva stage for exporting
-  getStageRef: () => React.RefObject<Konva.Stage> | null;
+  getStageRef: () => React.RefObject<Konva.Stage>;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -191,8 +191,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
   const isInteractiveOperationInProgressRef = useRef(false);
   const stageRef = useRef<Konva.Stage>(null); // Ref for the Konva stage
+  const stageRefCurrent = useRef<Konva.Stage | null>(null); // Track current stage
 
-  const getStageRef = useCallback(() => stageRef, []);
+  const getStageRef = useCallback((): React.RefObject<Konva.Stage> => stageRef, []);
 
   const createSnapshot = useCallback((): CanvasStateSnapshot => ({
     images: canvasImages,
