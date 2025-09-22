@@ -1,6 +1,6 @@
 'use client';
 
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { Stage as KonvaStage } from 'konva/lib/Stage';
 import type { Layer as KonvaLayer } from 'konva/lib/Layer';
 import type { Image as KonvaImage } from 'konva/lib/shapes/Image';
@@ -22,61 +22,108 @@ interface PreviewGeneratorOptions {
 
 async function generateCanvasPreview(stage: KonvaStage, width: number, height: number): Promise<string> {
   try {
-    // Wait for a brief moment to ensure all stage updates are complete
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Force stage update
-    stage.batchDraw();
-
-    // Use Konva's built-in toDataURL method which properly handles all layers and transformations
-    const dataUrl = stage.toDataURL({
-      pixelRatio: 2, // Higher quality output
-      mimeType: 'image/png',
-      quality: 1,
-      callback: (dataUrl: string) => {
-        return dataUrl;
-      }
+    console.log('Generating canvas preview...');
+    console.log('Stage state:', {
+      width: stage.width(),
+      height: stage.height(),
+      layers: stage.getLayers().length,
     });
 
-    // Validate the generated image
-    const validationPromise = new Promise<string>((resolve, reject) => {
+    // Ensure white background
+    let bgLayer = stage.findOne('.background') as Konva.Layer;
+    if (!bgLayer) {
+      console.log('Creating background layer');
+      bgLayer = new Konva.Layer({ name: 'background' });
+      const background = new Konva.Rect({
+        x: 0,
+        y: 0,
+        width: width,
+        height: height,
+        fill: '#FFFFFF',
+      });
+      bgLayer.add(background);
+      stage.add(bgLayer);
+    }
+    bgLayer.moveToBottom();
+    bgLayer.show();
+    
+    // Log visible content
+    stage.getLayers().forEach((layer, i) => {
+      const visibleNodes = layer.children?.filter(node => node.isVisible()) || [];
+      console.log(`Layer ${i} contents:`, {
+        visible: layer.isVisible(),
+        totalNodes: layer.children?.length || 0,
+        visibleNodes: visibleNodes.length,
+        nodeTypes: visibleNodes.map(n => n.getClassName()),
+      });
+    });
+
+    // Force stage update
+    stage.draw();
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Generate high-quality preview
+    console.log('Capturing stage content...');
+    const dataUrl = stage.toDataURL({
+      pixelRatio: 2,
+      mimeType: 'image/png',
+      quality: 1
+    });
+
+    // Validate content
+    const isValid = await new Promise<boolean>((resolve) => {
       const img = new Image();
       img.onload = () => {
-        // Create a temporary canvas to check the image content
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = img.width;
-        tempCanvas.height = img.height;
-        const ctx = tempCanvas.getContext('2d');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
         
         if (!ctx) {
-          reject(new Error('Could not get canvas context for validation'));
+          console.error('Could not get validation context');
+          resolve(false);
           return;
         }
 
-        // Draw the image
         ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Check if the image has non-transparent pixels
-        const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        const hasContent = Array.from(imageData.data).some((value, index) => {
-          // Check RGB values (skip alpha)
-          return index % 4 !== 3 && value > 0;
+        // Check for non-white content
+        let nonWhitePixels = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const r = imageData.data[i];
+          const g = imageData.data[i + 1];
+          const b = imageData.data[i + 2];
+          if (r !== 255 || g !== 255 || b !== 255) {
+            nonWhitePixels++;
+          }
+        }
+
+        const totalPixels = (canvas.width * canvas.height);
+        const nonWhitePercentage = (nonWhitePixels / totalPixels) * 100;
+        
+        console.log('Content validation:', {
+          dimensions: `${canvas.width}x${canvas.height}`,
+          nonWhitePixels,
+          nonWhitePercentage: `${nonWhitePercentage.toFixed(2)}%`
         });
 
-        if (hasContent) {
-          resolve(dataUrl);
-        } else {
-          reject(new Error('Generated preview appears to be empty'));
-        }
+        resolve(nonWhitePercentage > 0.1); // More than 0.1% non-white
       };
-      
-      img.onerror = () => reject(new Error('Failed to load generated preview for validation'));
+      img.onerror = () => {
+        console.error('Failed to load preview for validation');
+        resolve(false);
+      };
       img.src = dataUrl;
     });
 
-    return await validationPromise;
+    if (!isValid) {
+      throw new Error('Generated preview appears to be empty');
+    }
+
+    return dataUrl;
   } catch (error) {
-    console.error('Error generating canvas preview:', error);
+    console.error('Error generating preview:', error);
     throw error;
   }
 }
@@ -89,191 +136,166 @@ export async function generateViewPreviews({
   user,
   setActiveViewId
 }: PreviewGeneratorOptions): Promise<ViewPreview[]> {
-  const previews: ViewPreview[] = [];
-  const width = stage.width();
-  const height = stage.height();
-  
-  // Store original state
-  const originalView = stage.getLayers().map(layer => ({
-    layer,
-    visible: layer.isVisible(),
-    children: layer.children?.map(child => ({
-      node: child,
-      visible: child.isVisible()
-    }))
-  }));
+  try {
+    console.log('Starting preview generation for views:', Array.from(customizedViewIds));
+    
+    const previews: ViewPreview[] = [];
+    const width = stage.width();
+    const height = stage.height();
 
-  for (const viewId of Array.from(customizedViewIds)) {
-    const viewInfo = views.find(v => v.id === viewId);
-    if (!viewInfo) continue;
+    // Store original state
+    const originalState = {
+      activeView: stage.findOne('.active-view')?.attrs.id,
+      layerStates: stage.getLayers().map(layer => ({
+        layer,
+        visible: layer.isVisible(),
+        children: layer.children?.map(child => ({
+          node: child,
+          visible: child.isVisible(),
+          attrs: { ...child.attrs }
+        }))
+      }))
+    };
 
-    try {
-      // Switch to this view if we have a setter
-      if (setActiveViewId) {
-        setActiveViewId(viewId);
-        
-        // Show all layers and nodes for this view
+    for (const viewId of Array.from(customizedViewIds)) {
+      console.log(`Processing view: ${viewId}`);
+      const viewInfo = views.find(v => v.id === viewId);
+      if (!viewInfo) {
+        console.log(`Skipping unknown view: ${viewId}`);
+        continue;
+      }
+
+      try {
+        // Switch view if needed
+        if (setActiveViewId) {
+          console.log(`Switching to view: ${viewId}`);
+          setActiveViewId(viewId);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Show all content for this view
+        console.log('Preparing view content...');
         stage.getLayers().forEach(layer => {
+          // Skip background layer
+          if (layer.attrs.name === 'background') return;
+          
           layer.show();
           layer.children?.forEach(child => {
+            // Only show nodes for this view
             if (child.attrs.viewId === viewId) {
+              console.log(`Showing node: ${child.attrs.id}`);
               child.show();
+              child.moveToTop();
+            } else {
+              child.hide();
             }
           });
         });
 
-        // Wait for the stage to update with the new view
-        await new Promise(resolve => {
-          const checkStage = () => {
-            // Ensure all layers are properly loaded
-            const allLayersReady = stage.getLayers().every(layer => {
-              const images = layer.find('.Image') as KonvaImage[];
-              return images.every(img => {
-                const imageElement = (img as any).imageElement;
-                const isReady = !imageElement || imageElement.complete;
-                if (!isReady) {
-                  console.log('Waiting for image to load:', img.attrs.id);
-                }
-                return isReady;
-              });
-            });
+        // Wait for images to load
+        console.log('Waiting for images to load...');
+        await new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          const timeout = 5000;
+          
+          const checkImages = () => {
+            if (Date.now() - startTime > timeout) {
+              reject(new Error('Image loading timeout'));
+              return;
+            }
+
+            const images = stage.find('.Image').filter(node => node.isVisible());
+            console.log(`Checking ${images.length} visible images...`);
             
-            if (allLayersReady) {
-              resolve(true);
+            const notLoaded = images.filter(img => {
+              const imageElement = (img as any).imageElement;
+              return imageElement && !imageElement.complete;
+            });
+
+            if (notLoaded.length > 0) {
+              console.log(`Waiting for ${notLoaded.length} images...`);
+              setTimeout(checkImages, 100);
             } else {
-              setTimeout(checkStage, 50); // Check again in 50ms
+              resolve(true);
             }
           };
-          setTimeout(checkStage, 100); // Initial check after view change
+          
+          setTimeout(checkImages, 200);
         });
 
-        // Force a redraw to ensure everything is rendered
-        // Force a full stage update
-        stage.batchDraw();
-      }
+        // Generate and validate preview
+        console.log('Generating view preview...');
+        const dataUrl = await generateCanvasPreview(stage, width, height);
 
-      console.log('Generating preview for view:', viewId);
-
-      // Wait to ensure all animations and updates are complete
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Generate preview for this view
-      const dataUrl = await generateCanvasPreview(stage, width, height);
-
-      // Validate that the preview actually contains content
-      const validateImage = await new Promise<boolean>((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          // Check if the image is not just a blank canvas
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            console.error('Could not get validation canvas context');
-            resolve(false);
-            return;
+        // Upload to storage if available
+        if (storage && user) {
+          try {
+            const filename = `${crypto.randomUUID()}.png`;
+            const storagePath = `users/${user.uid}/cart_previews/${filename}`;
+            
+            console.log(`Uploading preview to ${storagePath}`);
+            const storageRef = storage.ref(storagePath);
+            const snapshot = await storageRef.putString(dataUrl, 'data_url');
+            const downloadURL = await snapshot.ref.getDownloadURL();
+            
+            previews.push({
+              viewId,
+              viewName: viewInfo.name,
+              url: downloadURL
+            });
+          } catch (uploadError) {
+            console.error('Upload failed:', uploadError);
+            previews.push({
+              viewId,
+              viewName: viewInfo.name,
+              url: dataUrl
+            });
           }
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          
-          // Check for non-white pixels
-          let hasContent = false;
-          for (let i = 0; i < imageData.data.length; i += 4) {
-            const r = imageData.data[i];
-            const g = imageData.data[i + 1];
-            const b = imageData.data[i + 2];
-            // Check if pixel is not white
-            if (r !== 255 || g !== 255 || b !== 255) {
-              hasContent = true;
-              break;
-            }
-          }
-
-          if (!hasContent) {
-            console.error('Preview validation failed: Image appears to be empty');
-          }
-          resolve(hasContent);
-        };
-        img.onerror = () => {
-          console.error('Preview validation failed: Could not load generated image');
-          resolve(false);
-        };
-        img.src = dataUrl;
-      });
-
-      if (!validateImage) {
-        console.error('Generated preview validation failed for view:', viewId);
-        throw new Error('Generated preview appears to be empty');
-      }
-
-      // If Firebase storage is available, upload the preview
-      if (storage && user) {
-        try {
-          const filename = `${crypto.randomUUID()}.png`;
-          const storagePath = `users/${user.uid}/cart_previews/${filename}`;
-          const storageRef = storage.ref(storagePath);
-          
-          // Upload the data URL
-          const snapshot = await storageRef.putString(dataUrl, 'data_url');
-          const downloadURL = await snapshot.ref.getDownloadURL();
-          
-          previews.push({
-            viewId,
-            viewName: viewInfo.name,
-            url: downloadURL
-          });
-        } catch (uploadError) {
-          console.error('Failed to upload preview to Firebase:', uploadError);
-          // Fall back to using data URL
+        } else {
           previews.push({
             viewId,
             viewName: viewInfo.name,
             url: dataUrl
           });
         }
-      } else {
-        // Use data URL directly if no storage is available
+      } catch (error) {
+        console.error(`Error processing view ${viewId}:`, error);
         previews.push({
           viewId,
           viewName: viewInfo.name,
-          url: dataUrl
+          url: 'https://placehold.co/400x400?text=Preview+Failed'
         });
       }
-    } catch (error) {
-      console.error(`Failed to generate preview for view ${viewId}:`, error);
-      // Add a placeholder for failed previews
-      previews.push({
-        viewId,
-        viewName: viewInfo.name,
-        url: 'https://placehold.co/400x400?text=Preview+Failed'
-      });
-    } finally {
-      // Restore the original visibility state for this view
-      stage.getLayers().forEach((layer, i) => {
-        const originalLayerState = originalView[i];
-        if (originalLayerState) {
-          if (originalLayerState.visible) {
-            layer.show();
-          } else {
-            layer.hide();
-          }
-          
-          layer.children?.forEach((child, j) => {
-            const originalChildState = originalLayerState.children?.[j];
-            if (originalChildState) {
-              if (originalChildState.visible) {
-                child.show();
-              } else {
-                child.hide();
-              }
-            }
-          });
-        }
-      });
-      stage.batchDraw();
     }
-  }
 
-  return previews;
+    // Restore original state
+    console.log('Restoring original state...');
+    if (originalState.activeView && setActiveViewId) {
+      setActiveViewId(originalState.activeView);
+    }
+
+    originalState.layerStates.forEach(({ layer, visible, children }) => {
+      if (visible) {
+        layer.show();
+      } else {
+        layer.hide();
+      }
+      
+      children?.forEach(({ node, visible, attrs }) => {
+        if (visible) {
+          node.show();
+        } else {
+          node.hide();
+        }
+        node.setAttrs(attrs);
+      });
+    });
+
+    stage.batchDraw();
+    
+    return previews;
+  } catch (error) {
+    console.error('Preview generation failed:', error);
+    throw error;
+  }
 }
