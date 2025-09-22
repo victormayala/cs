@@ -17,6 +17,7 @@ import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { CustomPreviewImage } from '@/components/store/CustomPreviewImage';
 
 // Represents a single item in the shopping cart
 interface CartItem {
@@ -269,15 +270,12 @@ export default function CartPage() {
                                 </div>
                                 <div className="mt-4 flex flex-wrap gap-2">
                                   {(item.previewImageUrls || []).map((preview, index) => (
-                                    <div key={index} className="relative h-24 w-24 rounded-md overflow-hidden bg-muted/50 border">
-                                        <Image 
-                                            src={preview.url} 
-                                            alt={`${item.productName} - ${preview.viewName}`} 
-                                            fill 
-                                            className="object-contain"
-                                        />
-                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs text-center py-0.5 truncate">{preview.viewName}</div>
-                                    </div>
+                                    <CustomPreviewImage
+                                        key={index}
+                                        src={preview.url}
+                                        alt={`${item.productName} - ${preview.viewName}`}
+                                        viewName={preview.viewName}
+                                    />
                                   ))}
                                 </div>
                                 <div className="flex gap-2 mt-4">

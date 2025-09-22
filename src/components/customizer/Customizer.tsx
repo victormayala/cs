@@ -764,42 +764,54 @@ export function Customizer() {
             for (const viewId of Array.from(customizedViewIds)) {
                 const viewInfo = productDetails.views.find(v => v.id === viewId);
                 if (!viewInfo) continue;
-                
-                // Temporarily switch view to generate preview
-                setActiveViewId(viewId);
-                // Wait for re-render and image load
-                await new Promise(resolve => setTimeout(resolve, 100)); 
-                
-                // Create an offscreen image to load the product view
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                    img.src = viewInfo.imageUrl;
-                });
 
-                // Draw product image on stage first
+                // Create an offscreen canvas for better control
+                const offscreenCanvas = document.createElement('canvas');
+                const offscreenCtx = offscreenCanvas.getContext('2d');
+                if (!offscreenCtx) continue;
+
+                // Set canvas size to match stage
                 const width = stage.width();
                 const height = stage.height();
-                stage.clear();
-                
-                const ctx = stage.getContext()._context;
-                ctx.save();
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, width, height);
-                
-                // Calculate dimensions to maintain aspect ratio
-                const scale = Math.min(width / img.width, height / img.height);
-                const x = (width - img.width * scale) / 2;
-                const y = (height - img.height * scale) / 2;
-                
-                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-                ctx.restore();
-                
-                // Now let Konva draw all the layers on top
-                stage.draw();
-                const dataUrl = stage.toDataURL({ pixelRatio: 1 });
+                offscreenCanvas.width = width;
+                offscreenCanvas.height = height;
+
+                // Load the product image first
+                const baseImg = new Image();
+                baseImg.crossOrigin = "anonymous";
+                await new Promise((resolve, reject) => {
+                    baseImg.onload = resolve;
+                    baseImg.onerror = reject;
+                    baseImg.src = viewInfo.imageUrl;
+                });
+
+                // Draw white background
+                offscreenCtx.fillStyle = 'white';
+                offscreenCtx.fillRect(0, 0, width, height);
+
+                // Draw product image maintaining aspect ratio
+                const scale = Math.min(width / baseImg.width, height / baseImg.height);
+                const x = (width - baseImg.width * scale) / 2;
+                const y = (height - baseImg.height * scale) / 2;
+                offscreenCtx.drawImage(baseImg, x, y, baseImg.width * scale, baseImg.height * scale);
+
+                // Temporarily switch view to generate customizations
+                setActiveViewId(viewId);
+                // Wait for re-render
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Draw stage content (customizations) on top
+                const stageDataUrl = stage.toDataURL({ pixelRatio: 1 });
+                const customizationsImg = new Image();
+                await new Promise((resolve, reject) => {
+                    customizationsImg.onload = resolve;
+                    customizationsImg.onerror = reject;
+                    customizationsImg.src = stageDataUrl;
+                });
+                offscreenCtx.drawImage(customizationsImg, 0, 0);
+
+                // Get the final composite image
+                const dataUrl = offscreenCanvas.toDataURL('image/png');
                 try {
                     if (storage && user) {
                         const storagePath = `users/${user.uid}/cart_previews/${crypto.randomUUID()}.png`;
