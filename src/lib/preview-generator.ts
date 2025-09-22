@@ -92,6 +92,16 @@ export async function generateViewPreviews({
   const previews: ViewPreview[] = [];
   const width = stage.width();
   const height = stage.height();
+  
+  // Store original state
+  const originalView = stage.getLayers().map(layer => ({
+    layer,
+    visible: layer.isVisible(),
+    children: layer.children?.map(child => ({
+      node: child,
+      visible: child.isVisible()
+    }))
+  }));
 
   for (const viewId of Array.from(customizedViewIds)) {
     const viewInfo = views.find(v => v.id === viewId);
@@ -101,6 +111,17 @@ export async function generateViewPreviews({
       // Switch to this view if we have a setter
       if (setActiveViewId) {
         setActiveViewId(viewId);
+        
+        // Show all layers and nodes for this view
+        stage.getLayers().forEach(layer => {
+          layer.show();
+          layer.children?.forEach(child => {
+            if (child.attrs.viewId === viewId) {
+              child.show();
+            }
+          });
+        });
+
         // Wait for the stage to update with the new view
         await new Promise(resolve => {
           const checkStage = () => {
@@ -109,7 +130,11 @@ export async function generateViewPreviews({
               const images = layer.find('.Image') as KonvaImage[];
               return images.every(img => {
                 const imageElement = (img as any).imageElement;
-                return !imageElement || imageElement.complete;
+                const isReady = !imageElement || imageElement.complete;
+                if (!isReady) {
+                  console.log('Waiting for image to load:', img.attrs.id);
+                }
+                return isReady;
               });
             });
             
@@ -123,11 +148,14 @@ export async function generateViewPreviews({
         });
 
         // Force a redraw to ensure everything is rendered
+        // Force a full stage update
         stage.batchDraw();
       }
 
-      // Wait a bit more to ensure all animations have completed
-      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('Generating preview for view:', viewId);
+
+      // Wait to ensure all animations and updates are complete
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Generate preview for this view
       const dataUrl = await generateCanvasPreview(stage, width, height);
@@ -142,23 +170,40 @@ export async function generateViewPreviews({
           canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           if (!ctx) {
+            console.error('Could not get validation canvas context');
             resolve(false);
             return;
           }
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          // Check if there's any non-white pixel
-          const hasContent = Array.from(imageData.data).some((value, index) => {
-            // Skip alpha channel
-            return index % 4 !== 3 && value !== 255;
-          });
+          
+          // Check for non-white pixels
+          let hasContent = false;
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            const r = imageData.data[i];
+            const g = imageData.data[i + 1];
+            const b = imageData.data[i + 2];
+            // Check if pixel is not white
+            if (r !== 255 || g !== 255 || b !== 255) {
+              hasContent = true;
+              break;
+            }
+          }
+
+          if (!hasContent) {
+            console.error('Preview validation failed: Image appears to be empty');
+          }
           resolve(hasContent);
         };
-        img.onerror = () => resolve(false);
+        img.onerror = () => {
+          console.error('Preview validation failed: Could not load generated image');
+          resolve(false);
+        };
         img.src = dataUrl;
       });
 
       if (!validateImage) {
+        console.error('Generated preview validation failed for view:', viewId);
         throw new Error('Generated preview appears to be empty');
       }
 
@@ -203,6 +248,30 @@ export async function generateViewPreviews({
         viewName: viewInfo.name,
         url: 'https://placehold.co/400x400?text=Preview+Failed'
       });
+    } finally {
+      // Restore the original visibility state for this view
+      stage.getLayers().forEach((layer, i) => {
+        const originalLayerState = originalView[i];
+        if (originalLayerState) {
+          if (originalLayerState.visible) {
+            layer.show();
+          } else {
+            layer.hide();
+          }
+          
+          layer.children?.forEach((child, j) => {
+            const originalChildState = originalLayerState.children?.[j];
+            if (originalChildState) {
+              if (originalChildState.visible) {
+                child.show();
+              } else {
+                child.hide();
+              }
+            }
+          });
+        }
+      });
+      stage.batchDraw();
     }
   }
 
