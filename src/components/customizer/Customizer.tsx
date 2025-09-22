@@ -731,6 +731,14 @@ const handleAddToCart = async () => {
       return;
     }
 
+    // Get the stage reference early
+    const stage = getStageRef()?.current;
+    if (!stage) {
+      toast({ title: "Error", description: "Canvas is not ready. Please try again.", variant: "destructive" });
+      return;
+    }
+
+    // Collect all customized views
     const customizedViewIds = new Set<string>();
     [...canvasImages, ...canvasTexts, ...canvasShapes].forEach(item => {
       if (item.viewId) customizedViewIds.add(item.viewId);
@@ -745,6 +753,26 @@ const handleAddToCart = async () => {
       toast({ title: "Please Sign In", description: "Sign in to save your design and add to cart.", variant: "default" });
       return;
     }
+
+    // Store stage state before modifications
+    const originalState = {
+      scale: stage.scale(),
+      position: stage.position(),
+      rotation: stage.rotation(),
+      layers: stage.getLayers().map(layer => ({
+        id: layer.id(),
+        visible: layer.isVisible(),
+        opacity: layer.opacity(),
+        nodes: layer.children?.map(node => ({
+          id: node.id(),
+          visible: node.isVisible(),
+          opacity: node.opacity(),
+          scale: node.scale(),
+          rotation: node.rotation(),
+          position: node.position()
+        }))
+      }))
+    };
     
     setIsAddingToCart(true);
     toast({ title: "Preparing Your Design...", description: "Generating final previews. This may take a moment." });
@@ -755,9 +783,36 @@ const handleAddToCart = async () => {
             throw new Error("Canvas is not ready. Please try again.");
         }
 
+        // Store original stage state
+        const originalTransform = stage.scale();
+        const originalPosition = stage.position();
+        const originalRotation = stage.rotation();
+
         try {
+            // Reset stage transforms
+            stage.scale({ x: 1, y: 1 });
+            stage.position({ x: 0, y: 0 });
+            stage.rotation(0);
+            
+            // Show all layers initially
+            stage.getLayers().forEach(layer => {
+                layer.show();
+                layer.draw();
+            });
+
             // Use our helper function to generate previews
             const { generateViewPreviews } = await import('@/lib/preview-generator');
+            console.log('Stage state before preview generation:', {
+                width: stage.width(),
+                height: stage.height(),
+                scale: stage.scale(),
+                position: stage.position(),
+                layers: stage.getLayers().length,
+                visibleLayers: stage.getLayers().filter(l => l.isVisible()).length,
+                customizedViews: Array.from(customizedViewIds)
+            });
+
+            // Generate previews with complete state management
             const finalThumbnails = await generateViewPreviews({
                 stage, 
                 customizedViewIds, 
@@ -766,6 +821,35 @@ const handleAddToCart = async () => {
                 user,
                 setActiveViewId
             });
+
+            // Restore all stage state
+            stage.scale(originalState.scale);
+            stage.position(originalState.position);
+            stage.rotation(originalState.rotation);
+
+            // Restore layer states
+            originalState.layers.forEach(layerState => {
+                const layer = stage.findOne(`#${layerState.id}`) as Konva.Layer;
+                if (layer) {
+                    layerState.visible ? layer.show() : layer.hide();
+                    layer.opacity(layerState.opacity);
+
+                    // Restore node states
+                    layerState.nodes?.forEach(nodeState => {
+                        const node = layer.findOne(`#${nodeState.id}`);
+                        if (node) {
+                            nodeState.visible ? node.show() : node.hide();
+                            node.opacity(nodeState.opacity);
+                            node.scale(nodeState.scale);
+                            node.rotation(nodeState.rotation);
+                            node.position(nodeState.position);
+                        }
+                    });
+                }
+            });
+
+            // Force update
+            stage.batchDraw();
 
             // Update cart data
             const cartData = {
